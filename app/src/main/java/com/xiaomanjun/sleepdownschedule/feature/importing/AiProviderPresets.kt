@@ -69,12 +69,14 @@ object AiProviderPresets {
         defaultModel = "",
         capabilities = AiProviderCapabilities(
             supportsTextInput = true,
+            supportsFileUpload = true,
             supportsJsonSchema = true,
             supportsJsonMode = true,
             supportsStreaming = true,
             supportsResponses = true
         ),
         endpointStyle = AiEndpointStyle.RESPONSES,
+        supportsFileUpload = true,
         structuredOutputMode = StructuredOutputMode.JSON_SCHEMA
     )
 

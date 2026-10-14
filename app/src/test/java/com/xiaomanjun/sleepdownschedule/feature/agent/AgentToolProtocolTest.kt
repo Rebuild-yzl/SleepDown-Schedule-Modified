@@ -5,6 +5,21 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class AgentToolProtocolTest {
+    @Test fun namespacedResponsesToolsKeepTheirIdentityAndExecuteLocally() {
+        val turn = parseAgentResponsesTurn("""{"output":[{"type":"function_call","call_id":"read-1","name":"sleepdown.READ_IMPORT_JSON","arguments":"{}"}]}""")
+        var executions = 0
+        val session = AgentTurnToolSession { call ->
+            executions++
+            AgentToolResult(call.id, call.name, true, "validated draft")
+        }
+        val result = session.run(turn.calls.single())
+        assertEquals(AgentToolName.READ_IMPORT_JSON, result.name)
+        assertEquals("read-1", result.callId)
+        assertTrue(result.success)
+        assertEquals(1, executions)
+        assertEquals(null, normalizeAgentToolName("untrusted.READ_IMPORT_JSON"))
+    }
+
     @Test fun namesAndObjectArgumentsWorkAcrossBothTransports() {
         for (name in listOf("getPeriods", "get-periods", "functions.GET_PERIODS", "GET_PERIODS")) {
             val chat = parseAgentToolDecision("""{"choices":[{"message":{"tool_calls":[{"id":"a","function":{"name":"$name","arguments":{}}}]}}]}""")

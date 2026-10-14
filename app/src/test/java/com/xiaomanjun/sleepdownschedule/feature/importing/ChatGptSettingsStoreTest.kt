@@ -113,7 +113,7 @@ class ChatGptSettingsStoreTest {
         assertEquals("/responses", loaded.profile.responsesPath)
         assertEquals(AiAuthType.ChatGptOAuth, loaded.profile.authType)
         assertEquals(AiEndpointStyle.RESPONSES, loaded.profile.endpointStyle)
-        assertFalse(loaded.profile.supportsFileUpload)
+        assertTrue(loaded.profile.supportsFileUpload)
         assertFalse(loaded.profile.supportsPdfDirect)
         assertTrue(loaded.profile.availableModels.isEmpty())
         assertTrue(loaded.apiKey.isEmpty())

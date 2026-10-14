@@ -79,9 +79,9 @@ internal class DefaultScheduleFilePreprocessor(private val context: Context) : S
 
 private val NativeResponsesDocumentExtensions = setOf("xls", "doc", "ppt", "rtf", "odt", "odp")
 
-private fun canSendNativeFile(file: AiImportFile, config: AiProviderConfig): Boolean {
+internal fun canSendNativeFile(file: AiImportFile, config: AiProviderConfig): Boolean {
     val extension = file.displayName.substringAfterLast('.', "").lowercase()
-    val officialOpenAiResponses = config.providerId == AiProviderPresets.openAI.id &&
+    val officialOpenAiResponses = config.providerId in setOf(AiProviderPresets.openAI.id, AiProviderPresets.chatGpt.id) &&
         isOfficialOpenAIBaseUrl(config.baseUrl) &&
         config.endpointStyle == AiEndpointStyle.RESPONSES
     val explicitlyEnabledCompatibleResponses = config.endpointStyle == AiEndpointStyle.RESPONSES &&

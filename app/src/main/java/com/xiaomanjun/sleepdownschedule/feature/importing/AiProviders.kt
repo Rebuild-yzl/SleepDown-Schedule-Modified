@@ -39,7 +39,8 @@ internal fun AiProviderConfig.normalizedForRequest(): AiProviderConfig {
         endpointStyle = AiEndpointStyle.RESPONSES,
         responsesPath = "/responses",
         supportsResponses = true,
-        supportsFileUpload = false,
+        // Raw documents use inline input_file; OAuth never calls the Files upload endpoint.
+        supportsFileUpload = true,
         supportsPdfDirect = false,
         inputMode = AiInputMode.AUTO
     )

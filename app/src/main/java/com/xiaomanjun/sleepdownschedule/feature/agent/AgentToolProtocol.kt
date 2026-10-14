@@ -7,7 +7,7 @@ import kotlinx.serialization.json.*
 
 /** Both transports use exactly the same names, argument validation and call identity rules. */
 internal fun normalizeAgentToolName(raw: String): AgentToolName? {
-    val name = raw.trim().removePrefix("functions.").removePrefix("tools.")
+    val name = raw.trim().removePrefix("functions.").removePrefix("tools.").removePrefix("sleepdown.")
         .replace(Regex("([a-z0-9])([A-Z])"), "$1_$2")
         .replace('-', '_').uppercase(Locale.ROOT)
     return AgentToolName.entries.firstOrNull { it != AgentToolName.UNKNOWN && it.name == name }
