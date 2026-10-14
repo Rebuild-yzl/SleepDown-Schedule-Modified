@@ -284,76 +284,61 @@ internal fun CourseColorEditorDialog(
                 // Keep the title row's geometry stable while its content crossfades.
                 Spacer(Modifier.size(38.dp))
             }
-        }
-    ) {
-        if (stage == CourseColorDialogStage.Picker) {
-            if (mode == CourseCardColorMode.COLORFUL && colors.isNotEmpty()) {
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)
-                ) {
-                    items(colors.size) { index ->
-                        val color = colors[index]
-                        Surface(
-                            modifier = Modifier.size(34.dp),
-                            shape = Capsule(),
-                            color = ComposeColor(color.toInt()),
-                            border = BorderStroke(
-                                if (index == selectedIndex) 3.dp else 1.dp,
-                                if (index == selectedIndex) MaterialTheme.colorScheme.primary
-                                else foreground.copy(alpha = 0.34f)
-                            ),
-                            onClick = { onSelectedIndexChange(index) }
-                        ) {}
-                    }
-                    item {
-                        val addColor: () -> Unit = {
-                            val addIndex = colors.size
-                            onColorChange(
-                                addIndex,
-                                DefaultCourseCardPalette[addIndex % DefaultCourseCardPalette.size]
-                            )
-                            onSelectedIndexChange(addIndex)
+        },
+        contentForState = { displayedStage ->
+            if (displayedStage == CourseColorDialogStage.Picker) {
+                if (mode == CourseCardColorMode.COLORFUL && colors.isNotEmpty()) {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)
+                    ) {
+                        items(colors.size) { index ->
+                            val color = colors[index]
+                            Surface(
+                                modifier = Modifier.size(34.dp),
+                                shape = Capsule(),
+                                color = ComposeColor(color.toInt()),
+                                border = BorderStroke(
+                                    if (index == selectedIndex) 3.dp else 1.dp,
+                                    if (index == selectedIndex) MaterialTheme.colorScheme.primary
+                                    else foreground.copy(alpha = 0.34f)
+                                ),
+                                onClick = { onSelectedIndexChange(index) }
+                            ) {}
                         }
-                        // 外层 padding 与 clip=false 保证按压放大不被列表/弹窗裁切
-                        Box(
-                            // 与色块保持同尺寸(34dp)让加号对齐；按压放大外扩交给
-                            // LazyRow 的 contentPadding 与 clip=false 处理，
-                            // 项内 padding 会导致加号相对色块错位。
-                            modifier = Modifier
-                                .size(34.dp)
-                                .graphicsLayer { clip = false },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (backdrop != null) {
-                                LiquidButton(
-                                    onClick = addColor,
-                                    backdrop = backdrop,
-                                    modifier = Modifier.size(34.dp),
-                                    height = 34.dp,
-                                    contentPadding = PaddingValues(0.dp),
-                                    surfaceColor = controlAccentColor(ComposeColor(0xFF0A84FF)),
-                                    blurRadius = 7.dp,
-                                    lensHeight = 11.dp,
-                                    lensAmount = 15.dp,
-                                    pressExpansion = 3.dp
-                                ) {
-                                    Icon(
-                                        Icons.Rounded.Add,
-                                        contentDescription = "添加颜色",
-                                        tint = ComposeColor.White,
-                                        modifier = Modifier.size(19.dp)
-                                    )
-                                }
-                            } else {
-                                Surface(
-                                    modifier = Modifier.size(34.dp),
-                                    shape = Capsule(),
-                                    color = controlAccentColor(ComposeColor(0xFF0A84FF)),
-                                    onClick = addColor
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
+                        item {
+                            val addColor: () -> Unit = {
+                                val addIndex = colors.size
+                                onColorChange(
+                                    addIndex,
+                                    DefaultCourseCardPalette[addIndex % DefaultCourseCardPalette.size]
+                                )
+                                onSelectedIndexChange(addIndex)
+                            }
+                            // 外层 padding 与 clip=false 保证按压放大不被列表/弹窗裁切
+                            Box(
+                                // 与色块保持同尺寸(34dp)让加号对齐；按压放大外扩交给
+                                // LazyRow 的 contentPadding 与 clip=false 处理，
+                                // 项内 padding 会导致加号相对色块错位。
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .graphicsLayer { clip = false },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (backdrop != null) {
+                                    LiquidButton(
+                                        onClick = addColor,
+                                        backdrop = backdrop,
+                                        modifier = Modifier.size(34.dp),
+                                        height = 34.dp,
+                                        contentPadding = PaddingValues(0.dp),
+                                        surfaceColor = controlAccentColor(ComposeColor(0xFF0A84FF)),
+                                        blurRadius = 7.dp,
+                                        lensHeight = 11.dp,
+                                        lensAmount = 15.dp,
+                                        pressExpansion = 3.dp
+                                    ) {
                                         Icon(
                                             Icons.Rounded.Add,
                                             contentDescription = "添加颜色",
@@ -361,59 +346,76 @@ internal fun CourseColorEditorDialog(
                                             modifier = Modifier.size(19.dp)
                                         )
                                     }
+                                } else {
+                                    Surface(
+                                        modifier = Modifier.size(34.dp),
+                                        shape = Capsule(),
+                                        color = controlAccentColor(ComposeColor(0xFF0A84FF)),
+                                        onClick = addColor
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                Icons.Rounded.Add,
+                                                contentDescription = "添加颜色",
+                                                tint = ComposeColor.White,
+                                                modifier = Modifier.size(19.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
-            top.yukonga.miuix.kmp.basic.ColorPalette(
-                color = ComposeColor(colors.getOrElse(selectedIndex) { colors.firstOrNull() ?: 0xFFD6E9FFL }.toInt()),
-                onColorChanged = { color ->
-                    onColorChange(selectedIndex, color.copy(alpha = 1f).toArgb().toLong() and 0xFFFFFFFFL)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                rows = 7,
-                hueColumns = 12,
-                includeGrayColumn = true,
-                showPreview = true,
-                cornerRadius = 16.dp,
-                indicatorRadius = 10.dp
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                QuickSheetLiquidAction(
-                    label = "取消",
-                    enabled = true,
-                    backdrop = backdrop,
-                    config = config,
-                    modifier = Modifier.weight(1f),
-                    height = SleepDownDesignTokens.CenteredDialog.ActionHeight,
-                    onClick = onDismiss
+                top.yukonga.miuix.kmp.basic.ColorPalette(
+                    color = ComposeColor(colors.getOrElse(selectedIndex) { colors.firstOrNull() ?: 0xFFD6E9FFL }.toInt()),
+                    onColorChanged = { color ->
+                        onColorChange(selectedIndex, color.copy(alpha = 1f).toArgb().toLong() and 0xFFFFFFFFL)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    rows = 7,
+                    hueColumns = 12,
+                    includeGrayColumn = true,
+                    showPreview = true,
+                    cornerRadius = 16.dp,
+                    indicatorRadius = 10.dp
                 )
-                QuickSheetLiquidAction(
-                    label = "确认",
-                    enabled = colors.isNotEmpty(),
-                    backdrop = backdrop,
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    QuickSheetLiquidAction(
+                        label = "取消",
+                        enabled = true,
+                        backdrop = backdrop,
+                        config = config,
+                        modifier = Modifier.weight(1f),
+                        height = SleepDownDesignTokens.CenteredDialog.ActionHeight,
+                        onClick = onDismiss
+                    )
+                    QuickSheetLiquidAction(
+                        label = "确认",
+                        enabled = colors.isNotEmpty(),
+                        backdrop = backdrop,
+                        config = config,
+                        modifier = Modifier.weight(1f),
+                        primary = true,
+                        height = SleepDownDesignTokens.CenteredDialog.ActionHeight,
+                        onClick = onConfirm
+                    )
+                }
+            } else {
+                WallpaperPaletteSampler(
+                    mode = mode,
+                    colors = colors,
                     config = config,
-                    modifier = Modifier.weight(1f),
-                    primary = true,
-                    height = SleepDownDesignTokens.CenteredDialog.ActionHeight,
-                    onClick = onConfirm
+                    onColorChange = onColorChange,
+                    onCancel = { onStageChange(CourseColorDialogStage.Picker) },
+                    onConfirm = onConfirm,
+                    backdrop = backdrop
                 )
             }
-        } else {
-            WallpaperPaletteSampler(
-                mode = mode,
-                colors = colors,
-                config = config,
-                onColorChange = onColorChange,
-                onCancel = { onStageChange(CourseColorDialogStage.Picker) },
-                onConfirm = onConfirm,
-                backdrop = backdrop
-            )
-        }
-    }
+        },
+        content = {}
+    )
 }

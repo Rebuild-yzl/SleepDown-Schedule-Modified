@@ -105,7 +105,11 @@ internal fun <T> CenteredDialogContentTransition(
     if (nativeWindow) {
         // One live picker only: AnimatedContent keeps both AndroidView trees mounted while
         // size changes, letting outgoing controls draw/measure over the newly selected mode.
-        Box(modifier.then(Modifier.animateContentSize(animationSpec = tween(260, easing = FastOutSlowInEasing)))) {
+        // A wrap-content native window measures this panel again after every size change.
+        // Animate only when the caller requests it, otherwise resize once with the content.
+        Box(modifier.then(if (smoothResize) Modifier.animateContentSize(
+            animationSpec = tween(260, easing = FastOutSlowInEasing)
+        ) else Modifier)) {
             content(targetState)
         }
         return
