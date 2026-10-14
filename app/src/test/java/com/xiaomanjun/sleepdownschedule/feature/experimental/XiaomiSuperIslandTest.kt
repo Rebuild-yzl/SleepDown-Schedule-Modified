@@ -53,7 +53,7 @@ class XiaomiSuperIslandTest {
         val now = start + 10 * 60_000L
         val root = JSONObject(XiaomiSuperIsland.parameters(
             course, course.statusAt(now), "35分钟", now,
-            options = XiaomiSuperIsland.Options(right = 2)
+            options = XiaomiSuperIsland.Options(left = 1, right = 1)
         )).getJSONObject("param_v2")
         val island = root.getJSONObject("param_island").getJSONObject("bigIslandArea")
         val hint = root.getJSONObject("hintInfo")
@@ -61,8 +61,11 @@ class XiaomiSuperIslandTest {
         assertFalse(root.getBoolean("enableFloat"))
         assertTrue(root.getBoolean("islandFirstFloat"))
         assertEquals("reopen", root.getString("reopen"))
-        assertEquals(2, island.getInt("templateNo"))
-        assertEquals("下课", island.getJSONObject("sameWidthDigitInfo").getString("content"))
+        assertEquals(6, island.getInt("templateNo"))
+        assertEquals("高等数学", island.getJSONObject("imageTextInfoLeft")
+            .getJSONObject("textInfo").getString("title"))
+        assertEquals("", island.getJSONObject("textInfo").getString("title"))
+        assertEquals("后下课", island.getJSONObject("sameWidthDigitInfo").getString("content"))
         assertEquals(end, island.getJSONObject("sameWidthDigitInfo")
             .getJSONObject("timerInfo").getLong("timerWhen"))
         assertEquals("距离下课", hint.getString("content"))
@@ -94,7 +97,7 @@ class XiaomiSuperIslandTest {
             payload, payload.statusAt(secondStart), "45分钟", secondStart, options = options
         )).getJSONObject("param_v2")
 
-        assertEquals("课间", beforeBreak.getJSONObject("param_island")
+        assertEquals("后课间", beforeBreak.getJSONObject("param_island")
             .getJSONObject("bigIslandArea").getJSONObject("sameWidthDigitInfo").getString("content"))
         assertEquals(firstEnd, beforeBreak.getJSONObject("hintInfo")
             .getJSONObject("timerInfo").getLong("timerWhen"))

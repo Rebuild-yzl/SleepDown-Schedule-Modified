@@ -200,6 +200,8 @@ internal object XiaomiSuperIsland {
             else -> ""
         }
         val courseName = payload.name.ifBlank { shortText }
+        val inClass = status.phase == LiveUpdatePhase.IN_CLASS
+        val rightTimer = timerAt != null && (inClass || options.right == 2)
         val islandStatus = when (status.phase) {
             LiveUpdatePhase.BEFORE_CLASS -> payload.location
             LiveUpdatePhase.IN_CLASS -> "已上课"
@@ -215,21 +217,21 @@ internal object XiaomiSuperIsland {
             1 -> payload.location.ifBlank { courseName }
             else -> nextMilestoneText
         } }
-        val leftText = islandText(options.left)
+        val leftText = if (inClass) courseName else islandText(options.left)
         val rightText = islandText(options.right)
         val aodText = if (options.aod == 1) payload.location.ifBlank { courseName } else courseName
         val left = JSONObject().put("type", 1).put("textInfo", JSONObject()
             .put("title", leftText).put("content", "")
             .put("showHighlightColor", false).put("narrowFont", false))
-        val bigIsland = JSONObject().put("templateNo", 2)
+        val bigIsland = JSONObject().put("templateNo", if (rightTimer) 6 else 2)
             .put("imageTextInfoLeft", left)
             .put("textInfo", JSONObject().put("frontTitle", "")
-                .put("title", if (options.right == 2 && timerAt != null) "" else rightText)
+                .put("title", if (rightTimer) "" else rightText)
                 .put("content", "")
                 .put("showHighlightColor", false).put("narrowFont", false))
-        if (options.right == 2 && timerAt != null) {
+        if (rightTimer) {
             bigIsland.put("sameWidthDigitInfo", JSONObject()
-                .put("content", timerTarget)
+                .put("content", if (inClass) "后$timerTarget" else timerTarget)
                 .put("showHighlightColor", false)
                 .put("timerInfo", timerInfo(timerAt, nowMillis)))
         }
