@@ -576,7 +576,20 @@ internal fun AiEduImportProgressPage(
                     ) {
                 current.conversationTurns.forEachIndexed { index, turn ->
                     item(key = "conversation-turn-$index") {
-                        AiEduConversationTurnSummary(turn, index + 1, textColor)
+                        AiEduUserMessage(
+                            progress = current.copy(userPrompt = turn.userPrompt),
+                            textColor = textColor, config = config, backdrop = backdrop,
+                            includeAttachment = index == 0,
+                            showAttachment = !previewSourceHidden,
+                            onPreview = { previewAttachment = it }
+                        )
+                        AiEduConversationTurnReply(turn, textColor)
+                        current.checkpoints.lastOrNull { it.payload == turn.artifactPayload }?.let { checkpoint ->
+                            Text("查看此轮课表 · ${checkpoint.courseCount} 门课程",
+                                modifier = Modifier.clickable { selectCheckpoint(checkpoint.id) }.padding(vertical = 8.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.labelLarge)
+                        }
                     }
                 }
                 item {
@@ -586,6 +599,7 @@ internal fun AiEduImportProgressPage(
                         config = config,
                         backdrop = backdrop,
                         showAttachment = !previewSourceHidden,
+                        includeAttachment = current.conversationTurns.isEmpty(),
                         onPreview = { previewAttachment = it }
                     )
                 }
@@ -767,24 +781,23 @@ private fun Bitmap.cropToWindowBounds(
 }.getOrNull()
 
 @Composable
-private fun AiEduConversationTurnSummary(
+private fun AiEduConversationTurnReply(
     turn: AiEduImportConversationTurn,
-    index: Int,
     textColor: Color
 ) {
-    var expanded by remember(turn) { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text("第 $index 轮 · ${turn.status}${if (expanded) " · 收起" else " · 展开"}",
-            modifier = Modifier.clickable { expanded = !expanded }.padding(vertical = 8.dp),
+        Text(turn.status,
+            modifier = Modifier.padding(vertical = 8.dp),
             color = textColor.copy(alpha = 0.64f), style = MaterialTheme.typography.labelMedium)
-        AgentMarkdownText(turn.userPrompt, textColor, MaterialTheme.typography.bodyMedium)
-        if (expanded && turn.reasoningOutput.isNotBlank()) AiEduModelSummary(turn.reasoningOutput, textColor)
+        if (turn.reasoningOutput.isNotBlank()) AiEduModelSummary(turn.reasoningOutput, textColor)
         if (turn.assistantMessage.isNotBlank()) AgentMarkdownText(turn.assistantMessage, textColor, MaterialTheme.typography.bodyMedium)
+        if (turn.artifactPayload.isNotBlank()) Text("课表已通过本地校验",
+            color = textColor.copy(alpha = 0.64f), style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -1121,6 +1134,7 @@ private fun AiEduUserMessage(
     config: ScheduleConfigEntity,
     backdrop: Backdrop?,
     showAttachment: Boolean,
+    includeAttachment: Boolean = true,
     onPreview: (AiEduAttachmentPreviewRequest) -> Unit
 ) {
     val density = LocalDensity.current
@@ -1141,7 +1155,7 @@ private fun AiEduUserMessage(
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        if (hasAttachment) {
+        if (includeAttachment && hasAttachment) {
             if (showAttachment || attachmentSize == IntSize.Zero) {
                 AiEduLiquidPanel(
                     backdrop = backdrop,
@@ -1183,8 +1197,6 @@ private fun AiEduUserMessage(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 color = Color.White,
                 style = MaterialTheme.typography.bodyLarge,
-                maxLines = 8,
-                overflow = TextOverflow.Ellipsis
             )
         }
     }
