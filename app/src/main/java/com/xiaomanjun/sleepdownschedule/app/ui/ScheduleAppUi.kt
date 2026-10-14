@@ -2357,8 +2357,8 @@ fun CourseScheduleAppUi(
                                     androidx.core.view.WindowCompat.getInsetsController(inputWindow, inputWindow.decorView)
                                         .hide(androidx.core.view.WindowInsetsCompat.Type.ime())
                                     kotlinx.coroutines.withTimeoutOrNull(750L) {
-                                        while (inputWindow.decorView.rootWindowInsets
-                                                ?.isVisible(android.view.WindowInsets.Type.ime()) == true) withFrameNanos { }
+                                        while (androidx.core.view.ViewCompat.getRootWindowInsets(inputWindow.decorView)
+                                                ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true) withFrameNanos { }
                                     }
                                     withFrameNanos { }
                                     withFrameNanos { }
