@@ -439,6 +439,9 @@ private class DrawBackdropNode(
     }
 
     override fun ContentDrawScope.draw() {
+        // Disabled material still draws its local content. Observe only its enable flag so
+        // wallpaper revisions and coordinate changes cannot invalidate an invisible sample.
+        if (!shapeProvider.options.enabled()) return drawContent()
         // Observe freeze/resume here, so resume refreshes the existing sample once even if no
         // layout callback follows. The retained GraphicsLayer still references child RenderNodes:
         // suppressing only the parent's drawContent does not stop their own invalidations.
@@ -453,7 +456,6 @@ private class DrawBackdropNode(
             shared.source.layerCoordinates
             shared.contentRevision
         }
-        if (!shapeProvider.options.enabled()) return drawContent()
         val bounds = shapeProvider.options.bounds()
         val sampleScale = shapeProvider.options.sampleScale
         require(sampleScale > 0f && sampleScale <= 1f)
