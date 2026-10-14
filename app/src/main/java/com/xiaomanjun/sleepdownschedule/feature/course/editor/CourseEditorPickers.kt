@@ -66,6 +66,8 @@ import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownDesignToke
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownPickerDialog
 import com.xiaomanjun.sleepdownschedule.glass.ui.appUsesDarkTheme
 import java.time.LocalTime
+import com.xiaomanjun.sleepdownschedule.domain.schedule.CoursePeriodTime
+import com.xiaomanjun.sleepdownschedule.domain.schedule.parseCoursePeriodTimes
 import kotlin.math.max
 import kotlinx.coroutines.flow.map
 import top.yukonga.miuix.kmp.basic.BasicComponent as MiuixBasicComponent
@@ -101,10 +103,15 @@ internal sealed interface CourseEditorPickerRequest {
         val customEndTime: String?,
         val regularStartTime: String?,
         val regularEndTime: String?,
+        val periodIndices: List<Int>,
+        val customPeriodTimes: String?,
         val onConfirmPeriods: (Int, Int) -> Unit,
-        val onConfirmCustomTime: (String, String) -> Unit
+        val onConfirmCustomTime: (String, String) -> Unit,
+        val onConfirmLessonTimes: (List<CoursePeriodTime>) -> Unit
     ) : CourseEditorPickerRequest
 }
+
+private enum class CourseEditorTimeMode { Periods, Range, Lessons }
 
 internal data class PeriodPickerSelectionBounds(
     val startIndex: Int,
@@ -173,8 +180,11 @@ internal fun DialogPeriodSelector(
     end: Int,
     customStartTime: String?,
     customEndTime: String?,
+    customPeriodTimes: String?,
+    selectedPeriodIndices: List<Int>,
     onRangeSelected: (Int, Int) -> Unit,
     onCustomTimeSelected: (String, String) -> Unit,
+    onLessonTimesSelected: (List<CoursePeriodTime>) -> Unit,
     onOpenPicker: (CourseEditorPickerRequest) -> Unit,
     backdrop: Backdrop?,
     config: ScheduleConfigEntity,
@@ -211,10 +221,13 @@ internal fun DialogPeriodSelector(
                     customEndTime = customRange?.second?.toString(),
                     regularStartTime = periods.firstOrNull { it.periodIndex == safeValues[startIndex] }?.startTime,
                     regularEndTime = periods.firstOrNull { it.periodIndex == safeValues[endIndex] }?.endTime,
+                    periodIndices = selectedPeriodIndices.distinct().sorted(),
+                    customPeriodTimes = customPeriodTimes,
                     onConfirmPeriods = { selectedStart, selectedEnd ->
                         onRangeSelected(safeValues[selectedStart], safeValues[selectedEnd])
                     },
-                    onConfirmCustomTime = onCustomTimeSelected
+                    onConfirmCustomTime = onCustomTimeSelected,
+                    onConfirmLessonTimes = onLessonTimesSelected
                 )
             )
         }
@@ -430,8 +443,13 @@ internal fun CourseEditorPickerOverlay(
     var selectedIndices by remember(request) {
         mutableStateOf(gridRequest?.selectedIndices.orEmpty())
     }
-    var customTimeMode by remember(request) {
-        mutableStateOf(periodRequest?.customStartTime != null && periodRequest.customEndTime != null)
+    var timeMode by remember(request) {
+        mutableStateOf(when {
+            !periodRequest?.customPeriodTimes.isNullOrBlank() &&
+                parseCoursePeriodTimes(periodRequest.customPeriodTimes).map { it.index } == periodRequest.periodIndices -> CourseEditorTimeMode.Lessons
+            periodRequest?.customStartTime != null && periodRequest.customEndTime != null -> CourseEditorTimeMode.Range
+            else -> CourseEditorTimeMode.Periods
+        })
     }
     val initialCustomStart = remember(request) {
         periodRequest?.customStartTime?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
@@ -447,6 +465,9 @@ internal fun CourseEditorPickerOverlay(
     var startMinute by remember(request) { mutableIntStateOf(initialCustomStart.minute) }
     var endHour by remember(request) { mutableIntStateOf(initialCustomEnd.hour) }
     var endMinute by remember(request) { mutableIntStateOf(initialCustomEnd.minute) }
+    var lessonClock by remember(request) { mutableStateOf(initialCourseLessonClockDraft(
+        initialCustomStart, periodRequest?.periodIndices.orEmpty(), periodRequest?.customPeriodTimes
+    )) }
     var timeError by remember(request) { mutableStateOf<String?>(null) }
     SleepDownPickerDialog(
         show = show,
@@ -469,21 +490,21 @@ internal fun CourseEditorPickerOverlay(
             if (periodRequest != null) {
                 BoxWithConstraints(Modifier.fillMaxWidth()) {
                     com.xiaomanjun.sleepdownschedule.core.ui.settings.LiquidOptionTabs(
-                        selectedIndex = if (customTimeMode) 1 else 0,
-                        labels = listOf("按节次", "自定义时间"),
+                        selectedIndex = timeMode.ordinal,
+                        labels = listOf("按节次", "自定义时间", "按课时"),
                         backdrop = backdrop, config = config, width = maxWidth,
                         followAppTheme = true
                     ) { index ->
-                        customTimeMode = index == 1
+                        timeMode = CourseEditorTimeMode.entries[index]
                         timeError = null
                     }
                 }
             }
             CenteredDialogContentTransition(
-                targetState = customTimeMode,
+                targetState = timeMode,
                 modifier = Modifier.fillMaxWidth(),
                 label = "course-editor-picker-style"
-            ) { displayedCustomTimeMode ->
+            ) { displayedTimeMode ->
             if (wheelRequest != null) {
                 BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                     val compact = maxWidth < 300.dp || LocalDensity.current.fontScale > 1.15f
@@ -538,7 +559,12 @@ internal fun CourseEditorPickerOverlay(
                         disabledSelectedTextColor = pickerContentColor.copy(alpha = 0.55f),
                         disabledUnselectedTextColor = pickerContentColor.copy(alpha = 0.22f)
                     )
-                    if (displayedCustomTimeMode) {
+                    if (displayedTimeMode == CourseEditorTimeMode.Lessons) {
+                        CourseLessonClockPicker(lessonClock, periodRequest.periodIndices, backdrop) {
+                            lessonClock = it
+                            timeError = null
+                        }
+                    } else if (displayedTimeMode == CourseEditorTimeMode.Range) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(Modifier.fillMaxWidth()) {
                                 Text("开始", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = pickerContentColor.copy(alpha = 0.62f))
@@ -633,7 +659,14 @@ internal fun CourseEditorPickerOverlay(
                         )
                         is CourseEditorPickerRequest.Grid -> request.onConfirm(selectedIndices)
                         is CourseEditorPickerRequest.Period -> {
-                            if (customTimeMode) {
+                            if (timeMode == CourseEditorTimeMode.Lessons) {
+                                val times = try { lessonClock.times(request.periodIndices) }
+                                catch (error: IllegalArgumentException) {
+                                    timeError = error.message
+                                    return@QuickSheetLiquidAction
+                                }
+                                request.onConfirmLessonTimes(times)
+                            } else if (timeMode == CourseEditorTimeMode.Range) {
                                 val start = LocalTime.of(startHour, startMinute)
                                 val end = LocalTime.of(endHour, endMinute)
                                 if (!end.isAfter(start)) {

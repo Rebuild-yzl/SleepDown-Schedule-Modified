@@ -1,5 +1,7 @@
 package com.xiaomanjun.sleepdownschedule.feature.course.management
 
+import com.xiaomanjun.sleepdownschedule.domain.schedule.encodeCoursePeriodTimes
+
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import androidx.activity.ComponentActivity
@@ -1054,6 +1056,8 @@ private fun CourseArrangementEditorCard(
                         customEndTime = course.customEndTime,
                         regularStartTime = periods.firstOrNull { it.periodIndex == values[startIndex] }?.startTime,
                         regularEndTime = periods.firstOrNull { it.periodIndex == values[endIndex] }?.endTime,
+                        periodIndices = course.periods.distinct().sorted(),
+                        customPeriodTimes = course.customPeriodTimes,
                         onConfirmPeriods = { start, end ->
                             onCourseChange(
                                 course.copy(
@@ -1064,6 +1068,15 @@ private fun CourseArrangementEditorCard(
                                     customPeriodTimes = null
                                 )
                             )
+                        },
+                        onConfirmLessonTimes = { times ->
+                            onCourseChange(course.copy(
+                                periods = times.map { it.index },
+                                originalPeriodTimes = null,
+                                customStartTime = times.first().start.toString(),
+                                customEndTime = times.last().end.toString(),
+                                customPeriodTimes = encodeCoursePeriodTimes(times)
+                            ))
                         },
                         onConfirmCustomTime = { startText, endText ->
                             val start = LocalTime.parse(startText)

@@ -1,5 +1,8 @@
 package com.xiaomanjun.sleepdownschedule.feature.course.editor
 
+import com.xiaomanjun.sleepdownschedule.domain.schedule.encodeCoursePeriodTimes
+import com.xiaomanjun.sleepdownschedule.domain.schedule.parseCoursePeriodTimes
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -224,6 +227,12 @@ internal fun CourseEditorFormPage(
                     end = draft.periodEnd,
                     customStartTime = draft.customStartTime,
                     customEndTime = draft.customEndTime,
+                    customPeriodTimes = draft.customPeriodTimes,
+                    selectedPeriodIndices = if (draft.customLessonTimesEdited) {
+                        parseCoursePeriodTimes(draft.customPeriodTimes).map { it.index }
+                    } else course?.periods?.takeIf {
+                        it.minOrNull() == draft.periodStart && it.maxOrNull() == draft.periodEnd
+                    } ?: periodValues.filter { it in draft.periodStart..draft.periodEnd },
                     onRangeSelected = { start, end ->
                         onDraftChange(
                             draft.copy(
@@ -231,7 +240,8 @@ internal fun CourseEditorFormPage(
                                 periodEnd = end,
                                 customStartTime = null,
                                 customEndTime = null,
-                                customPeriodTimes = null
+                                customPeriodTimes = null,
+                                customLessonTimesEdited = false
                             )
                         )
                     },
@@ -249,9 +259,20 @@ internal fun CourseEditorFormPage(
                                 periodEnd = anchors.maxOrNull() ?: draft.periodEnd,
                                 customStartTime = startTime,
                                 customEndTime = endTime,
-                                customPeriodTimes = null
+                                customPeriodTimes = null,
+                                customLessonTimesEdited = false
                             )
                         )
+                    },
+                    onLessonTimesSelected = { times ->
+                        onDraftChange(draft.copy(
+                            periodStart = times.first().index,
+                            periodEnd = times.last().index,
+                            customStartTime = times.first().start.toString(),
+                            customEndTime = times.last().end.toString(),
+                            customPeriodTimes = encodeCoursePeriodTimes(times),
+                            customLessonTimesEdited = true
+                        ))
                     },
                     onOpenPicker = onOpenPicker,
                     backdrop = backdrop,

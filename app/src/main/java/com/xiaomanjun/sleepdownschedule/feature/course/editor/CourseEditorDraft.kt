@@ -8,6 +8,7 @@ import com.xiaomanjun.sleepdownschedule.PeriodEntity
 import com.xiaomanjun.sleepdownschedule.ScheduleConfigEntity
 import com.xiaomanjun.sleepdownschedule.WeekParity
 import com.xiaomanjun.sleepdownschedule.domain.schedule.originalArrangement
+import com.xiaomanjun.sleepdownschedule.domain.schedule.parseCoursePeriodTimes
 import com.xiaomanjun.sleepdownschedule.feature.home.day.courseWeeksChanged
 import com.xiaomanjun.sleepdownschedule.parityMatches
 import com.xiaomanjun.sleepdownschedule.scheduleWeekStartDate
@@ -34,7 +35,8 @@ internal data class CourseEditorDraft(
     val weeks: Set<Int>,
     val parity: WeekParity,
     val note: String,
-    val customPeriodTimes: String? = null
+    val customPeriodTimes: String? = null,
+    val customLessonTimesEdited: Boolean = false
 )
 
 internal enum class CourseWeekSelectionMode {
@@ -343,11 +345,13 @@ internal fun CourseEditorDraft.toCourses(
     }.toSet()
     val keepOriginalDistribution = weekdays == originalWeekdays && weeks == originalWeeks
     val originalsByWeekday = originals.groupBy(CourseEntity::weekday)
-    val selectedPeriods = periodValues.filter { it in periodStart..periodEnd }
+    val selectedPeriods = if (customLessonTimesEdited) parseCoursePeriodTimes(customPeriodTimes).map { it.index }
+        else periodValues.filter { it in periodStart..periodEnd }
     return weekdays.sorted().mapNotNull { weekday ->
         val weekdayOriginals = originalsByWeekday[weekday].orEmpty()
         val original = courseEditorOriginalForWeekday(originals, weekday, weekdays.size)
         val periods = original?.periods?.takeIf {
+            !customLessonTimesEdited &&
             it.minOrNull() == periodStart && it.maxOrNull() == periodEnd
         } ?: selectedPeriods
         val timingUnchanged = original != null && original.periods == periods &&
@@ -373,8 +377,8 @@ internal fun CourseEditorDraft.toCourses(
             customEndTime = customEndTime,
             originalPeriodTimes = original?.originalPeriodTimes?.takeIf { timingUnchanged },
             customPeriodTimes = customPeriodTimes?.takeIf {
-                original?.periods == periods && original.customStartTime == customStartTime &&
-                    original.customEndTime == customEndTime
+                customLessonTimesEdited || (original?.periods == periods && original.customStartTime == customStartTime &&
+                    original.customEndTime == customEndTime)
             },
             customColorArgb = if (allowCustomColorOverride) {
                 customColorArgb
