@@ -6,7 +6,9 @@ import com.xiaomanjun.sleepdownschedule.domain.schedule.normalizeCourseClock
 import com.xiaomanjun.sleepdownschedule.domain.schedule.originalArrangement
 import com.xiaomanjun.sleepdownschedule.domain.schedule.parseCoursePeriodTimes
 import com.xiaomanjun.sleepdownschedule.domain.schedule.projectCourseArrangements
+import com.xiaomanjun.sleepdownschedule.domain.schedule.validateResolvedPeriodTimes
 import com.xiaomanjun.sleepdownschedule.model.PeriodAlignmentMode
+import com.xiaomanjun.sleepdownschedule.model.PeriodSchemeTimeEntity
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import kotlinx.serialization.SerialName
@@ -133,7 +135,11 @@ object ScheduleImportParser {
             ScheduleImportCourse(course.name, course.teacher, course.location, course.weekday, course.periods,
                 course.weeks, WeekParityPayload.valueOf(course.weekParity.name), course.note, course.customStartTime,
                 course.customEndTime, course.customColorArgb, course.customPeriodTimes, course.originalPeriodTimes)
-        }), draft.config, allowImportedBellTimes = true).copy(source = draft.source)
+        }), draft.config, allowImportedBellTimes = true).copy(source = draft.source).also { validated ->
+            validateResolvedPeriodTimes(validated.periods.map {
+                PeriodSchemeTimeEntity(0, it.periodIndex, it.startTime, it.endTime)
+            })?.let { throw IllegalArgumentException(it) }
+        }
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 

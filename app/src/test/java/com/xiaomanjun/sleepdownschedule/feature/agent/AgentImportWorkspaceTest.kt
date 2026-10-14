@@ -62,6 +62,26 @@ class AgentImportWorkspaceTest {
         assertEquals(1, checkpoints.size)
     }
 
+    @Test fun overlappingAndGappedPeriodsAreRejectedBeforePublishingAStage() {
+        val checkpoints = mutableListOf<ImportDraft>()
+        val workspace = AgentImportWorkspace(source()) { draft, _ -> checkpoints += draft }
+        val original = workspace.draft
+        val invalidPatches = listOf(
+            """[{"op":"replace","path":"/scheduleConfig/periods/1/startTime","value":"08:40"}]""",
+            """[{"op":"replace","path":"/scheduleConfig/periods/${original.periods.lastIndex}/index","value":${original.periods.last().periodIndex + 2}}]"""
+        )
+        invalidPatches.forEach { operations ->
+            assertFalse(patch(workspace, operations).success)
+            assertEquals(original, workspace.draft)
+            assertEquals(0, workspace.revision)
+            assertTrue(checkpoints.isEmpty())
+        }
+        assertTrue(patch(workspace,
+            """[{"op":"replace","path":"/scheduleConfig/periods/1/startTime","value":"08:45"}]""").success)
+        assertEquals(1, workspace.revision)
+        assertEquals(1, checkpoints.size)
+    }
+
     @Test fun rejectedCheckpointAndCancellationDoNotAdvanceWorkspace() {
         val operations = """[{"op":"replace","path":"/courses/0/location","value":"A202"}]"""
         val rejected = AgentImportWorkspace(source()) { _, _ -> throw IllegalArgumentException("阶段已达上限") }
