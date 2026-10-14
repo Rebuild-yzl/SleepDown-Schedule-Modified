@@ -138,8 +138,8 @@ fun WidgetCustomizationScreen(
     var showManualWidgetHelp by remember { mutableStateOf(false) }
     if (showManualWidgetHelp) {
         LiquidAlertDialog(
-            title = "手动添加安卓小部件",
-            message = "小米桌面限制了应用内直接添加。请返回桌面，长按空白处进入桌面设置，选择“添加小部件” → “安卓小部件”，找到 SleepDown 后选择需要的小组件。不同桌面版本的入口名称可能略有不同。",
+            title = "手动添加方法",
+            message = "返回桌面，长按空白处，打开“小组件”或“添加小部件”，找到 SleepDown，再选择“今日课程 2×2”等组件。小米桌面可能需要继续进入“安卓小部件”。不同桌面版本的入口名称可能不同；普通桌面小组件无需安装额外的 ColorOS 课程组件。",
             actions = listOf(LiquidAlertAction("知道了", LiquidAlertActionStyle.Primary, onClick = { showManualWidgetHelp = false })),
             backdrop = backdrop, config = state.config,
             onDismissRequest = { showManualWidgetHelp = false }
@@ -399,6 +399,14 @@ fun WidgetCustomizationScreen(
                     )
                     }
                 }
+            }
+            item {
+                SettingsActionRow(
+                    title = "手动添加方法",
+                    subtitle = "桌面没有响应时，也可以从小组件菜单添加",
+                    buttonText = "查看", iconRes = R.drawable.ic_courses,
+                    backdrop = backdrop, onClick = { showManualWidgetHelp = true }
+                )
             }
             item {
                 Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
