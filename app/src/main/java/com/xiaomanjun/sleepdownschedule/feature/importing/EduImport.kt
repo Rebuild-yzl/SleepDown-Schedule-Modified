@@ -1,6 +1,8 @@
 package com.xiaomanjun.sleepdownschedule.feature.importing
 
 import com.xiaomanjun.sleepdownschedule.feature.importing.shiguang.ShiguangWarehouseUpdater
+import com.xiaomanjun.sleepdownschedule.feature.importing.shiguang.loadShiguangScriptHotfixes
+import com.xiaomanjun.sleepdownschedule.feature.importing.shiguang.resolveShiguangScriptHotfix
 
 import android.content.Context
 import com.xiaomanjun.sleepdownschedule.BuildConfig
@@ -208,7 +210,10 @@ object ShiguangWarehouse {
         var remoteFailure: Exception? = null
         if (ShiguangWarehouseUpdater.hasValidRemoteIndex(context)) {
             try {
-                return@withContext ShiguangWarehouseUpdater.resolveRemoteScript(context, adapter)
+                val source = ShiguangWarehouseUpdater.resolveRemoteScript(context, adapter)
+                return@withContext resolveShiguangScriptHotfix(
+                    relativePath, source, loadShiguangScriptHotfixes(context)
+                ) { context.assets.open("$Root/resources/$relativePath").bufferedReader().use { it.readText() } }
             } catch (error: Exception) {
                 remoteFailure = error
             }
