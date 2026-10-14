@@ -10,8 +10,11 @@ import androidx.webkit.WebViewFeature
 import java.util.Locale
 import kotlin.math.max
 
-internal const val DesktopWebUserAgent =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+internal fun desktopWebUserAgent(defaultUserAgent: String): String {
+    val chromeVersion = Regex("Chrome/[0-9.]+").find(defaultUserAgent)?.value ?: return defaultUserAgent
+    return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) $chromeVersion Safari/537.36"
+}
 
 internal fun desktopViewportContent(widthPx: Int, density: Float, screenWidthDp: Int): String {
     val cssWidth = if (widthPx > 0 && density.isFinite() && density > 0f) widthPx / density else screenWidthDp.toFloat()
@@ -103,8 +106,8 @@ internal class WebCompatDelegate(private val webView: WebView, desktop: Boolean)
     }
 
     private fun applyUserAgent() {
-        webView.settings.userAgentString = if (desktopMode) DesktopWebUserAgent else
-            WebSettings.getDefaultUserAgent(webView.context)
+        val default = WebSettings.getDefaultUserAgent(webView.context)
+        webView.settings.userAgentString = if (desktopMode) desktopWebUserAgent(default) else default
     }
 
     private fun updateViewportScript() {

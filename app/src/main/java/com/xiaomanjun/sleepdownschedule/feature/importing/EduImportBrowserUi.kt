@@ -822,7 +822,6 @@ private fun EduImportBrowserScreen(
         onDispose { topEdgeSampler.dispose() }
     }
     val currentTopEdgeSampler = rememberUpdatedState(topEdgeSampler)
-    val requestInterceptor = remember(adapter) { ShiguangWebRequestInterceptor() }
     val taskProgress by AiEduImportProgressSession.progress.collectAsStateWithLifecycle()
     LaunchedEffect(taskProgress?.taskId, taskProgress?.finished) {
         val completed = taskProgress?.takeIf {
@@ -1332,14 +1331,15 @@ private fun EduImportBrowserScreen(
                 setAcceptCookie(true)
                 setAcceptThirdPartyCookies(this@webView, true)
             }
-            installShiguangRuntime(bridge)
+            val requestInterceptor = ShiguangWebRequestInterceptor()
+            installShiguangRuntime(bridge, requestInterceptor)
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest): Boolean {
                     return handleExternalNavigation(request.url)
                 }
 
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                    view?.injectShiguangRuntime(desktopMode)
+                    view?.injectShiguangRuntime(desktopMode, url)
                     val visiblePage = if (isPopup) popupWebView === view else popupWebView == null
                     if (visiblePage) {
                         originalDocumentVersion += 1
@@ -1403,7 +1403,7 @@ private fun EduImportBrowserScreen(
                     view: WebView?,
                     request: WebResourceRequest?
                 ): WebResourceResponse? {
-                    return request?.let { requestInterceptor.intercept(it, desktopMode) }
+                    return request?.let { requestInterceptor.intercept(it) }
                         ?: super.shouldInterceptRequest(view, request)
                 }
 
@@ -1430,7 +1430,7 @@ private fun EduImportBrowserScreen(
                     ) {
                         Log.w(
                             "EduWebView",
-                            "JS resource HTTP ${errorResponse?.statusCode ?: "unknown"}: ${request.url}"
+                            "JS resource HTTP ${errorResponse?.statusCode ?: "unknown"}: host=${request.url.host}"
                         )
                     }
                     if (request?.isForMainFrame == true) {
