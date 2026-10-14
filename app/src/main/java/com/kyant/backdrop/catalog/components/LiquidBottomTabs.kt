@@ -361,6 +361,7 @@ fun LiquidBottomTabs(
 
         if (movingAccentContent && !superPerformance) {
             CompositionLocalProvider(
+                LocalLiquidBottomTabInputEnabled provides false,
                 LocalLiquidBottomTabScale provides {
                     lerp(1f, pressedContentScale, dampedDragAnimation.pressProgress)
                 }

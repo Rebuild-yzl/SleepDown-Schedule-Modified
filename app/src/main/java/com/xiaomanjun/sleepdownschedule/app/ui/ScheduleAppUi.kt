@@ -2976,7 +2976,8 @@ fun CourseScheduleAppUi(
                                 )
                             }
                         }
-                        HomeSwitchPane(rootPageMotion, secondary = true, modifier = Modifier.fillMaxSize(),
+                        HomeSwitchPane(rootPageMotion, secondary = true,
+                            modifier = Modifier.fillMaxSize().padding(top = homeSidebarState.targetContentTopInset),
                             pageClip = HomeSwitchClip.Page) {
                             LandscapePageTransition(
                                 sidebarPage,

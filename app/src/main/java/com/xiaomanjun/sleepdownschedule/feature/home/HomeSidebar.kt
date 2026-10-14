@@ -42,6 +42,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -141,7 +142,7 @@ internal class HomeSidebarState(
     }
 
     val targetContentTopInset: Dp
-        get() = 0.dp
+        get() = if (enabled && !expanded) 56.dp else 0.dp
 
     fun collapseOverlay() {
         if (overlaysContent) expanded = false
@@ -242,19 +243,22 @@ internal fun HomeSidebar(
     )
     val shape = RoundedRectangle(24.dp)
     val enabled = navigationEnabled && !state.moving
+    val currentEnabled by rememberUpdatedState(enabled)
+    val currentOnNavigate by rememberUpdatedState(onNavigate)
+    val currentOnAction by rememberUpdatedState(onAction)
     val scrimInteraction = remember { MutableInteractionSource() }
     BackHandler(enabled = state.overlaysContent && state.expanded && navigationEnabled) {
         state.expanded = false
     }
     fun navigate(destination: HomeSidebarDestination) {
-        if (!enabled) return
+        if (!currentEnabled) return
         state.collapseOverlay()
-        onNavigate(destination)
+        currentOnNavigate(destination)
     }
     fun action(action: AddMenuAction) {
-        if (!enabled) return
+        if (!currentEnabled) return
         state.collapseOverlay()
-        onAction(action)
+        currentOnAction(action)
     }
     Box(Modifier.fillMaxSize()) {
         if (state.overlaysContent && state.expanded) {
