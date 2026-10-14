@@ -47,10 +47,6 @@ internal object XiaomiShizukuBridge {
             onResult(false)
             return {}
         }
-        if (isAuthorized()) {
-            onResult(true)
-            return {}
-        }
         var finished = false
         lateinit var listener: Shizuku.OnRequestPermissionResultListener
         lateinit var dead: Shizuku.OnBinderDeadListener

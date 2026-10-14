@@ -151,41 +151,39 @@ internal fun XiaomiSuperIslandSettingsSection(config: ScheduleConfigEntity, back
                     onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://shizuku.rikka.app/download/"))) }
                 )
             }
-            if (!shizukuAuthorized) {
-                SettingsDivider()
-                SettingsActionRow(
-                    title = "Shizuku 授权",
-                    subtitle = if (shizukuRunning) "授权 SleepDown 使用 Shizuku。" else "先下载、配对并启动 Shizuku。",
-                    buttonText = if (requestingShizuku) "等待授权" else if (shizukuRunning) "授权" else "打开",
-                    iconRes = R.drawable.ic_settings,
-                    backdrop = backdrop,
-                    onClick = {
-                        if (requestingShizuku) return@SettingsActionRow
-                        if (XiaomiSuperIsland.isShizukuRunning()) {
-                            requestingShizuku = true
-                            permissionRequest[0] = XiaomiSuperIsland.requestShizukuPermission { granted ->
-                                scope.launch {
-                                    requestingShizuku = false
-                                    shizukuAuthorized = granted
-                                    if (!granted) android.widget.Toast.makeText(context,
-                                        "未获得 Shizuku 授权，请确认服务正在运行并允许 SleepDown。",
-                                        android.widget.Toast.LENGTH_LONG).show()
-                                    if (granted) {
-                                        restoring = true
-                                        withContext(Dispatchers.IO) { XiaomiSuperIsland.restoreInterruptedBypass(context) }
-                                        restoring = false
-                                        NotificationScheduler.requestReschedule(context)
-                                    }
+            SettingsDivider()
+            SettingsActionRow(
+                title = "Shizuku 授权",
+                subtitle = if (shizukuRunning) "授权 SleepDown 使用 Shizuku。" else "先下载、配对并启动 Shizuku。",
+                buttonText = if (requestingShizuku) "等待授权" else if (shizukuRunning) "申请授权" else "打开",
+                iconRes = R.drawable.ic_settings,
+                backdrop = backdrop,
+                onClick = {
+                    if (requestingShizuku) return@SettingsActionRow
+                    if (XiaomiSuperIsland.isShizukuRunning()) {
+                        requestingShizuku = true
+                        permissionRequest[0] = XiaomiSuperIsland.requestShizukuPermission { granted ->
+                            scope.launch {
+                                requestingShizuku = false
+                                shizukuAuthorized = granted
+                                if (!granted) android.widget.Toast.makeText(context,
+                                    "未获得 Shizuku 授权，请确认服务正在运行并允许 SleepDown。",
+                                    android.widget.Toast.LENGTH_LONG).show()
+                                if (granted) {
+                                    restoring = true
+                                    withContext(Dispatchers.IO) { XiaomiSuperIsland.restoreInterruptedBypass(context) }
+                                    restoring = false
+                                    NotificationScheduler.requestReschedule(context)
                                 }
                             }
-                        } else {
-                            val launch = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
-                                ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://shizuku.rikka.app/download/"))
-                            context.startActivity(launch)
                         }
+                    } else {
+                        val launch = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
+                            ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://shizuku.rikka.app/download/"))
+                        context.startActivity(launch)
                     }
-                )
-            }
+                }
+            )
             SettingsDivider()
             SettingsValueRow("root 状态", if (rootAuthorized) "已授权" else "未授权")
             SettingsDivider()
