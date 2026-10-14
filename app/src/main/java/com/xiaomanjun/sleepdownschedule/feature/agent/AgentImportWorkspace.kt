@@ -4,6 +4,7 @@ import com.xiaomanjun.sleepdownschedule.domain.schedule.captureOriginalPeriodTim
 import com.xiaomanjun.sleepdownschedule.domain.schedule.parityMatches
 import com.xiaomanjun.sleepdownschedule.feature.importing.ScheduleImportParser
 import com.xiaomanjun.sleepdownschedule.feature.importing.draftToPayload
+import com.xiaomanjun.sleepdownschedule.feature.importing.normalizeAiImportTimes
 import com.xiaomanjun.sleepdownschedule.model.CourseEntity
 import com.xiaomanjun.sleepdownschedule.model.ImportDraft
 import com.xiaomanjun.sleepdownschedule.model.WeekParity
@@ -154,9 +155,10 @@ class AgentImportWorkspace internal constructor(
 
     private fun checked(candidate: ImportDraft): ImportDraft {
         ScheduleImportParser.validateEditedDraft(candidate)
-        val result = candidate.copy(
+        val normalized = normalizeAiImportTimes(candidate, draft)
+        val result = normalized.copy(
             periods = candidate.periods.map { it.copy(scheduleId = candidate.config.id) },
-            courses = candidate.courses.map { it.copy(scheduleId = candidate.config.id) })
+            courses = normalized.courses.map { it.copy(scheduleId = candidate.config.id) })
         if (onlyCurrentWeek) {
             require(result.config == initial.config && result.periods == initial.periods) {
                 "本次只允许修改第 $restrictedWeek 周，不能改变全局周数或作息"

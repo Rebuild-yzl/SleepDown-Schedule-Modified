@@ -50,7 +50,7 @@ internal object AiImportRepairManager {
     ): Result<AiImportRepairSuccess> {
         var currentResult = initialResult
         var currentOutput = currentResult.output.ifBlank { currentResult.rawOutput }
-        var parseResult = ScheduleImportParser.parse(currentOutput, scheduleConfig)
+        var parseResult = ScheduleImportParser.parseAiResponse(currentOutput, scheduleConfig)
         parseResult.getOrNull()?.let { draft ->
             logSuccess(repairAttempt = 0)
             return Result.success(AiImportRepairSuccess(draft, currentResult, repairAttempts = 0))
@@ -71,7 +71,7 @@ internal object AiImportRepairManager {
                 return Result.failure(AiImportRepairException(failure, requestError))
             }
             currentOutput = currentResult.output.ifBlank { currentResult.rawOutput }
-            parseResult = ScheduleImportParser.parse(currentOutput, scheduleConfig)
+            parseResult = ScheduleImportParser.parseAiResponse(currentOutput, scheduleConfig)
             parseResult.getOrNull()?.let { draft ->
                 logSuccess(repairAttempt = attempt)
                 return Result.success(AiImportRepairSuccess(draft, currentResult, repairAttempts = attempt))
