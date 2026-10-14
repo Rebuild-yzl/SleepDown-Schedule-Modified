@@ -35,6 +35,7 @@ import com.xiaomanjun.sleepdownschedule.feature.update.GiteeAppUpdater
 import com.xiaomanjun.sleepdownschedule.glass.ui.appUsesDarkTheme
 import com.xiaomanjun.sleepdownschedule.model.VisualEffectMode
 import com.xiaomanjun.sleepdownschedule.withGeneralSettingsFrom
+import com.xiaomanjun.sleepdownschedule.switchCourseCardGlassMode
 
 @Composable
 fun GeneralSettingsScreen(
@@ -134,7 +135,11 @@ fun GeneralSettingsScreen(
                             backdrop = backdrop,
                             config = visualConfig,
                             onSelectedIndexChange = { index ->
-                                effects.selectMode(if (index == 1) VisualEffectMode.ColorOsGlow else VisualEffectMode.LiquidGlass)
+                                val mode = if (index == 1) VisualEffectMode.ColorOsGlow else VisualEffectMode.LiquidGlass
+                                if (mode == VisualEffectMode.ColorOsGlow && effects.selectedMode != mode) {
+                                    onUpdateConfig(state.config.withGeneralSettingsFrom(draft).switchCourseCardGlassMode(true))
+                                }
+                                effects.selectMode(mode)
                             }
                         )
                     }
