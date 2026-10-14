@@ -12,6 +12,12 @@ class ChatGptResponseReaderTest {
         assertEquals("你好", parseResponsesTextResult(result).content)
     }
 
+    @Test fun nullErrorInACompletedResponsePreservesTheAnswer() {
+        val body = complete.replace("\"object\":", "\"error\":null,\"object\":")
+        val result = StringReader(body).buffered().readChatGptResponse()
+        assertEquals("你好", parseResponsesTextResult(result).content)
+    }
+
     @Test fun detectsAnActualEventStreamAndPublishesItsDeltas() {
         val payloads = mutableListOf<String>()
         val stream = ": keep-alive\r\n\r\nevent: response.output_text.delta\r\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"你好\"}\r\n\r\n" +
