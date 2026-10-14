@@ -21,6 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -28,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaomanjun.sleepdownschedule.app.state.*
 import com.xiaomanjun.sleepdownschedule.app.ui.*
 import com.xiaomanjun.sleepdownschedule.core.identity.AppIconManager
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownDesignTokens
 import com.xiaomanjun.sleepdownschedule.glass.ui.appUsesDarkTheme
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -208,14 +210,14 @@ private fun CourseScheduleThemeContent(
                 secondaryContainer = blueContainer,
                 tertiary = blue,
                 tertiaryContainer = blueContainer,
-                background = Color.White,
+                background = SleepDownDesignTokens.LightPageBackground,
                 surface = Color.White,
                 surfaceVariant = Color(0xFFF2F2F7),
                 surfaceContainerHigh = Color.White
             )
         }
     ) {
-        Surface(modifier = Modifier.fillMaxSize(), content = content)
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background, content = content)
     }
 }
 
@@ -229,7 +231,7 @@ internal fun android.view.Window.applyAppThemeSurface(darkTheme: Boolean) {
     val backgroundColor = if (darkTheme) {
         android.graphics.Color.BLACK
     } else {
-        android.graphics.Color.rgb(0xED, 0xEE, 0xF3)
+        SleepDownDesignTokens.LightPageBackground.toArgb()
     }
     setBackgroundDrawable(android.graphics.drawable.ColorDrawable(backgroundColor))
     decorView.setBackgroundColor(backgroundColor)

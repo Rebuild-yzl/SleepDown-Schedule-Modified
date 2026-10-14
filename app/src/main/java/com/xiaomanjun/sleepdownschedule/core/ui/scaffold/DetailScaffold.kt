@@ -204,7 +204,7 @@ fun DetailTopBar(
 
 @Composable
 fun settingsPageBackground(config: ScheduleConfigEntity): ComposeColor {
-    return if (appUsesDarkTheme(config)) ComposeColor.Black else ComposeColor(0xFFEDEEF3)
+    return if (appUsesDarkTheme(config)) ComposeColor.Black else SleepDownDesignTokens.LightPageBackground
 }
 
 @Composable
