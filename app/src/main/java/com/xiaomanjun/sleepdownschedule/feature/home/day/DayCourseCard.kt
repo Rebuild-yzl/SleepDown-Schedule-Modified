@@ -76,7 +76,7 @@ internal fun homeCourseTextColor(
 ): ComposeColor {
     if (muted || !config.courseCardColoredTextEnabled) return pageForeground
     val seed = courseCardBaseColor(config, course)
-    val hasWallpaper = !config.wallpaperUri.isNullOrBlank()
+    val hasWallpaper = config.hasAnyWallpaper()
     return remember(seed, hasWallpaper, pageForeground) {
         courseTextColorForPage(
             seed = seed,
