@@ -97,8 +97,12 @@ internal object CourseQuietScheduler {
         override fun setDoNotDisturb(enabled: Boolean, originalFilter: Int?) {
             check(hasPolicyAccess) { "未获得勿扰模式访问权限" }
             if (!usesAppRule) {
-                // Android 8/9 compatibility: never force ALL over an existing or manually changed filter.
-                if (enabled) manager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_PRIORITY)
+                // Android 8/9 uses the global filter; keep a stricter mode selected by the user.
+                if (enabled) {
+                    val current = manager.currentInterruptionFilter
+                    val target = courseDoNotDisturbFilter(current)
+                    if (target != current) manager.setInterruptionFilter(target)
+                }
                 else if (manager.currentInterruptionFilter == NotificationManager.INTERRUPTION_FILTER_PRIORITY) {
                     originalFilter?.let(manager::setInterruptionFilter)
                 }

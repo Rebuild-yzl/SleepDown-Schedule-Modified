@@ -31,7 +31,7 @@ class CourseQuietControllerTest {
             if (!hasPolicyAccess) throw SecurityException("revoked")
             operations += "dnd:$enabled"
             if (usesAppRule) ruleEnabled = enabled
-            else if (enabled) manualFilter = 2
+            else if (enabled) manualFilter = courseDoNotDisturbFilter(manualFilter)
             else if (manualFilter == 2) manualFilter = originalFilter ?: 1
         }
         override fun restoreInterruptionFilter(filter: Int) { operations += "filter:$filter"; manualFilter = filter }
@@ -150,6 +150,24 @@ class CourseQuietControllerTest {
         refresh(device, CourseQuietSettings(soundEnabled = true), active = false)
         assertEquals(2, device.sound)
         assertEquals(3, device.manualFilter)
+    }
+
+    @Test fun legacyDndDoesNotRelaxAnyExistingFilterOnEntryOrExit() {
+        for (original in 1..4) {
+            state = CourseQuietRuntime()
+            val device = Device().apply {
+                usesAppRule = false
+                canRestoreGlobalFilter = true
+                manualFilter = original
+            }
+            val settings = CourseQuietSettings(doNotDisturbEnabled = true)
+            refresh(device, settings)
+            assertEquals(if (original == 1) 2 else original, device.manualFilter)
+            refresh(device, settings, active = false)
+            assertEquals(original, device.manualFilter)
+            assertEquals(CourseQuietRuntime(), state)
+        }
+        assertTrue(errors.isEmpty())
     }
 
     @Test fun legacyManualDndChangeIsPreservedOnExit() {
