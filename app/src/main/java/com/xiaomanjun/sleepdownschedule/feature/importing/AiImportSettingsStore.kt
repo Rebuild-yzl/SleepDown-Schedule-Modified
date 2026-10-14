@@ -667,15 +667,8 @@ object AiImportSettingsStore {
 
     private fun chatGptSettings(context: Context, profile: AiProviderProfile): AiImportSettings {
         val models = ChatGptAuthManager.cachedModels(context)
-        val selectedModel = models.firstOrNull { it.slug == profile.defaultModel }
         return AiImportSettings(
-            AiProviderPresets.normalizeChatGptProfile(profile).copy(
-                availableModels = models.map { it.slug },
-                supportsVision = selectedModel?.supportsImages == true,
-                capabilities = AiProviderPresets.chatGpt.capabilities.copy(
-                    supportsImageInput = selectedModel?.supportsImages == true
-                )
-            ),
+            com.xiaomanjun.sleepdownschedule.feature.importing.chatgpt.resolveChatGptModelProfile(profile, models),
             apiKey = ""
         )
     }
