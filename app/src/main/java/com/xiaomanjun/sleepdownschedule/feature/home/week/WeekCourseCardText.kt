@@ -187,7 +187,7 @@ private fun WeekCardTextBody(
                 CourseCardText(locationText, coloredText = coloredText,
                     modifier = Modifier.fillMaxWidth(),
                     fontSize = locationFont, lineHeight = locationLineHeight,
-                    fontWeight = if (coloredText) FontWeight.Bold else FontWeight.Medium,
+                    fontWeight = if (coloredText) FontWeight.ExtraBold else FontWeight.SemiBold,
                     color = textColor.copy(alpha = 0.78f), maxLines = locationLines,
                     overflow = TextOverflow.Ellipsis, textAlign = currentTextAlign,
                     adaptiveContrast = adaptiveContrast)
@@ -195,7 +195,7 @@ private fun WeekCardTextBody(
             CourseCardText(course.name, coloredText = coloredText,
                 modifier = Modifier.fillMaxWidth().weight(1f).wrapContentHeight(Alignment.CenterVertically),
                 fontSize = nameFont, lineHeight = nameLineHeight,
-                fontWeight = if (coloredText) FontWeight.Bold else FontWeight.SemiBold,
+                fontWeight = if (coloredText) FontWeight.ExtraBold else FontWeight.Bold,
                 color = textColor, maxLines = nameLines,
                 overflow = TextOverflow.Ellipsis, textAlign = currentTextAlign,
                 adaptiveContrast = adaptiveContrast)
@@ -203,7 +203,7 @@ private fun WeekCardTextBody(
                 CourseCardText(course.teacher.orEmpty(), coloredText = coloredText,
                     modifier = Modifier.fillMaxWidth(),
                     fontSize = teacherFont, lineHeight = teacherLineHeight,
-                    fontWeight = if (coloredText) FontWeight.Bold else FontWeight.Normal,
+                    fontWeight = if (coloredText) FontWeight.ExtraBold else FontWeight.Medium,
                     color = textColor.copy(alpha = 0.58f), maxLines = 1,
                     overflow = TextOverflow.Ellipsis, textAlign = currentTextAlign,
                     adaptiveContrast = adaptiveContrast)
@@ -219,7 +219,7 @@ private fun WeekCardTextBody(
                     CourseCardText(locationText, coloredText = coloredText,
                         modifier = Modifier.fillMaxWidth(),
                         fontSize = locationFont, lineHeight = locationLineHeight,
-                        fontWeight = if (coloredText) FontWeight.Bold else FontWeight.Medium,
+                        fontWeight = if (coloredText) FontWeight.ExtraBold else FontWeight.SemiBold,
                         color = textColor.copy(alpha = 0.78f), maxLines = locationLines,
                         overflow = TextOverflow.Ellipsis, textAlign = textAlign,
                         adaptiveContrast = adaptiveContrast)
@@ -228,7 +228,7 @@ private fun WeekCardTextBody(
                 CourseCardText(course.name, coloredText = coloredText,
                     modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
                     fontSize = nameFont, lineHeight = nameLineHeight,
-                    fontWeight = if (coloredText) FontWeight.Bold else FontWeight.SemiBold,
+                    fontWeight = if (coloredText) FontWeight.ExtraBold else FontWeight.Bold,
                     color = textColor, maxLines = nameLines,
                     overflow = TextOverflow.Ellipsis, textAlign = textAlign,
                     adaptiveContrast = adaptiveContrast)
@@ -237,7 +237,7 @@ private fun WeekCardTextBody(
                     CourseCardText(course.teacher.orEmpty(), coloredText = coloredText,
                         modifier = Modifier.fillMaxWidth(),
                         fontSize = teacherFont, lineHeight = teacherLineHeight,
-                        fontWeight = if (coloredText) FontWeight.Bold else FontWeight.Normal,
+                        fontWeight = if (coloredText) FontWeight.ExtraBold else FontWeight.Medium,
                         color = textColor.copy(alpha = 0.58f), maxLines = 1,
                         overflow = TextOverflow.Ellipsis, textAlign = textAlign,
                         adaptiveContrast = adaptiveContrast)

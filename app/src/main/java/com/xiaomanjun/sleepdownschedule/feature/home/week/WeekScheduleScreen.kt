@@ -425,7 +425,7 @@ internal fun SinglePillWeekScheduleScreen(
                         text = "第${displayWeek}周",
                         modifier = Modifier.padding(horizontal = 10.dp),
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                         color = textColor
                     )
@@ -451,7 +451,7 @@ internal fun SinglePillWeekScheduleScreen(
                                     Text(
                                         text = "节次",
                                         style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.SemiBold,
+                                        fontWeight = FontWeight.Bold,
                                         color = textColor,
                                         textAlign = TextAlign.Center
                                     )
@@ -516,7 +516,7 @@ internal fun SinglePillWeekScheduleScreen(
                                                 period.periodIndex.toString(),
                                                 fontSize = 13.sp,
                                                 lineHeight = 15.sp,
-                                                fontWeight = FontWeight.Bold,
+                                                fontWeight = FontWeight.ExtraBold,
                                                 textAlign = TextAlign.Center,
                                                 color = if (isSpecialCurrent) ComposeColor(0xFF3D2B00) else ComposeColor.White
                                             )
@@ -525,7 +525,7 @@ internal fun SinglePillWeekScheduleScreen(
                                                 period.periodIndex.toString(),
                                                 fontSize = 13.sp,
                                                 lineHeight = 15.sp,
-                                                fontWeight = FontWeight.Bold,
+                                                fontWeight = FontWeight.ExtraBold,
                                                 textAlign = TextAlign.Center,
                                                 color = textColor
                                             )
@@ -536,7 +536,7 @@ internal fun SinglePillWeekScheduleScreen(
                                             specialBell?.takeIf { isSpecialCurrent }?.start?.toString() ?: period.startTime,
                                             fontSize = 10.sp,
                                             lineHeight = 11.sp,
-                                            fontWeight = FontWeight.Light,
+                                            fontWeight = FontWeight.Normal,
                                             textAlign = TextAlign.Center,
                                             color = textColor.copy(alpha = 0.86f)
                                         )
@@ -544,7 +544,7 @@ internal fun SinglePillWeekScheduleScreen(
                                             specialBell?.takeIf { isSpecialCurrent }?.end?.toString() ?: period.endTime,
                                             fontSize = 10.sp,
                                             lineHeight = 11.sp,
-                                            fontWeight = FontWeight.Light,
+                                            fontWeight = FontWeight.Normal,
                                             textAlign = TextAlign.Center,
                                             color = textColor.copy(alpha = 0.86f)
                                         )
