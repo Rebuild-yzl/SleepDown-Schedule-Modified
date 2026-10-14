@@ -29,6 +29,7 @@ internal data class NativeMenuRowRequest(
     val pressed: Boolean = false,
     val first: Boolean = false,
     val last: Boolean = false,
+    val contentVisible: Boolean = true,
     val indicatorRotation: () -> Float = { 0f }
 )
 

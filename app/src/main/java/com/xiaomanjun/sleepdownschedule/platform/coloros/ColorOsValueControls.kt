@@ -204,7 +204,7 @@ internal fun ColorOsSegments(request: NativeSegmentRequest): Boolean {
     if (request.labels.isEmpty()) return false
     val native = rememberNativeContext(request.dark) ?: return false
     val latest = rememberUpdatedState(request)
-    val binding = remember(native, request.labels) {
+    val binding = remember(native, request.labels, request.height) {
         ColorOsNativeUi.prepare("create native segmented control") {
             val source = native.first
             val type = source.load("com.coui.appcompat.segmentbutton.COUISegmentButtonLayout")
@@ -212,12 +212,13 @@ internal fun ColorOsSegments(request: NativeSegmentRequest): Boolean {
             type.getMethod("setSegmentButtons", Array<String>::class.java)
                 .invoke(view, request.labels.toTypedArray() as Any)
             type.getMethod("setMaterialEffectEnabled", Boolean::class.javaPrimitiveType).invoke(view, true)
-            type.getMethod("setSegmentHeight", Float::class.javaPrimitiveType).invoke(view, 42f)
+            type.getMethod("setSegmentHeight", Float::class.javaPrimitiveType).invoke(view, request.height.value)
             type.getMethod("selectSegmentAt", Int::class.javaPrimitiveType).invoke(view, request.selected.coerceIn(request.labels.indices))
             val listener = source.load("${type.name}\$OnSegmentSelectedListener")
             type.getMethod("setOnSegmentSelectedListener", listener).invoke(view, source.listener(listener.name) { name, args ->
                 if (name == "onSegmentSelected") (args?.firstOrNull() as? Int)?.let {
-                    if (it in latest.value.labels.indices && it != latest.value.selected) latest.value.onSelected(it)
+                    if (latest.value.enabled && it in latest.value.labels.indices && it != latest.value.selected)
+                        latest.value.onSelected(it)
                 }
                 null
             })
@@ -225,7 +226,8 @@ internal fun ColorOsSegments(request: NativeSegmentRequest): Boolean {
             Triple(type, view, listener)
         }
     } ?: return false
-    key(binding.second) { AndroidView(factory = { binding.second }, modifier = request.modifier.height(42.dp), update = {
+    key(binding.second) { AndroidView(factory = { binding.second }, modifier = request.modifier.height(request.height), update = {
+        if (it.isEnabled != request.enabled) it.isEnabled = request.enabled
         val selected = request.selected.coerceIn(request.labels.indices)
         if (binding.first.getMethod("getSelectedSegmentPosition").invoke(it) != selected)
             binding.first.getMethod("selectSegmentAt", Int::class.javaPrimitiveType).invoke(it, selected)

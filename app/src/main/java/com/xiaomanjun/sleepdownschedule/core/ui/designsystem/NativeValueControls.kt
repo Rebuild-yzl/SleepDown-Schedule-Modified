@@ -3,6 +3,8 @@ package com.xiaomanjun.sleepdownschedule.core.ui.designsystem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -20,7 +22,9 @@ internal data class NativeSwitchRequest(
 
 internal data class NativeSegmentRequest(
     val labels: List<String>, val selected: Int, val onSelected: (Int) -> Unit,
-    val modifier: Modifier, val dark: Boolean
+    val modifier: Modifier, val dark: Boolean,
+    val height: Dp = 42.dp,
+    val enabled: Boolean = true
 )
 
 internal val LocalNativeSliderRenderer = compositionLocalOf<(@Composable (NativeSliderRequest) -> Boolean)?> { null }

@@ -7,11 +7,13 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,10 +33,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
@@ -76,19 +76,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.catalog.components.LiquidBottomTab
-import com.kyant.backdrop.catalog.components.LiquidBottomTabs
 import com.kyant.shapes.RoundedRectangle
 import com.xiaomanjun.sleepdownschedule.R
 import com.xiaomanjun.sleepdownschedule.ScheduleConfigEntity
 import com.xiaomanjun.sleepdownschedule.core.identity.currentIconResId
-import com.xiaomanjun.sleepdownschedule.core.ui.chrome.HomeLightGlassSelectedAccentColor
 import com.xiaomanjun.sleepdownschedule.core.ui.chrome.HomeLightGlassSurfaceColor
 import com.xiaomanjun.sleepdownschedule.core.ui.chrome.HomeTodayIcon
 import com.xiaomanjun.sleepdownschedule.core.ui.chrome.homeActionIcon
 import com.xiaomanjun.sleepdownschedule.core.ui.chrome.homeChromeBlur
 import com.xiaomanjun.sleepdownschedule.core.ui.chrome.homeChromeGlassSurfaceAlpha
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.AddMenuAction
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMenuRowRenderer
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuItem
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuRowRequest
 import com.xiaomanjun.sleepdownschedule.core.ui.interaction.excludeParentPullGesture
 import com.xiaomanjun.sleepdownschedule.feature.home.day.hasAnyWallpaper
 import com.xiaomanjun.sleepdownschedule.glass.GlassBackdropDomain
@@ -103,7 +104,6 @@ import kotlin.math.sin
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Layers
 import top.yukonga.miuix.kmp.icon.extended.Notes
-import top.yukonga.miuix.kmp.icon.extended.Sidebar
 import top.yukonga.miuix.kmp.icon.extended.Weeks
 
 internal enum class HomeSidebarDestination { Day, Week, Settings, Courses, Schedules, EduImport }
@@ -309,13 +309,16 @@ internal fun HomeSidebar(
                 domain = if (selected == HomeSidebarDestination.Schedules) GlassBackdropDomain.PickerScene
                     else GlassBackdropDomain.ChromeCombined,
                 debugLabel = "HomeSidebar",
+                nativeMaterial = true,
+                nativeDark = !lightGlass,
                 restShadowAlpha = if (lightGlass && !config.hasAnyWallpaper()) 0.14f else 0f,
-                modifier = Modifier.matchParentSize().border(0.75.dp,
+                modifier = Modifier.matchParentSize().then(if (LocalNativeMaterialSurfaceRenderer.current != null) Modifier
+                    else Modifier.border(0.75.dp,
                     Brush.verticalGradient(listOf(
                         Color.White.copy(alpha = if (lightGlass) 0.38f else 0.30f),
                         ink.copy(alpha = if (lightGlass) 0.06f else 0.12f),
                         Color.White.copy(alpha = if (lightGlass) 0.22f else 0.22f)
-                    )), shape)
+                    )), shape))
             ) {}
             if (state.expanded || state.moving) {
                 Column(
@@ -336,11 +339,10 @@ internal fun HomeSidebar(
                             Text(stringResource(R.string.app_name), color = ink, fontSize = 14.sp, fontWeight = FontWeight.Medium,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        Box(
-                            Modifier.size(40.dp).clip(RoundedRectangle(12.dp))
-                                .clickable(enabled = enabled, role = Role.Button) { state.expanded = false }
-                                .semantics { contentDescription = "切换为标签栏" },
-                            contentAlignment = Alignment.Center
+                        HomeSidebarIconButton(
+                            description = "切换为标签栏", dark = !lightGlass, enabled = enabled,
+                            modifier = Modifier.size(40.dp), height = 40.dp,
+                            onClick = { state.expanded = false }
                         ) {
                             Icon(painterResource(R.drawable.ic_tab_bar), null, tint = ink, modifier = Modifier.size(22.dp))
                         }
@@ -349,27 +351,27 @@ internal fun HomeSidebar(
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         SidebarDestinationRow(HomeSidebarDestination.Day, "今日", HomeTodayIcon,
-                            selected, ink, enabled) { navigate(HomeSidebarDestination.Day) }
+                            selected, ink, enabled, !lightGlass) { navigate(HomeSidebarDestination.Day) }
                         SidebarDestinationRow(HomeSidebarDestination.Week, "课程表", MiuixIcons.Weeks,
-                            selected, ink, enabled) { navigate(HomeSidebarDestination.Week) }
+                            selected, ink, enabled, !lightGlass) { navigate(HomeSidebarDestination.Week) }
                         SidebarDestinationRow(HomeSidebarDestination.Settings, "设置", requireNotNull(homeActionIcon(R.drawable.ic_settings)),
-                            selected, ink, enabled) { navigate(HomeSidebarDestination.Settings) }
+                            selected, ink, enabled, !lightGlass) { navigate(HomeSidebarDestination.Settings) }
                         if (actions.isNotEmpty()) {
                             SidebarSectionHeading("课表操作", ink)
                             SidebarDestinationRow(HomeSidebarDestination.Courses, "课程管理", MiuixIcons.Notes,
-                                selected, ink, enabled) { navigate(HomeSidebarDestination.Courses) }
+                                selected, ink, enabled, !lightGlass) { navigate(HomeSidebarDestination.Courses) }
                             actions.firstOrNull { it.iconRes == R.drawable.ic_material_event }?.let { item ->
-                                SidebarActionRow(item, ink, enabled) { action(item) }
+                                SidebarActionRow(item, ink, enabled, !lightGlass) { action(item) }
                             }
                             SidebarDestinationRow(HomeSidebarDestination.Schedules, "课表设置", MiuixIcons.Layers,
-                                selected, ink, enabled) { navigate(HomeSidebarDestination.Schedules) }
+                                selected, ink, enabled, !lightGlass) { navigate(HomeSidebarDestination.Schedules) }
                             val imports = actions.filter {
                                 it.iconRes != R.drawable.ic_material_event &&
                                     it.iconRes != R.drawable.ic_settings && it.iconRes != R.drawable.ic_courses
                             }
                             if (imports.isNotEmpty()) {
                                 SidebarSectionHeading("导入", ink)
-                                imports.forEach { item -> SidebarActionRow(item, ink, enabled) { action(item) } }
+                                imports.forEach { item -> SidebarActionRow(item, ink, enabled, !lightGlass) { action(item) } }
                             }
                         }
                     }
@@ -390,44 +392,19 @@ internal fun HomeSidebar(
                         HomeSidebarDestination.Week to "课程表",
                         HomeSidebarDestination.Settings to "设置"
                     )
-                    CompositionLocalProvider(LocalContentColor provides ink) {
-                        LiquidBottomTabs(
-                            selectedTabIndex = { tabs.indexOfFirst { it.first == tabSelection }.coerceAtLeast(0) },
-                            onTabSelected = { index -> navigate(tabs[index].first) },
-                            backdrop = backdrop, tabsCount = tabs.size,
-                            modifier = Modifier.weight(1f),
-                            containerHeight = 48.dp, indicatorHeight = 40.dp,
-                            blurRadius = homeChromeBlur(1.3.dp, config),
-                            containerAlpha = homeChromeGlassSurfaceAlpha(lightGlass),
-                            lensHeight = 10.dp, lensAmount = 40.dp,
-                            indicatorWidthOverflow = 8.dp, indicatorHeightOverflow = 4.dp,
-                            indicatorLensHeight = 12.dp, indicatorLensAmount = 17.dp,
-                            officialHighlightAlpha = 0.07f, officialShadowAlpha = 0.05f,
-                            officialInnerShadowAlpha = 0.08f, chromaticAberrationEnabled = true,
-                            isLightThemeOverride = lightGlass,
-                            lightContainerColor = HomeLightGlassSurfaceColor,
-                            lightAccentColor = HomeLightGlassSelectedAccentColor,
-                            useOfficialGlassParameters = true,
-                            containerSurfaceEnabled = !state.moving,
-                            leadingWidth = 36.dp,
-                            leadingContent = {
-                                Box(Modifier.width(36.dp).fillMaxHeight()
-                                    .clickable(enabled = enabled, role = Role.Button,
-                                        interactionSource = remember { MutableInteractionSource() }, indication = null
-                                    ) { state.expanded = true }
-                                    .semantics { contentDescription = "展开侧栏" },
-                                    contentAlignment = Alignment.Center) {
-                                    Icon(MiuixIcons.Sidebar, null, tint = ink, modifier = Modifier.size(20.dp))
-                                }
-                            }
-                        ) {
-                            tabs.forEach { (destination, label) ->
-                                LiquidBottomTab(onClick = { navigate(destination) }) {
-                                    Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-                                }
-                            }
-                        }
-                    }
+                    HomeSidebarTabBar(
+                        tabs = tabs,
+                        selected = tabSelection,
+                        enabled = enabled,
+                        moving = state.moving,
+                        lightGlass = lightGlass,
+                        ink = ink,
+                        config = config,
+                        backdrop = backdrop,
+                        modifier = Modifier.weight(1f),
+                        onNavigate = ::navigate,
+                        onExpand = { state.expanded = true }
+                    )
                 }
             }
         }
@@ -452,16 +429,17 @@ private fun SidebarDestinationRow(
     selected: HomeSidebarDestination,
     ink: Color,
     enabled: Boolean,
+    dark: Boolean,
     onClick: () -> Unit
 ) {
-    SidebarRow(label, ink, destination == selected, enabled, onClick) {
+    SidebarRow(label, ink, destination == selected, enabled, dark, onClick) {
         Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(22.dp))
     }
 }
 
 @Composable
-private fun SidebarActionRow(action: AddMenuAction, ink: Color, enabled: Boolean, onClick: () -> Unit) {
-    SidebarRow(action.label, ink, false, enabled, onClick, Role.Button) {
+private fun SidebarActionRow(action: AddMenuAction, ink: Color, enabled: Boolean, dark: Boolean, onClick: () -> Unit) {
+    SidebarRow(action.label, ink, false, enabled, dark, onClick, Role.Button) {
         Icon(action.imageVector ?: homeActionIcon(action.iconRes) ?: MiuixIcons.Notes,
             null, Modifier.size(22.dp), tint = ink)
     }
@@ -473,21 +451,41 @@ private fun SidebarRow(
     ink: Color,
     selected: Boolean,
     enabled: Boolean,
+    dark: Boolean,
     onClick: () -> Unit,
     role: Role = Role.Tab,
     icon: @Composable () -> Unit
 ) {
-    // 24dp outer corner minus the 8dp inset keeps the selected row concentric.
-    Row(
-        modifier = Modifier.fillMaxWidth().height(42.dp).clip(RoundedRectangle(16.dp))
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    Box(
+        Modifier.fillMaxWidth().height(42.dp).clip(RoundedRectangle(16.dp))
             .background(if (selected) ink.copy(alpha = 0.09f) else Color.Transparent)
-            .selectable(selected = selected, enabled = enabled, role = role, onClick = onClick)
-            .semantics { contentDescription = label },
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.width(44.dp).fillMaxHeight(), contentAlignment = Alignment.Center) { icon() }
-        Text(label, color = ink, fontSize = 15.sp, fontWeight = FontWeight.Normal,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).padding(end = 8.dp).clearAndSetSemantics { })
+        val nativeFeedback = LocalNativeMenuRowRenderer.current?.invoke(
+            NativeMenuRowRequest(
+                item = NativeMenuItem(title = label, enabled = enabled),
+                dark = dark,
+                modifier = Modifier.matchParentSize().clearAndSetSemantics { },
+                pressed = pressed,
+                contentVisible = false
+            )
+        ) == true
+        Row(
+            modifier = Modifier.fillMaxSize()
+                .selectable(
+                    selected = selected, enabled = enabled, role = role,
+                    interactionSource = interaction,
+                    indication = if (nativeFeedback) null else LocalIndication.current,
+                    onClick = onClick
+                )
+                .semantics { contentDescription = label },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.width(44.dp).fillMaxHeight(), contentAlignment = Alignment.Center) { icon() }
+            Text(label, color = ink, fontSize = 15.sp, fontWeight = FontWeight.Normal,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(end = 8.dp).clearAndSetSemantics { })
+        }
     }
 }
