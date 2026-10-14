@@ -292,6 +292,13 @@ object AiProviderPresets {
 
     fun isChatGptId(id: String): Boolean = id == chatGpt.id
 
+    internal fun validateRestoredProviderIdentity(id: String, authType: AiAuthType) {
+        require(id.matches(Regex("[A-Za-z0-9:_-]{1,128}"))) { "AI provider ID 非法" }
+        require(authType != AiAuthType.ChatGptOAuth || isChatGptId(id)) {
+            "ChatGPT 登录不能用于自定义接口"
+        }
+    }
+
     /** Only account model/vision metadata and reasoning are configurable for this provider. */
     fun normalizeChatGptProfile(profile: AiProviderProfile): AiProviderProfile = chatGpt.copy(
         defaultModel = profile.defaultModel.trim(),

@@ -399,16 +399,13 @@ object AiImportSettingsStore {
     )
 
     private fun BackupAiProvider.fromBackupProvider(context: Context): AiProviderProfile {
-        require(id.matches(Regex("[A-Za-z0-9:_-]{1,128}"))) { "AI provider ID 非法" }
         val preset = (selectableProfiles(context) + AiProviderPresets.all + AiProviderPresets.openAI).firstOrNull { it.id == id }
             ?: AiProviderPresets.customProfile(id, displayName)
         val providerType = runCatching { AiProviderType.valueOf(this.providerType) }
             .getOrElse { throw IllegalArgumentException("未知 AI providerType: ${this.providerType}") }
         val authType = runCatching { AiAuthType.valueOf(this.authType) }
             .getOrElse { throw IllegalArgumentException("未知 AI authType: ${this.authType}") }
-        require(authType != AiAuthType.ChatGptOAuth || AiProviderPresets.isChatGptId(id)) {
-            "ChatGPT 登录不能用于自定义接口"
-        }
+        AiProviderPresets.validateRestoredProviderIdentity(id, authType)
         val endpointStyle = runCatching { AiEndpointStyle.valueOf(this.endpointStyle) }
             .getOrElse { throw IllegalArgumentException("未知 AI endpointStyle: ${this.endpointStyle}") }
         val structuredOutputMode = runCatching { StructuredOutputMode.valueOf(this.structuredOutputMode) }
