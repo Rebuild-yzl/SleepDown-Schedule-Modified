@@ -60,13 +60,17 @@ internal object XiaomiShizukuBridge {
         listener = object : Shizuku.OnRequestPermissionResultListener {
             override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
                 if (requestCode != PermissionRequest) return
+                Log.i(Tag, "Shizuku permission result: granted=${grantResult == PackageManager.PERMISSION_GRANTED}")
                 finish(grantResult == PackageManager.PERMISSION_GRANTED)
             }
         }
         dead = Shizuku.OnBinderDeadListener { finish(false) }
         Shizuku.addRequestPermissionResultListener(listener)
         Shizuku.addBinderDeadListener(dead)
-        runCatching { Shizuku.requestPermission(PermissionRequest) }.onFailure {
+        runCatching {
+            Shizuku.requestPermission(PermissionRequest)
+            Log.i(Tag, "Manual permission request dispatched to Shizuku")
+        }.onFailure {
             Log.w(Tag, "Cannot request Shizuku permission", it)
             finish(false)
         }
