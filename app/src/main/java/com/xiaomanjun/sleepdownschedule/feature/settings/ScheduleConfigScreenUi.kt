@@ -120,6 +120,7 @@ fun ScheduleConfigScreen(
     var periodSchemeLibrary by remember(state.config.id) { mutableStateOf(emptyList<SavedPeriodScheme>()) }
     var lastSavedSchemeDraft by remember(state.config.id) { mutableStateOf<SchedulePeriodSchemesDraft?>(null) }
     var saving by remember { mutableStateOf(false) }
+    val periodEditorExit = remember(state.config.id) { PeriodEditorExitCoordinator() }
     var error by remember { mutableStateOf<String?>(null) }
     var showExitSaveConfirm by remember { mutableStateOf(false) }
     var showCourseRemapConfirm by remember { mutableStateOf(false) }
@@ -265,8 +266,9 @@ fun ScheduleConfigScreen(
     val displayedCurrentWeek = if (autoCurrentWeek) detectedWeek.toString() else currentWeek
     val dirty = computeDirty()
 
-    LaunchedEffect(section, dirty, saving) {
-        onExitInterceptionChange(shouldInterceptSettingsBack(section, dirty, saving))
+    LaunchedEffect(section, dirty, saving, periodEditorExit.isOpen) {
+        onExitInterceptionChange(shouldInterceptSettingsBack(section, dirty, saving) ||
+            (section == SettingsSection.Schedule && periodEditorExit.isOpen))
     }
     DisposableEffect(onExitInterceptionChange) {
         onDispose { onExitInterceptionChange(false) }
@@ -538,6 +540,7 @@ fun ScheduleConfigScreen(
         if (exitCommitRequest <= 0) return@LaunchedEffect
         when (section) {
             SettingsSection.Schedule -> {
+                if (periodEditorExit.requestPageExit()) return@LaunchedEffect
                 when {
                     saving -> Unit
                     computeDirty() -> showExitSaveConfirm = true
@@ -551,6 +554,12 @@ fun ScheduleConfigScreen(
                 else onExitCommitFinished(true)
             }
         }
+    }
+    LaunchedEffect(periodEditorExit.resultVersion) {
+        if (periodEditorExit.resultVersion == 0) return@LaunchedEffect
+        if (periodEditorExit.result == false) onExitCommitFinished(false)
+        else if (computeDirty()) showExitSaveConfirm = true
+        else onExitCommitFinished(true)
     }
 
     LaunchedEffect(
@@ -607,6 +616,7 @@ fun ScheduleConfigScreen(
             eveningPeriodCount = evening
         },
         schemeDraft = schemeDraft,
+        periodEditorExit = periodEditorExit,
         onSchemeDraftChange = { updated ->
             schemeDraft = updated
             val active = updated.schemes.firstOrNull { it.scheme.id == updated.activeSchemeId }

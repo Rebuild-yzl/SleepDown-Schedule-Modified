@@ -125,7 +125,8 @@ fun ScheduleSettingsContent(
     onScheduleAdjustmentsChange: (String) -> Unit = {},
     onOpenPeriodSchemes: () -> Unit = {},
     periodSchemeLibrary: List<SavedPeriodScheme> = emptyList(),
-    onSelectPeriodScheme: (SavedPeriodScheme) -> Unit = {}
+    onSelectPeriodScheme: (SavedPeriodScheme) -> Unit = {},
+    periodEditorExit: PeriodEditorExitCoordinator? = null
 ) {
     val appContext = LocalContext.current
     val experimentalNotifications = rememberExperimentalNotificationUiState(notificationMode)
@@ -176,7 +177,8 @@ fun ScheduleSettingsContent(
             onScheduleAdjustmentsChange = onScheduleAdjustmentsChange,
             onOpenPeriodSchemes = onOpenPeriodSchemes,
             periodSchemeLibrary = periodSchemeLibrary,
-            onSelectPeriodScheme = onSelectPeriodScheme
+            onSelectPeriodScheme = onSelectPeriodScheme,
+            periodEditorExit = periodEditorExit
         )
         return
     }
@@ -496,7 +498,8 @@ fun ScheduleSettingsContentFixed(
     onScheduleAdjustmentsChange: (String) -> Unit = {},
     onOpenPeriodSchemes: () -> Unit = {},
     periodSchemeLibrary: List<SavedPeriodScheme> = emptyList(),
-    onSelectPeriodScheme: (SavedPeriodScheme) -> Unit = {}
+    onSelectPeriodScheme: (SavedPeriodScheme) -> Unit = {},
+    periodEditorExit: PeriodEditorExitCoordinator? = null
 ) {
 
     val draftConfig = state.config.copy(
@@ -566,7 +569,8 @@ fun ScheduleSettingsContentFixed(
         PeriodSchemeEditor(
             state, backdrop, draftConfig, schemeDraft,
             onSchemeDraftChange, onPeriodCountsChange, topPadding,
-            leadingContent = termSettings
+            leadingContent = termSettings,
+            exitCoordinator = periodEditorExit
         )
     } else {
         LazyColumn(
