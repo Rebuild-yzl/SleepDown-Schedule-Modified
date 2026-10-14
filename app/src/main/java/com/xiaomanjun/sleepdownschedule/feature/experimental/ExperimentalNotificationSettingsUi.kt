@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +64,8 @@ internal fun XiaomiSuperIslandSettingsSection(config: ScheduleConfigEntity, back
     var focusPermission by remember { mutableStateOf<Boolean?>(null) }
     var focusPermissionChecked by remember { mutableStateOf(false) }
     var restoring by remember { mutableStateOf(false) }
+    var requestingShizuku by remember { mutableStateOf(false) }
+    val permissionRequest = remember { arrayOfNulls<() -> Unit>(1) }
     var options by remember { mutableStateOf(XiaomiSuperIsland.options(context)) }
 
     fun refresh() {
@@ -76,6 +79,10 @@ internal fun XiaomiSuperIslandSettingsSection(config: ScheduleConfigEntity, back
     }
     LaunchedEffect(Unit) { refresh() }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh() }
+    DisposableEffect(context) {
+        val stop = XiaomiSuperIsland.observeShizukuState { refresh() }
+        onDispose { permissionRequest[0]?.invoke(); stop() }
+    }
 
     GlassPreferenceSection("实验功能") {
         SettingsGroup(backdrop, config, Modifier.fillMaxWidth()) {
@@ -149,14 +156,20 @@ internal fun XiaomiSuperIslandSettingsSection(config: ScheduleConfigEntity, back
                 SettingsActionRow(
                     title = "Shizuku 授权",
                     subtitle = if (shizukuRunning) "授权 SleepDown 使用 Shizuku。" else "先下载、配对并启动 Shizuku。",
-                    buttonText = if (shizukuRunning) "授权" else "打开",
+                    buttonText = if (requestingShizuku) "等待授权" else if (shizukuRunning) "授权" else "打开",
                     iconRes = R.drawable.ic_settings,
                     backdrop = backdrop,
                     onClick = {
-                        if (shizukuRunning) {
-                            XiaomiSuperIsland.requestShizukuPermission { granted ->
+                        if (requestingShizuku) return@SettingsActionRow
+                        if (XiaomiSuperIsland.isShizukuRunning()) {
+                            requestingShizuku = true
+                            permissionRequest[0] = XiaomiSuperIsland.requestShizukuPermission { granted ->
                                 scope.launch {
+                                    requestingShizuku = false
                                     shizukuAuthorized = granted
+                                    if (!granted) android.widget.Toast.makeText(context,
+                                        "未获得 Shizuku 授权，请确认服务正在运行并允许 SleepDown。",
+                                        android.widget.Toast.LENGTH_LONG).show()
                                     if (granted) {
                                         restoring = true
                                         withContext(Dispatchers.IO) { XiaomiSuperIsland.restoreInterruptedBypass(context) }

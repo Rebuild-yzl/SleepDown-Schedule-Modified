@@ -42,6 +42,7 @@ android {
     }
     buildFeatures {
         buildConfig = true
+        aidl = true
     }
     testOptions {
         unitTests.isIncludeAndroidResources = true

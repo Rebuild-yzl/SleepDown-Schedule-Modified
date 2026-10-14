@@ -132,6 +132,7 @@ internal object XiaomiSuperIsland {
 
     fun isShizukuRunning(): Boolean = XiaomiShizukuBridge.isRunning()
     fun isShizukuAuthorized(): Boolean = XiaomiShizukuBridge.isAuthorized()
+    fun observeShizukuState(onChanged: () -> Unit): () -> Unit = XiaomiShizukuBridge.observeState(onChanged)
     fun requestShizukuPermission(onResult: (Boolean) -> Unit) = XiaomiShizukuBridge.requestPermission(onResult)
     fun restoreInterruptedBypass(context: Context): Boolean {
         val shizukuRestored = XiaomiShizukuBridge.restoreIfInterrupted(context)
