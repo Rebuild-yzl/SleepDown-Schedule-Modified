@@ -220,6 +220,7 @@ dependencies {
     implementation("androidx.metrics:metrics-performance:1.0.0")
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation("androidx.palette:palette-ktx:1.0.0")
+    implementation("androidx.exifinterface:exifinterface:1.4.2")
     compileOnly("com.oplus.animation:viewseamless:1.0.0@aar")
     implementation(project(":kyant-backdrop"))
     implementation("io.github.kyant0:shapes:1.2.0")
