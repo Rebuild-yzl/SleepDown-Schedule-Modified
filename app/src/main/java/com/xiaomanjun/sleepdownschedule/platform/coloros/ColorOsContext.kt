@@ -14,13 +14,13 @@ internal fun rememberColorOsSource(): ColorOsNativeUi.Source? {
     return remember(host, enabled) { if (enabled) ColorOsNativeUi.source(host) else null }
 }
 
-/** Keep the resource owner and class loader paired; hosts refresh dark mode in place. */
+/** Theme changes replace the native context and the controls bound to it. */
 @Composable
 internal fun rememberNativeContext(dark: Boolean): Pair<ColorOsNativeUi.Source, Context>? {
     val host = LocalContext.current
     val configuration = LocalConfiguration.current
     val source = rememberColorOsSource()
-    return remember(source, host, configuration) {
+    return remember(source, host, configuration, dark) {
         source?.let { native ->
             ColorOsNativeUi.prepare("create the native theme") { native to native.themedContext(host, dark) }
         }
