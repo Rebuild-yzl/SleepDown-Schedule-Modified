@@ -320,8 +320,11 @@ internal fun DayScheduleScreen(
                     }
                 }
             }
-            val groupedDayCourses = remember(dayCourses, state.config) {
-                groupDayCourses(state.config, dayCourses)
+            val remainingDayCourses = remember(dayCourses, state.periods, targetDate, minuteClock) {
+                dayCourses.filterNot { hasDayCourseEnded(it, state.periods, targetDate, minuteClock) }
+            }
+            val groupedDayCourses = remember(remainingDayCourses, state.config) {
+                groupDayCourses(state.config, remainingDayCourses)
             }
             val primaryDayFinished = shouldShowSecondaryDay(
                 displayDayCount = displayDayCount,
@@ -369,8 +372,11 @@ internal fun DayScheduleScreen(
                         )
                 }
             }
-            val groupedSecondaryCourses = remember(secondaryCourses, state.config) {
-                groupDayCourses(state.config, secondaryCourses)
+            val remainingSecondaryCourses = remember(secondaryCourses, state.periods, secondaryDate, minuteClock) {
+                secondaryCourses.filterNot { secondaryDate != null && hasDayCourseEnded(it, state.periods, secondaryDate, minuteClock) }
+            }
+            val groupedSecondaryCourses = remember(remainingSecondaryCourses, state.config) {
+                groupDayCourses(state.config, remainingSecondaryCourses)
             }
             // Two-day mode owns two calendar days, even when the following day is empty. The old
             // course-presence gate made the second day disappear while browsing dates whose next
@@ -379,12 +385,13 @@ internal fun DayScheduleScreen(
                 shouldRenderSecondaryDay(displayDayCount, secondaryCourses)
             }
             if (targetDate == displayDate) SideEffect {
-                onRenderedCardCountChanged(dayCourses.size +
-                    if (visibleSecondaryDate != null) secondaryCourses.size else 0)
+                onRenderedCardCountChanged(remainingDayCourses.size +
+                    if (visibleSecondaryDate != null) remainingSecondaryCourses.size else 0)
             }
             val courseList: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
-                if (dayCourses.isEmpty()) item(key = "primary-empty-$targetDate") {
-                    HomeReadableText(if (isToday) "今天没有课程" else "这一天没有课程", color = textColor,
+                if (remainingDayCourses.isEmpty()) item(key = "primary-empty-$targetDate") {
+                    HomeReadableText(if (isToday && dayCourses.isNotEmpty()) "今天的课程已结束"
+                        else if (isToday) "今天没有课程" else "这一天没有课程", color = textColor,
                         modifier = Modifier.homeSwitchGroup())
                 }
                 groupedDayCourses.forEach { (part, coursesInPart) ->
@@ -398,7 +405,7 @@ internal fun DayScheduleScreen(
                     }
                     itemsIndexed(coursesInPart, key = { _, it -> "primary-$targetDate-${it.id}" }) { _, course ->
                         val coursePeriods = course.periods.toSet()
-                        val simultaneousCount = dayCourses.count { other ->
+                        val simultaneousCount = remainingDayCourses.count { other ->
                             other.id == course.id || other.periods.any(coursePeriods::contains)
                         }
                         CompositionLocalProvider(
@@ -429,9 +436,9 @@ internal fun DayScheduleScreen(
                             config = state.config
                         )
                     }
-                    if (secondaryCourses.isEmpty()) {
+                    if (remainingSecondaryCourses.isEmpty()) {
                         item(key = "secondary-empty-$visibleDate") {
-                            HomeReadableText("第二天没有课程", color = textColor.copy(alpha = 0.82f),
+                            HomeReadableText(if (secondaryCourses.isNotEmpty()) "当天的课程已结束" else "第二天没有课程", color = textColor.copy(alpha = 0.82f),
                                 modifier = Modifier.homeSwitchGroup())
                         }
                     }
@@ -449,7 +456,7 @@ internal fun DayScheduleScreen(
                             key = { _, course -> "secondary-$visibleDate-${course.id}" }
                         ) { index, course ->
                             val coursePeriods = course.periods.toSet()
-                            val simultaneousCount = secondaryCourses.count { other ->
+                            val simultaneousCount = remainingSecondaryCourses.count { other ->
                                 other.id == course.id || other.periods.any(coursePeriods::contains)
                             }
                             CompositionLocalProvider(

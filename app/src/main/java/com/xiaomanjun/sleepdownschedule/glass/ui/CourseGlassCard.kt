@@ -17,6 +17,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -162,6 +164,15 @@ fun CourseGlassCard(
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
+    // A tint alone leaves glass highlights and the content bright. Dim the complete rendered
+    // card, including native material, without an extra offscreen layer or changing its opacity.
+    val statusModifier = modifier.then(if (muted) Modifier.drawWithCache {
+        val outline = shape.createOutline(size, layoutDirection, this)
+        onDrawWithContent {
+            drawContent()
+            drawOutline(outline, Color.Black.copy(alpha = 0.26f))
+        }
+    } else Modifier)
     val materialPolicy = com.xiaomanjun.sleepdownschedule.core.performance.effectiveAppMaterialPolicy()
     if (!materialPolicy.denseMaterials) {
         val preview = LocalPersonalizationPreview.current
@@ -170,7 +181,7 @@ fun CourseGlassCard(
             com.xiaomanjun.sleepdownschedule.model.courseCardBlurMaximum(config.courseCardGlassEnabled))
         val background = rememberCourseTextBackground(base, opacity, false, 0f, false, false,
             flatBackground = homeFlatBackgroundColor(appUsesDarkTheme(config)), ready = true, cardBounds = { null })
-        Box(modifier.clip(shape).then(if (renderSurface) Modifier.background(base.copy(alpha = opacity)) else Modifier)
+        Box(statusModifier.clip(shape).then(if (renderSurface) Modifier.background(base.copy(alpha = opacity)) else Modifier)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)) {
             CompositionLocalProvider(LocalCourseTextBackground provides background) { content() }
         }
@@ -218,7 +229,7 @@ fun CourseGlassCard(
             ready = true, cardBounds = cardBounds)
         val renderer = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardRenderer.current
         if (renderer?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeCourseCardRequest(
-                modifier.onGloballyPositioned { coordinates[0] = it }, shape, appUsesDarkTheme(config),
+                statusModifier.onGloballyPositioned { coordinates[0] = it }, shape, appUsesDarkTheme(config),
                 renderSurface, drawMaterialNodes, onClick, tintDraw,
                 followTouch = followTouch
             )) {
@@ -376,7 +387,7 @@ fun CourseGlassCard(
     } else {
         Modifier
     }
-    val cardModifier = modifier.onGloballyPositioned {
+    val cardModifier = statusModifier.onGloballyPositioned {
         textCardCoordinates[0] = it
         textCardReady = true
     }

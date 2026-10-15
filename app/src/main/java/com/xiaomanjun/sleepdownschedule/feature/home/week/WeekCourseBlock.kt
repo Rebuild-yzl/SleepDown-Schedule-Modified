@@ -196,6 +196,7 @@ fun WeekCourseBlock(
     editingAllowed: Boolean = true,
     /** A cancelled occurrence uses neutral light; clicking still edits its original course. */
     muted: Boolean = false,
+    completed: Boolean = false,
     editWeek: Int = 1,
     allWeekCourses: List<CourseEntity> = emptyList(),
     weekdayCount: Int = 7,
@@ -221,10 +222,11 @@ fun WeekCourseBlock(
     val hasLocation = config.weekCardShowLocation && locationText.isNotBlank()
     val hasTeacher = config.weekCardShowTeacher && !course.teacher.isNullOrBlank()
     val cardTextAlign = config.weekCardTextAlign()
-    val resolvedCardColor = if (muted) MutedCourseLightColor else if (courseCardUsesAssignments(config)) courseCardBaseColor(config, course) else cardColor
+    val subdued = muted || completed
+    val resolvedCardColor = if (subdued) MutedCourseLightColor else if (courseCardUsesAssignments(config)) courseCardBaseColor(config, course) else cardColor
     val pageForeground = homeForegroundColor(config)
-    val coloredText = !muted && config.courseCardColoredTextEnabled
-    val courseTextColor = homeCourseTextColor(config, course, pageForeground, muted)
+    val coloredText = !subdued && config.courseCardColoredTextEnabled
+    val courseTextColor = homeCourseTextColor(config, course, pageForeground, subdued)
     val density = LocalDensity.current
     val tailDirection = if (weekMotionOutgoing) -weekMotionDirection else weekMotionDirection
     val startupPhase = LocalStartupPhase.current
@@ -654,7 +656,7 @@ fun WeekCourseBlock(
                             backdrop = activeCardBackdrop,
                             config = config,
                             course = underlyingCourse,
-                            muted = muted,
+                            muted = subdued,
                             modifier = Modifier.fillMaxSize(),
                             shape = cardShape,
                             onClick = null
@@ -770,7 +772,7 @@ fun WeekCourseBlock(
                 viewportMaterialVisible = true,
                 backdropSampleScale = backdropSampleScale,
                 sampledShape = sampledCardShape,
-                muted = muted,
+                muted = subdued,
                 onClick = null
             ) {
             // The day column already knows the measured width. Subcomposing every card again
@@ -785,7 +787,7 @@ fun WeekCourseBlock(
             Box(Modifier.fillMaxWidth().height(displayedHeight).clip(cardShape)
                 .padding(bottom = badgeInset)) {
             WeekCourseCardTextContent(course, config, cardLayoutWidth,
-                (displayedHeight - badgeInset).coerceAtLeast(0.dp), gridColumnWidth, muted)
+                (displayedHeight - badgeInset).coerceAtLeast(0.dp), gridColumnWidth, subdued)
             }
             }
             }

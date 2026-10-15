@@ -128,14 +128,15 @@ internal fun SinglePillWeekScheduleScreen(
     val scrollState = rememberScrollState()
     val weekEditOverlay = rememberWeekEditOverlayController(scrollState = scrollState, scheduleId = state.config.id)
     val rowHeaderWidth = if (boundless) BoundlessWeekRowHeaderWidth else 56.dp
-    val today = LocalDate.now()
-    val weekStart = scheduleWeekStartDate(state.config, displayWeek, today)
-    val now by produceState(initialValue = LocalTime.now()) {
+    val clock by produceState(initialValue = java.time.LocalDateTime.now()) {
         while (true) {
             delay(30_000)
-            value = LocalTime.now()
+            value = java.time.LocalDateTime.now()
         }
     }
+    val today = clock.toLocalDate()
+    val now = clock.toLocalTime()
+    val weekStart = scheduleWeekStartDate(state.config, displayWeek, today)
     val currentPeriod = currentTimelinePeriod(state.periods, now)
     // Keep one computed bucket per visited week, shared by the rail, supplements and Pager.
     // Data replacement invalidates the cache; swiping back reuses the same immutable lists.
@@ -651,6 +652,7 @@ internal fun SinglePillWeekScheduleScreen(
                             val pageCardCount = remember(pageWeek) { mutableIntStateOf(0) }
                             WeekPageSamplingScope(weekTail, page, homeSwitching, weekJump) {
                             WeekCourseColumnsLayer(
+                                now = clock,
                                 modifier = Modifier.padding(
                                     start = rowHeaderWidth,
                                     top = courseTopOverflow,
