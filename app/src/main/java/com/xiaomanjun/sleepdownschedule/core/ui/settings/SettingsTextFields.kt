@@ -55,6 +55,7 @@ fun SettingsTextFieldRow(
             title = title,
             value = value,
             enabled = enabled,
+            compact = compact,
             onClick = {
                 if (isTimePicker) {
                     showNativeTimePicker(context, value, onValueChange)

@@ -560,7 +560,8 @@ internal fun CourseEditorPickerOverlay(
                         disabledUnselectedTextColor = pickerContentColor.copy(alpha = 0.22f)
                     )
                     if (displayedTimeMode == CourseEditorTimeMode.Lessons) {
-                        CourseLessonClockPicker(lessonClock, periodRequest.periodIndices, backdrop) {
+                        CourseLessonClockPicker(lessonClock, periodRequest.periodIndices, backdrop,
+                            config, renderInRootScaffold) {
                             lessonClock = it
                             timeError = null
                         }
