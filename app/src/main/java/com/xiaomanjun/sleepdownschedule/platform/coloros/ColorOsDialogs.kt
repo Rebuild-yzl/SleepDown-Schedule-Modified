@@ -62,6 +62,8 @@ internal fun ColorOsAlertDialog(request: NativeAlertRequest): Boolean {
     val native = rememberNativeContext(request.dark) ?: return false
     val source = native.first
     val context = native.second
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val pickerStyle = remember(native, density) { source.pickerStyle(context, density) }
     val host = LocalContext.current
     val owner = LocalView.current
     val parentComposition = rememberCompositionContext()
@@ -118,6 +120,7 @@ internal fun ColorOsAlertDialog(request: NativeAlertRequest): Boolean {
                 setContent {
                     val current = latest.value
                     CompositionLocalProvider(LocalNativeDialogSurface provides true,
+                        com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativePickerStyle provides pickerStyle,
                         com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeDialogHostSize provides hostSize.value,
                         com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeDialogWindow provides alert.dialog.window) {
                         Box(Modifier.fillMaxWidth().heightIn(max = current.messageMaxHeight)
