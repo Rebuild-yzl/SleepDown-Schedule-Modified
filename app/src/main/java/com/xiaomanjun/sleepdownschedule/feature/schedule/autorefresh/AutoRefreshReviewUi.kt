@@ -16,6 +16,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.kyant.backdrop.Backdrop
 import com.xiaomanjun.sleepdownschedule.ScheduleConfigEntity
+import com.xiaomanjun.sleepdownschedule.ScheduleProfileEntity
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.*
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsToggleRow
 import com.xiaomanjun.sleepdownschedule.domain.schedule.RefreshCourse
@@ -24,7 +25,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
-internal fun AutoRefreshReviewHost(config: ScheduleConfigEntity, backdrop: Backdrop?,
+internal fun AutoRefreshReviewHost(config: ScheduleConfigEntity, backdrop: Backdrop?, schedules: List<ScheduleProfileEntity>,
     enabled: Boolean = true, openRequest: Int = 0) {
     val context = LocalContext.current
     val pending by AutoRefreshReviewStore.observe(context).collectAsState()
@@ -75,7 +76,8 @@ internal fun AutoRefreshReviewHost(config: ScheduleConfigEntity, backdrop: Backd
                 }
             }
         ) {
-            Text("${review.schoolName} · 更新尚未保存。关闭或稍后处理会保留现有课表。",
+            val scheduleName = schedules.firstOrNull { it.id == review.scheduleId }?.name ?: "已绑定课表"
+            Text("$scheduleName · ${review.schoolName}\n更新尚未保存。稍后可在自动刷新设置中继续核对。",
                 style = MaterialTheme.typography.bodySmall, color = foreground.copy(alpha = 0.7f))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 QuickSheetLiquidAction("全部保留", !saving, backdrop, config, Modifier.weight(1f)) {

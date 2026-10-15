@@ -4099,6 +4099,7 @@ fun CourseScheduleAppUi(
 
     com.xiaomanjun.sleepdownschedule.feature.schedule.autorefresh.AutoRefreshReviewHost(
         config = state.config, backdrop = homeDialogBackdrop,
+        schedules = state.schedules,
         enabled = state.loaded && renderedHomeDialog == null
     )
 
