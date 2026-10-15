@@ -33,9 +33,14 @@ internal fun isolatedShiguangScript(source: String): String = """
         var detail = error && error.message ? error.message : String(error || '未知错误');
         bridge.showToast('教务导入失败：' + detail);
     };
+    var validateInput;
     Promise.resolve().then(function() {
+        // Keep named callbacks in the adapter scope, including adapters run inside an iframe.
+        validateInput = function(name, input) { return eval(name + '(input)'); };
+        bridge._evaluateAdapterInput = validateInput;
         return eval(${JSONObject.quote(source)});
     }).catch(report).finally(function() {
+        if (bridge._evaluateAdapterInput === validateInput) delete bridge._evaluateAdapterInput;
         bridge.notifyExecutionFinished();
     });
     return 'started';

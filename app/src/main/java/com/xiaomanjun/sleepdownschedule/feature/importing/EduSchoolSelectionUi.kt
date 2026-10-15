@@ -1266,7 +1266,7 @@ private fun validateEduBridgePrompt(
     val script = """
         (function () {
             try {
-                var result = ${validator}(${JSONObject.quote(value)});
+                var result = window._shiguangValidatePrompt(${JSONObject.quote(request.requestId)}, ${JSONObject.quote(value)});
                 if (result === false || result == null || result === "") return null;
                 return String(result);
             } catch (error) {

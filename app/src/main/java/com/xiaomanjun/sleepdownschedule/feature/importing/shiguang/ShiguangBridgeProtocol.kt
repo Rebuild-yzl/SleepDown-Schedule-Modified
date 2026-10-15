@@ -118,6 +118,12 @@ internal val ShiguangBridgeInitScript = """
         }
     };
 
+    window._shiguangValidatePrompt = function(callbackId, input) {
+        var cb = callbacks[callbackId];
+        if (!cb) throw new Error('输入请求已结束，请重新获取课表');
+        return cb.validate ? cb.validate(input) : false;
+    };
+
     var shiguangBridgePromise = {
         showAlert: function(titleText, contentText, confirmText) {
             return new Promise(function(resolve, reject) {
@@ -133,7 +139,15 @@ internal val ShiguangBridgeInitScript = """
         showPrompt: function(titleText, tipText, defaultText, validatorJsFunction) {
             return new Promise(function(resolve, reject) {
                 var id = 'cb_' + (++callbackCounter) + '_' + Date.now();
-                callbacks[id] = { resolve: resolve, reject: reject };
+                var evaluateInput = shiguangBridge._evaluateAdapterInput;
+                callbacks[id] = {
+                    resolve: resolve,
+                    reject: reject,
+                    validate: validatorJsFunction ? function(input) {
+                        if (!evaluateInput) throw new Error('导入脚本已结束，请重新获取课表');
+                        return evaluateInput(validatorJsFunction, input);
+                    } : null
+                };
                 postMessageToNative('showPrompt', {
                     titleText: titleText || '',
                     tipText: tipText || '',

@@ -52,10 +52,10 @@ const runnerSource = fs.readFileSync(path.join(root,
   'app/src/main/java/com/xiaomanjun/sleepdownschedule/feature/importing/AiEduPageRouting.kt'), 'utf8');
 const runner = runnerSource.match(/val script = """([\s\S]*?)"""\.trimIndent/)[1];
 function execute(target, framePath, documentKey) {
-  const body = '(async function(){window.fixtureExecuted = true;})()';
+  const body = '(function(){window.fixtureExecuted = true; return "started";})()';
   const rendered = runner.replace('${candidate.framePath}', JSON.stringify(framePath))
     .replace('${JSONObject.quote(candidate.documentKey)}', JSON.stringify(documentKey))
-    .replace('$invocation', framePath.length ? `target.eval(${JSON.stringify(body)});` : body + ';');
+    .replace('$invocation', framePath.length ? `target.eval(${JSON.stringify(body)})` : body);
   return vm.runInNewContext(rendered, { window: target });
 }
 zfPage.shiguangBridge = { showToast() {} };
