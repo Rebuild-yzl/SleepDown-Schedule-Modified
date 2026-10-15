@@ -81,6 +81,7 @@ com/xiaomanjun/sleepdownschedule/
 │   ├── agent/                       # 计划预览、验证、课程片段
 │   ├── course/                      # 课程与冲突计算
 │   └── schedule/                    # 学期、周次、节次、时间规则
+│       └── CourseLessonPlan.kt      # 逐节时长、课间与开始时间覆盖的校验和生成
 ├── core/
 │   ├── {analytics,identity,performance,remoteconfig,wallpaper,web}/
 │   └── ui/
@@ -101,6 +102,10 @@ com/xiaomanjun/sleepdownschedule/
 │   │   └── personalization/         # 个性化编辑状态、滑条、颜色与取色
 │   ├── course/
 │   │   ├── editor/                  # 草稿规则、页面、表单、选择器、标题
+│   │   │   ├── CourseEditorDraft.kt         # 编辑草稿到课程记录，保留完整时间
+│   │   │   ├── CourseEditorPickers.kt       # 公共 Picker 路由与三种时间模式
+│   │   │   ├── CourseLessonClockDraft.kt    # 按课时的输入状态、初始化与转换
+│   │   │   └── CourseLessonClockPicker.kt   # 按课时的输入界面
 │   │   └── management/              # 课程管理
 │   ├── schedule/{manager,picker}/
 │   ├── importing/{history,progress}/
