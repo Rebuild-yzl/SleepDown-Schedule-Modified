@@ -84,6 +84,60 @@ class CoursePeriodAlignmentTest {
         }
     }
 
+    @Test fun matchingWholeCustomClockDisplaysAsOrdinaryAndPreservesSavedSource() {
+        val source = course(listOf(1, 2), "08:00", "09:40")
+        PeriodAlignmentMode.entries.forEach { mode ->
+            val displayed = projectCourseArrangement(source, config.copy(periodAlignmentMode = mode), bells)
+            assertFalse(displayed.hasCustomTime())
+            assertTrue(displayed.arrangementProjection!!.times.none { it.exact })
+            assertNull(displayed.customStartTime)
+            assertTrue(courseAllowsWeekPeriodDrag(displayed))
+            assertEquals(listOf(1, 2), courseAlignmentFragments(displayed, bells).single().periods)
+            assertEquals(source.copy(name = "改名"), displayed.copy(name = "改名").arrangementForWrite())
+        }
+    }
+
+    @Test fun matchingLessonClocksUseActualTargetNumbersWithoutLosingOriginalNumbers() {
+        val source = course(listOf(13, 14), "08:00", "09:40", "13,08:00-08:45;14,08:55-09:40")
+        val displayed = time(source, bells)
+        assertEquals(listOf(1, 2), displayed.periods)
+        assertFalse(displayed.hasCustomTime())
+        assertNull(displayed.customPeriodTimes)
+        assertEquals(source, displayed.arrangementForWrite())
+    }
+
+    @Test fun almostMatchingAndPartiallyMatchingClocksKeepTheirExactTimes() {
+        val almost = time(course(listOf(1, 2), "08:01", "09:40"), bells)
+        assertTrue(almost.hasCustomTime())
+        assertEquals(LocalTime.parse("08:01"), courseStartTime(almost, bells))
+        val partial = time(course(listOf(1, 2), custom = "1,08:00-08:45;2,08:56-09:40"), bells)
+        assertTrue(partial.hasCustomTime())
+        val fragments = courseAlignmentFragments(partial, bells)
+        assertEquals(2, fragments.size)
+        assertFalse(fragments.first().hasCustomTime())
+        assertTrue(fragments.last().hasCustomTime())
+        assertEquals(LocalTime.parse("08:56"), courseStartTime(fragments.last(), bells))
+    }
+
+    @Test fun changingSchemeRestoresTheOriginalCustomClock() {
+        val source = course(listOf(1, 2), "08:00", "09:40")
+        val ordinary = time(source, bells)
+        val shifted = bells.map { it.copy(startTime = LocalTime.parse(it.startTime).plusHours(1).toString(),
+            endTime = LocalTime.parse(it.endTime).plusHours(1).toString()) }
+        val displayed = time(ordinary, shifted)
+        assertTrue(displayed.hasCustomTime())
+        assertEquals("08:00 - 09:40", courseTimeLabel(displayed, shifted))
+        assertEquals(source, displayed.originalArrangement())
+    }
+
+    @Test fun matchingEndpointsDoNotNormalizeOverlappingOrUnorderedLessons() {
+        val source = course(listOf(1, 2), "08:00", "09:40")
+        val overlapping = listOf(PeriodEntity(1, "08:00", "09:00"), PeriodEntity(2, "08:55", "09:40"))
+        assertTrue(time(source, overlapping).hasCustomTime())
+        val unordered = listOf(bells[0], PeriodEntity(2, "13:00", "13:45"), bells[1].copy(periodIndex = 3))
+        assertTrue(time(source, unordered).hasCustomTime())
+    }
+
     @Test fun completePerLessonCustomClocksRemainExactInBothModes() {
         val source = course(listOf(13, 14), "12:01", "14:29", "13,12:01-12:29;14,14:01-14:29")
         PeriodAlignmentMode.entries.forEach { mode ->
