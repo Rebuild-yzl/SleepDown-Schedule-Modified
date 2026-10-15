@@ -1017,7 +1017,7 @@ private fun CourseEditorAnimatedContainer(
         expandedOutlineLight = expandedOutlineLight,
         followTouch = true,
         // The expanded editor must not inherit the card's full-diagonal spotlight radius.
-        followLightRadius = 80.dp,
+        followLightRadius = 112.dp,
         modifier = modifier.graphicsLayer { this.alpha = alpha }.drawWithCache {
             // Keep the shell's outline in the parent recording across the fixed-allocation
             // handoff. Child RenderNodes may otherwise replay rectangular pixels for one frame

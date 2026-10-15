@@ -774,6 +774,7 @@ fun WeekCourseBlock(
                 backdropSampleScale = backdropSampleScale,
                 sampledShape = sampledCardShape,
                 muted = subdued,
+                followTouch = !editMode,
                 onClick = null
             ) {
             // The day column already knows the measured width. Subcomposing every card again

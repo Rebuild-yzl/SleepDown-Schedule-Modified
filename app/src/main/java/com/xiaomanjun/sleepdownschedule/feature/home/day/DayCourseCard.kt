@@ -161,10 +161,10 @@ internal fun DayCourseCardTextContent(
             )
         }
         if (!course.location.isNullOrBlank()) {
-            CourseCardText("地点：" + course.location, style = bodyStyle, color = renderedTextColor.copy(alpha = 0.86f), coloredText = coloredText, fontWeight = coloredWeight)
+            CourseCardText("地点：" + course.location, style = bodyStyle, color = renderedTextColor.copy(alpha = 0.86f), coloredText = coloredText, fontWeight = if (coloredText) FontWeight.SemiBold else FontWeight.Normal)
         }
         if (!course.teacher.isNullOrBlank()) {
-            CourseCardText("教师：" + course.teacher, style = bodyStyle, color = renderedTextColor.copy(alpha = 0.86f), coloredText = coloredText, fontWeight = coloredWeight)
+            CourseCardText("教师：" + course.teacher, style = bodyStyle, color = renderedTextColor.copy(alpha = 0.86f), coloredText = coloredText, fontWeight = if (coloredText) FontWeight.SemiBold else FontWeight.Normal)
         }
         if (showWeeks) {
             CourseCardText(

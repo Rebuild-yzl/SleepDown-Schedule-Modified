@@ -54,7 +54,6 @@ internal fun WeekEditOverlayHost(
     overlayAlpha: Float,
     liftProgress: Float,
     rotation: Float,
-    pointerPosition: Offset,
     gestureActive: Boolean,
     gridOffsetY: Float,
     gridScrollCompensationY: Float,
@@ -80,8 +79,6 @@ internal fun WeekEditOverlayHost(
         progress = cornerProgress
     )
     val cardShape = remember(cardCorner) { RoundedRectangle(cardCorner) }
-    val glowRadiusPx = with(density) { (widthDp * 1.9f).coerceIn(84.dp, 140.dp).toPx() }
-    val localPointer = Offset(pointerPosition.x - host.left, pointerPosition.y - host.top)
     val left = req.sourceBounds.left - host.left + offsetX
     val top = req.sourceBounds.top - host.top + offsetY
     val cardGlowRadiusPx = with(density) { (widthDp * 1.65f).coerceIn(72.dp, 120.dp).toPx() }
@@ -152,8 +149,8 @@ internal fun WeekEditOverlayHost(
             .fillMaxSize()
             .zIndex(90f)
     ) {
-        WeekEditFollowLight(
-            config = config, position = Offset(cardGlowRadiusPx, cardGlowRadiusPx),
+        WeekEditCardGlow(
+            config = config,
             pressed = cardGlowPressed, radiusPx = cardGlowRadiusPx,
             spotAlpha = 0.068f, fallbackAlpha = 0.046f,
             modifier = Modifier
@@ -207,6 +204,7 @@ internal fun WeekEditOverlayHost(
                 course = req.course,
                 modifier = Modifier.fillMaxSize(),
                 shape = cardShape,
+                followTouch = false,
                 onClick = null
             ) {
                 WeekCourseOverlayCardContent(req.course, config)
@@ -226,9 +224,6 @@ internal fun WeekEditOverlayHost(
                 )
             }
         }
-        WeekEditFollowLight(config = config, position = localPointer, pressed = gestureActive,
-            radiusPx = glowRadiusPx, spotAlpha = 0.115f, fallbackAlpha = 0.075f,
-            modifier = Modifier.fillMaxSize())
     }
 }
 
@@ -243,8 +238,10 @@ internal fun WeekCourseOverlayCardContent(
 }
 
 @Composable
-private fun WeekEditFollowLight(config: ScheduleConfigEntity, position: Offset, pressed: Boolean,
+private fun WeekEditCardGlow(config: ScheduleConfigEntity, pressed: Boolean,
     radiusPx: Float, spotAlpha: Float, fallbackAlpha: Float, modifier: Modifier) {
+    // The halo belongs to the lifted card; touch coordinates only drive the editing gesture.
+    val position = Offset(radiusPx, radiusPx)
     val native = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeFollowLightRenderer.current
     if (native?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeFollowLightRequest(
             modifier, com.xiaomanjun.sleepdownschedule.glass.ui.appUsesDarkTheme(config),

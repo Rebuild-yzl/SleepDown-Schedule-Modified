@@ -204,6 +204,7 @@ Activity / Morph host
 - 二级菜单与父菜单同宽，父菜单缩至 95% 退后。二级实测布局就绪后从触发行的圆角轮廓展开，使用阻尼 0.82、响应 0.34s 的弹簧；标题起点与真实条目上下内距对齐。一级在二级展开、停留和收起期间冻结输入，直到二级卸载后恢复；跟手观察暂停，保留已有视觉平滑归位。露出的父层边缘不作为收起入口，收起使用二级标题或系统返回。
 - Popup host 与页面 producer 同样采用兄弟层拓扑；Popup 只消费该页面显式传入的采样域。找不到 Backdrop 时按相同几何回退稳定表面，不得跨根层寻找 producer。
 - 多课表快速设置不属于 Popup：必须保留 `QuickScheduleSettingsSheets` 在 1.2.0 中已验收的半屏 QuickSheet 高度、内容顺序、操作按钮和日期子 Sheet。可以通过公共 QuickSheet token 等价更新材质，不得被 Popup 视觉样式、级联布局或菜单选中态改造污染。
+- 选择器和 QuickSheet 顶栏保留 84×38dp 小胶囊操作，不套用系统对话框的最小按钮宽度。凝光标题可读取系统字号；底部完整确认按钮单独采用系统尺寸。个性化面板区分一级分区标题（16sp 半粗）、二级分类标题（14sp 中等）、设置项（14sp）和说明（12sp），同级对齐并保持一致间距。
 - 多课表快速设置的“详细设置”先保存当前 QuickSheet 草稿，再通过 `QuickSheetToSettingsDetail` 跨 Activity Morph 打开 `SettingsDetailActivity`。目标窗口在 `super.onCreate` 前切换为透明 Morph 窗口，直接使用实时按钮 bounds 展开；QuickSheet 留在原 Activity 下层，返回后原样恢复。不得再复制或裁切 Bitmap、挂局部 Overlay 或写第二套 Morph。
 
 ## 色彩与玻璃前景色

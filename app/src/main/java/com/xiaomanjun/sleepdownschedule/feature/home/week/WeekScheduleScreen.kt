@@ -740,7 +740,6 @@ internal fun SinglePillWeekScheduleScreen(
             overlayAlpha = weekEditOverlay.alpha * weekEditOverlay.revealProgress,
             liftProgress = weekEditOverlay.liftProgress,
             rotation = weekEditOverlay.rotation,
-            pointerPosition = weekEditOverlay.pointerPosition,
             gestureActive = weekEditOverlay.gestureActive,
             gridOffsetY = weekEditOverlay.gridOffsetY,
             gridScrollCompensationY = weekEditOverlay.gridScrollCompensationY,

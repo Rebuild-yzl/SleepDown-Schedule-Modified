@@ -222,10 +222,11 @@ fun PersonalizePanel(
         )
     }
     @Composable
-    fun PersonalizeGroupTitle(title: String, index: Int) {
-        Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 8.dp).rowEntrance(index)
+    fun PersonalizeGroupTitle(title: String, index: Int, section: Boolean = false) {
+        Box(Modifier.fillMaxWidth().heightIn(min = if (section) 48.dp else 40.dp).padding(vertical = 8.dp).rowEntrance(index)
             .personalizePreviewVisibility(previewSliderKey, previewProgress), contentAlignment = Alignment.CenterStart) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(title, style = if (section) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall,
+                fontWeight = if (section) FontWeight.SemiBold else FontWeight.Medium)
         }
     }
     @Composable
@@ -327,6 +328,7 @@ fun PersonalizePanel(
                 )
             }
             PersonalizeSection {
+                PersonalizeGroupTitle("课程卡片", 3, section = true)
                 PersonalizeGroupTitle("尺寸与字体", 3)
                 if (mode == HomeMode.Week) {
                     Text(
@@ -456,7 +458,7 @@ fun PersonalizePanel(
                     }
                 )
                 PersonalizeSectionDivider(7)
-                PersonalizeGroupTitle("课程卡片内容", 7)
+                PersonalizeGroupTitle("内容", 7)
                 Row(
                     modifier = Modifier.rowEntrance(8)
                         .fillMaxWidth()
@@ -554,7 +556,7 @@ fun PersonalizePanel(
                     }
                 }
                 PersonalizeSectionDivider(9 + weekContentRows)
-                PersonalizeGroupTitle("课程卡片颜色", 9 + weekContentRows)
+                PersonalizeGroupTitle("颜色", 9 + weekContentRows)
                 CourseColorModeRow(
                     title = "纯色",
                     iconRes = R.drawable.ic_color_solid,
@@ -622,7 +624,7 @@ fun PersonalizePanel(
                     onOpenPalette = { openCourseColorDialog(CourseCardColorMode.COLORFUL) }
                 )
                 PersonalizeSectionDivider(13 + weekContentRows)
-                PersonalizeGroupTitle("课程卡片材质", 13 + weekContentRows)
+                PersonalizeGroupTitle("材质", 13 + weekContentRows)
                 val superPerformance = AppMaterialPreferences.isSuperPerformance
                 val glassLocked = (!state.config.hasAnyWallpaper() && !nativeMaterialActive) || superPerformance
                 nativeMaterialMode?.let { material ->

@@ -683,11 +683,13 @@ internal fun QuickSheetLiquidAction(
     height: Dp = 38.dp,
     onClick: () -> Unit
 ) {
-    val nativeStyle = LocalNativePickerStyle.current.takeIf { LocalNativeDialogSurface.current }
+    val centeredAction = height == SleepDownDesignTokens.CenteredDialog.ActionHeight
+    // Header actions keep the compact capsule dimensions; only full-size confirmation actions
+    // inherit the system dialog button size, which otherwise crowds the sheet title.
+    val nativeStyle = LocalNativePickerStyle.current.takeIf { LocalNativeDialogSurface.current && centeredAction }
     val actionModifier = if (modifier != Modifier) modifier else nativeStyle?.let {
         Modifier.widthIn(min = it.buttonMinWidth)
     } ?: Modifier.width(84.dp)
-    val centeredAction = height == SleepDownDesignTokens.CenteredDialog.ActionHeight
     if (LocalNativeCapsuleButtonRenderer.current?.invoke(NativeCapsuleButtonRequest(
             onClick = onClick,
             modifier = actionModifier,
