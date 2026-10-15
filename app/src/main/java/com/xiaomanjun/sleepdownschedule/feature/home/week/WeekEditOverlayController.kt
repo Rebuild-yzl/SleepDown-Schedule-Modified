@@ -69,7 +69,8 @@ data class WeekEditOverlayRequest(
     val weekCourses: List<CourseEntity>,
     val editWeek: Int,
     val weekdayCount: Int,
-    val initialPointerPosition: Offset
+    val initialPointerPosition: Offset,
+    val destinationWeek: Int = editWeek
 )
 
 internal const val WeekEditLiftedScale = 1.12f
@@ -219,6 +220,14 @@ internal class WeekEditOverlayController(
 ) {
     var request by mutableStateOf<WeekEditOverlayRequest?>(null)
         private set
+    var rootOwnsMoveGesture by mutableStateOf(false)
+
+    fun moveToWeek(week: Int, courses: List<CourseEntity>) {
+        val current = request ?: return
+        if (gestureActive && current.mode == WeekEditOverlayMode.Move) {
+            request = current.copy(destinationWeek = week, weekCourses = courses)
+        }
+    }
     var awaitingCommit by mutableStateOf(false)
         private set
     var committedTargetKey by mutableStateOf<String?>(null)
@@ -333,6 +342,7 @@ internal class WeekEditOverlayController(
     }
 
     fun start(nextRequest: WeekEditOverlayRequest) {
+        rootOwnsMoveGesture = false
         awaitingCommit = false
         committedTargetKey = null
         committedTargetWeek = 0
@@ -478,8 +488,8 @@ internal class WeekEditOverlayController(
         velocity: Velocity,
         canMoveToWeekday: (Int) -> Boolean = { true },
         onUpdateCourseSingleWeek: (CourseEntity, CourseEntity, Int) -> Unit
-    ) {
-        val activeRequest = request ?: return
+    ): Boolean {
+        val activeRequest = request ?: return false
         gestureActive = false
         // The preview and persistence target must be calculated from the exact same finger frame.
         // A release-velocity projection made the saved cell differ from the one shown under the
@@ -493,10 +503,13 @@ internal class WeekEditOverlayController(
             span = activeRequest.currentSpan,
             weekdayCount = activeRequest.weekdayCount
         )
-        val edited = activeRequest.course.copy(weekday = target.weekday, periods = target.periods)
+        val edited = activeRequest.course.copy(weekday = target.weekday, periods = target.periods,
+            weeks = listOf(activeRequest.destinationWeek), weekParity = com.xiaomanjun.sleepdownschedule.WeekParity.ALL)
+        val crossingWeek = activeRequest.destinationWeek != activeRequest.editWeek
         val canSave = target.valid && canMoveToWeekday(target.weekday) &&
-            !hasWeekCourseEditConflict(activeRequest.course, edited, activeRequest.weekCourses, activeRequest.editWeek) &&
-            (edited.weekday != activeRequest.course.weekday || edited.periods != activeRequest.course.periods)
+            !hasWeekCourseEditConflict(if (crossingWeek) activeRequest.course.copy(id = -1) else activeRequest.course,
+                edited, activeRequest.weekCourses, activeRequest.destinationWeek) &&
+            (crossingWeek || edited.weekday != activeRequest.course.weekday || edited.periods != activeRequest.course.periods)
         val targetX = if (canSave) (target.weekday - activeRequest.dayIndex) * activeRequest.gridColumnWidthPx else 0f
         val targetY = if (canSave) {
             ((target.periods.firstOrNull() ?: activeRequest.periodIndex) - activeRequest.periodIndex) *
@@ -510,8 +523,8 @@ internal class WeekEditOverlayController(
             activeRequest.periodRowHeightPx * 3.0f
         )
         if (canSave) {
-            committedTargetKey = edited.copy(weeks = listOf(activeRequest.editWeek)).occurrenceOverrideKey()
-            committedTargetWeek = activeRequest.editWeek
+            committedTargetKey = edited.occurrenceOverrideKey()
+            committedTargetWeek = activeRequest.destinationWeek
             awaitingCommit = true
             beginLandingFlight(
                 targetX = targetX,
@@ -533,6 +546,7 @@ internal class WeekEditOverlayController(
                 releaseVelocity = velocity
             )
         }
+        return canSave
     }
 
     fun finishResize(

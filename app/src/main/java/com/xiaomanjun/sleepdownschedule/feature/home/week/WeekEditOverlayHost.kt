@@ -153,7 +153,8 @@ internal fun WeekEditOverlayHost(
         WeekEditOverlayMode.Resize -> req.course.copy(periods = target.periods)
     }
     val conflict = !target.valid ||
-        hasWeekCourseEditConflict(req.course, previewCourse, req.weekCourses, req.editWeek)
+        hasWeekCourseEditConflict(if (req.destinationWeek != req.editWeek) req.course.copy(id = -1) else req.course,
+            previewCourse, req.weekCourses, req.destinationWeek)
     val previewLeft = req.sourceBounds.left - host.left + (target.weekday - req.dayIndex) * req.gridColumnWidthPx
     val previewTop = req.sourceBounds.top - host.top - gridScrollCompensationY +
         ((target.periods.firstOrNull() ?: req.periodIndex) - req.periodIndex) * req.periodRowHeightPx

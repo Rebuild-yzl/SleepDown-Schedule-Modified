@@ -4066,7 +4066,7 @@ fun CourseScheduleAppUi(
             val allScope = courseEditorApplyAllScope(dialog.originals, dialog.editedCourses, state.courses)
             val singleEdited = dialog.edited.copy(
                 id = dialog.original.id,
-                weeks = listOf(dialog.targetWeek),
+                weeks = listOf(destinationWeek ?: dialog.targetWeek),
                 weekParity = WeekParity.ALL
             )
             ApplyCourseEditDialog(
@@ -4125,6 +4125,8 @@ fun CourseScheduleAppUi(
                             conflictWeeks,
                             returnEdit = dialog
                         )
+            val destinationWeek = com.xiaomanjun.sleepdownschedule.feature.course.editor.courseEditorSingleDestinationWeek(
+                dialog.original, dialog.edited, dialog.targetWeek)
                     }
                 },
                 onCancel = { dismissHomeDialog() }
@@ -4139,6 +4141,7 @@ fun CourseScheduleAppUi(
                     pendingCourseGroupEdit?.let { groupEdit ->
                         if (groupEdit.originals.isEmpty()) {
                             viewModel.addCourses(groupEdit.edited)
+                    destinationWeek != null &&
                             pendingCourseGroupEdit = null
                             pendingConflictCourseId = null
                             pendingConflictCourseKey = groupEdit.edited.firstOrNull()?.occurrenceOverrideKey()
@@ -4156,6 +4159,7 @@ fun CourseScheduleAppUi(
                         val editorWasOpen = courseEditorRequest != null
                         viewModel.replaceCourseGroup(groupEdit.originals, groupEdit.edited)
                         pendingCourseGroupEdit = null
+                        homeDisplayWeek = destinationWeek ?: dialog.targetWeek
                         pendingConflictCourseId = groupEdit.edited.firstOrNull()?.id?.takeIf { it > 0 }
                         pendingConflictCourseKey = groupEdit.edited.firstOrNull()?.occurrenceOverrideKey()
                         pendingConflictWeeks = dialog.conflictWeeks
@@ -4304,9 +4308,6 @@ fun CourseScheduleAppUi(
                                 onSave = {
                                     if (dialog.course == null) {
                                         viewModel.addCourse(it)
-                                        dismissHomeDialog()
-                                    } else if (courseWeeksChanged(dialog.course, it)) {
-                                        viewModel.updateCourse(it)
                                         dismissHomeDialog()
                                     } else {
                                         homeDialog = HomeDialog.ApplyCourseEdit(dialog.course, it, dialog.targetWeek ?: effectiveCurrentWeek(state.config))

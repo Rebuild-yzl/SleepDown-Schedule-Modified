@@ -489,7 +489,10 @@ fun WeekCourseBlock(
             } finally {
                 if (dragging) {
                     bodyDragging = false
-                    if (released) {
+                    if (weekEditMotionState?.rootOwnsMoveGesture == true) {
+                        // The stable week root continues receiving this pointer after paging
+                        // disposes the original card. It also owns release and cancellation.
+                    } else if (released) {
                         finishBodyDrag(velocityTracker.calculateVelocity())
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     } else cancelBodyDrag()

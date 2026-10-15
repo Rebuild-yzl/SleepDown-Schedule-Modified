@@ -184,6 +184,11 @@ internal fun courseEditorApplyAllScope(
 internal fun courseEditorHasOccurrence(course: CourseEntity, week: Int): Boolean =
     week > 0 && week in course.weeks && parityMatches(course.weekParity, week)
 
+/** A single selected destination week moves this occurrence; a normal edit keeps its source week. */
+internal fun courseEditorSingleDestinationWeek(original: CourseEntity, edited: CourseEntity, sourceWeek: Int): Int? =
+    if (!courseWeeksChanged(original, edited)) sourceWeek
+    else edited.weeks.filter { parityMatches(edited.weekParity, it) }.distinct().singleOrNull()
+
 internal fun courseEditorOccurrenceLabel(
     course: CourseEntity,
     week: Int,

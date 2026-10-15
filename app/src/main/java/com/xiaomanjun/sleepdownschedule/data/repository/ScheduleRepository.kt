@@ -482,6 +482,9 @@ class ScheduleRepository(private val database: AppDatabase) {
             require(targetWeek in current.weeks && parityMatches(current.weekParity, targetWeek)) {
                 "所选周次没有这条课程，请重新打开"
             }
+            val destinationWeek = edited.weeks.distinct().singleOrNull() ?: targetWeek
+            val config = configDao.getConfig(scheduleId) ?: error("课表已不存在")
+            require(destinationWeek in 1..config.totalWeeks) { "目标周次超出学期范围" }
             val remainingWeeks = current.weeks.filter { it != targetWeek }
             if (remainingWeeks.isEmpty()) {
                 courseDao.deleteCourse(current.id)
@@ -489,10 +492,10 @@ class ScheduleRepository(private val database: AppDatabase) {
                 courseDao.updateCourse(current.copy(weeks = remainingWeeks))
             }
             val singleWeekCourse = normalizeCoursesForSchedule(
-                listOf(edited.copy(id = 0, weeks = listOf(targetWeek), weekParity = WeekParity.ALL)), scheduleId
+                listOf(edited.copy(id = 0, weeks = listOf(destinationWeek), weekParity = WeekParity.ALL)), scheduleId
             ).single()
             courseDao.getCourses(scheduleId)
-                .filter { it.id != current.id && it.weeks.distinct() == listOf(targetWeek) && it.hasSameOccurrenceSlot(singleWeekCourse) }
+                .filter { destinationWeek == targetWeek && it.id != current.id && it.weeks.distinct() == listOf(targetWeek) && it.hasSameOccurrenceSlot(singleWeekCourse) }
                 .forEach { courseDao.deleteCourse(it.id) }
             courseDao.insertCourse(singleWeekCourse)
             mergeCompatibleCourseFragments(scheduleId)

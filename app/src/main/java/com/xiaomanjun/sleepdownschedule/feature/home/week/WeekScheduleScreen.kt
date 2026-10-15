@@ -87,6 +87,7 @@ import java.time.LocalTime
 import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
@@ -124,6 +125,8 @@ internal fun SinglePillWeekScheduleScreen(
     // boundless mode the rail is narrowed so the period/time header shifts left, the left
     // clearance to the grid shrinks, and the freed width flows into every course column equally.
     val boundless = style == WeekViewStyle.BOUNDLESS
+    val scrollState = rememberScrollState()
+    val weekEditOverlay = rememberWeekEditOverlayController(scrollState = scrollState, scheduleId = state.config.id)
     val rowHeaderWidth = if (boundless) BoundlessWeekRowHeaderWidth else 56.dp
     val today = LocalDate.now()
     val weekStart = scheduleWeekStartDate(state.config, displayWeek, today)
@@ -176,7 +179,7 @@ internal fun SinglePillWeekScheduleScreen(
         }
     }
     val supplementaryHeight = if (supplementaryRowCount > 0) 24.dp + 88.dp * supplementaryRowCount else 0.dp
-    val weekdays = remember(weekBuckets, state.courses, state.config, displayWeek) {
+    val weekdays = weekEditOverlay.request?.let { (1..it.weekdayCount).toList() } ?: remember(weekBuckets, state.courses, state.config, displayWeek) {
         weekPresentationWeekdays(weekBuckets, state.courses, state.config, displayWeek)
     }
     val periodIndexes = remember(state.periods) {
@@ -306,7 +309,6 @@ internal fun SinglePillWeekScheduleScreen(
             }
         }
     }
-    val scrollState = rememberScrollState()
     val contentUnderTopBar by remember {
         derivedStateOf { scrollState.value > 0 }
     }
@@ -314,10 +316,6 @@ internal fun SinglePillWeekScheduleScreen(
         onContentUnderTopBarChange(contentUnderTopBar)
     }
     val overlayHostBounds = remember { mutableStateOf<Rect?>(null) }
-    val weekEditOverlay = rememberWeekEditOverlayController(
-        scrollState = scrollState,
-        scheduleId = state.config.id
-    )
     val stationaryCoursesBackdrop = rememberGlassLayerBackdrop(
         domain = GlassBackdropDomain.Content,
         providerId = "week-stationary-courses"
@@ -331,6 +329,38 @@ internal fun SinglePillWeekScheduleScreen(
     }
     val overlayScreenHeightPx = with(density) { adaptiveMetrics.screenHeight.toPx() }
     val overlayEdgePx = with(density) { if (adaptiveMetrics.isLargeScreen) 64.dp.toPx() else 88.dp.toPx() }
+    val latestState by rememberUpdatedState(state)
+    val latestWeekCourses by rememberUpdatedState<(Int) -> List<CourseEntity>>({ bucketsForWeek(it).visibleCourses })
+    val pageEdgePx = with(density) { 28.dp.toPx() }
+    val pageDragThresholdPx = with(density) { 12.dp.toPx() }
+    LaunchedEffect(weekEditOverlay, pagerState, pageEdgePx) {
+        snapshotFlow {
+            val request = weekEditOverlay.request
+            if (request == null || !weekEditOverlay.gestureActive || !weekEditOverlay.rootOwnsMoveGesture ||
+                request.mode != WeekEditOverlayMode.Move ||
+                abs(weekEditOverlay.offsetX) + abs(weekEditOverlay.offsetY) < pageDragThresholdPx) 0
+            else {
+                val left = request.sourceBounds.left - (request.dayIndex - 1) * request.gridColumnWidthPx
+                weekDragEdgeDirection(weekEditOverlay.pointerPosition.x, left,
+                    left + request.weekdayCount * request.gridColumnWidthPx, pageEdgePx,
+                    request.destinationWeek, latestState.config.totalWeeks)
+            }
+        }.distinctUntilChanged().collectLatest { direction ->
+            if (direction == 0) return@collectLatest
+            var dwell = 450L
+            while (true) {
+                delay(dwell)
+                val request = weekEditOverlay.request ?: break
+                if (!weekEditOverlay.gestureActive) break
+                if (pagerState.isScrollInProgress || programmaticPage >= 0) continue
+                val target = (request.destinationWeek + direction).coerceIn(1, latestState.config.totalWeeks)
+                if (target == request.destinationWeek) break
+                weekEditOverlay.moveToWeek(target, latestWeekCourses(target))
+                latestSwipeWeek(target - latestDisplayWeek)
+                dwell = 650L
+            }
+        }
+    }
     // Keep a small cross-axis drawing gutter around HorizontalPager while edit chrome is visible.
     // The first-row delete pill can then overlap the weekday header instead of being clipped or
     // pushed into the course card. Retain it briefly for the exit scale/fade as well.
@@ -395,6 +425,25 @@ internal fun SinglePillWeekScheduleScreen(
             .fillMaxSize()
             .graphicsLayer { clip = false }
             .weekTailTouchAnchor(weekTail)
+            .weekMoveGestureHost(weekEditOverlay,
+                onDrag = { weekEditOverlay.drag(it, overlayScreenHeightPx, overlayEdgePx, with(density) { 4.dp.toPx() }) },
+                onFinish = { velocity ->
+                    val request = weekEditOverlay.request
+                    val saved = weekEditOverlay.finishMove(velocity,
+                        canMoveToWeekday = { day ->
+                            com.xiaomanjun.sleepdownschedule.domain.schedule.scheduleAdjustmentForDate(state.config,
+                                scheduleWeekStartDate(state.config, request?.destinationWeek ?: displayWeek)
+                                    .plusDays((day - 1).toLong())) == null
+                        }, onUpdateCourseSingleWeek = onUpdateCourseSingleWeek)
+                    if (!saved && request != null && request.destinationWeek != request.editWeek) {
+                        latestSwipeWeek(request.editWeek - latestDisplayWeek)
+                    }
+                },
+                onCancel = {
+                    val source = weekEditOverlay.request?.editWeek
+                    weekEditOverlay.cancelGesture()
+                    if (source != null && source != latestDisplayWeek) latestSwipeWeek(source - latestDisplayWeek)
+                })
             .onGloballyPositioned { overlayHostBounds.value = it.boundsInRoot() }
     ) {
     Box(
@@ -590,7 +639,7 @@ internal fun SinglePillWeekScheduleScreen(
                             val pageWeek = (weekJump?.logicalPage(page) ?: page) + 1
                             val pageBuckets = bucketsForWeek(pageWeek)
                             val pageCourses = pageBuckets.visibleCourses
-                            val pageWeekdays = remember(pageBuckets, state.courses, state.config, pageWeek) {
+                            val pageWeekdays = weekEditOverlay.request?.let { (1..it.weekdayCount).toList() } ?: remember(pageBuckets, state.courses, state.config, pageWeek) {
                                 weekPresentationWeekdays(pageBuckets, state.courses, state.config, pageWeek)
                             }
                             val isActivePage = programmaticPage < 0 && pageWeek == displayWeek && pagerState.settledPage == page
@@ -643,7 +692,7 @@ internal fun SinglePillWeekScheduleScreen(
                                 onDeleteSingleWeekCourse = { course ->
                                     onDeleteCourseSingleWeek(course, pageWeek)
                                 },
-                                activeOverlayCourseId = weekEditOverlay.request?.course?.id,
+                                activeOverlayCourseId = weekEditOverlay.request?.takeIf { it.editWeek == pageWeek }?.course?.id,
                                 activeOverlayTargetKey = weekEditOverlay.committedTargetKey,
                                 activeOverlayTargetWeek = weekEditOverlay.committedTargetWeek,
                                 onStartWeekEditOverlay = weekEditOverlay::start,
