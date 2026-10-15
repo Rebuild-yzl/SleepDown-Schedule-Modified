@@ -152,8 +152,12 @@ internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, style
         ColorOsNativeUi.prepare("create a material surface") { NativeMaterialSurface(context, source, style) }
     } ?: return false
     val latest = rememberUpdatedState(request)
-    DisposableEffect(surface, menuMotion) {
-        val binding = menuMotion?.let {
+    val ownedMotion = remember(request.elasticTouchFeedback) {
+        if (request.elasticTouchFeedback) com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuMotion() else null
+    }
+    val motion = menuMotion ?: ownedMotion
+    DisposableEffect(surface, motion) {
+        val binding = motion?.let {
             ColorOsNativeUi.prepare("bind native menu deformation") { ColorOsMenuMotionBinding(source, surface, it) }
         }
         onDispose { binding?.dispose() }
@@ -163,7 +167,11 @@ internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, style
         val value = latest.value
         shape = value.shapeProvider?.invoke() ?: value.shape
         clip = true
-    }.then(if (touchSource == null) Modifier.motionEventSpy { surface.followTouch(it) } else Modifier)
+        if (menuMotion == null) ownedMotion?.applyTo(this)
+    }.then(if (touchSource == null) Modifier.motionEventSpy {
+        surface.followTouch(it)
+        if (menuMotion == null) ownedMotion?.onTouch?.invoke(it)
+    } else Modifier)
         .then(if (request.onClick != null) Modifier.clickable(interaction, indication = null,
             role = Role.Button, onClick = request.onClick) else Modifier)) {
         if (request.renderSurface) key(surface) { AndroidView(factory = { surface }, modifier = Modifier.matchParentSize()
@@ -208,6 +216,11 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
     private val manager = managerType.getField("INSTANCE").get(null)
     private val light = source.load(LightDrawable).getConstructor().newInstance() as Drawable
     private val isMenu = style == ColorOsSurfaceStyle.Menu || style == ColorOsSurfaceStyle.NeutralMenu
+    private val defaultLightIntensity = when (style) {
+        ColorOsSurfaceStyle.CourseCard -> 1.2f
+        ColorOsSurfaceStyle.Menu, ColorOsSurfaceStyle.NeutralMenu -> 1.7f
+        else -> 2f
+    }
     // Reuse the native popup's edge drawable instead of applying the FAB stroke to menus.
     private val menuFrame = if (isMenu) source.load("com.coui.appcompat.poplist.RoundFrameLayout")
         .getConstructor(Context::class.java).newInstance(context) as View else null
@@ -256,11 +269,7 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         val type = source.load(LightType)
         light.javaClass.getMethod("setSpotLightType", Context::class.java, type)
             .invoke(light, context, type.getField(if (isMenu) "TYPE_TRANSLUCENT_LARGE_1" else CourseLightPreset).get(null))
-        source.setFollowLightIntensity(light, when (style) {
-            ColorOsSurfaceStyle.CourseCard -> 1.2f
-            ColorOsSurfaceStyle.Menu, ColorOsSurfaceStyle.NeutralMenu -> 1.7f
-            else -> 2f
-        })
+        source.setFollowLightIntensity(light, defaultLightIntensity)
         if (style == ColorOsSurfaceStyle.CourseCard) {
             val lightEffect = light.javaClass.getDeclaredField("mEffect").apply { isAccessible = true }.get(light)
             val type = lightEffect.javaClass
@@ -304,6 +313,8 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
             previous.followTouch != value.followTouch ||
             previous.blurRadiusScale != value.blurRadiusScale || previous.tintAlphaScale != value.tintAlphaScale
         request = value
+        if (previous?.followLightIntensityScale != value.followLightIntensityScale)
+            source.setFollowLightIntensity(light, defaultLightIntensity * value.followLightIntensityScale)
         tintDensity = density
         tintDirection = direction
         updateFollowLightRadius()

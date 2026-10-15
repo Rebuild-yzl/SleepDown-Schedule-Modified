@@ -141,6 +141,7 @@ internal fun TopAssistantSurface(
     surfaceFrame: (() -> Pair<Dp, Float>)? = null,
     materialEnabled: Boolean = true,
     nativeMaterial: Boolean = false,
+    nativeFollowLightIntensityScale: Float = 1f,
     content: @Composable BoxScope.() -> Unit = {}
 ) {
     Box(
@@ -161,6 +162,7 @@ internal fun TopAssistantSurface(
     ) {
         if (materialEnabled) GlassSurface(
             nativeMaterial = nativeMaterial,
+            nativeFollowLightIntensityScale = nativeFollowLightIntensityScale,
             nativeDark = true,
             backdrop = backdrop,
             config = config,

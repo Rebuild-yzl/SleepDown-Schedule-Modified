@@ -764,6 +764,7 @@ internal fun DayAgentConversationDialog(
                 TopAssistantSurface(
                     backdrop, state.config, androidx.compose.ui.graphics.RectangleShape,
                     nativeMaterial = true,
+                    nativeFollowLightIntensityScale = if (homeResponseVisible && !homeFullScreen) 0.45f else 1f,
                     modifier = Modifier.matchParentSize(),
                     morphAllocation = homeSurfaceAllocation.takeUnless { homeFullScreenSettled },
                     shapeProvider = if (homeFullScreenSettled) null else ::homeShellShape,
@@ -814,6 +815,7 @@ internal fun DayAgentConversationDialog(
                 GlassSurface(
                     nativeMaterial = true,
                     nativeDockMaterial = true,
+                    nativeFollowLightIntensityScale = 0.45f,
                     backdrop = backdrop,
                     config = state.config,
                     modifier = Modifier.matchParentSize(),
@@ -1302,78 +1304,6 @@ internal fun DayAgentConversationDialog(
                   }
               }
 
-              AnimatedVisibility(
-                  visible = attachmentMenuExpanded && (attachmentUploadEnabled || onImportFile != null),
-                  modifier = (if (homePresentation) {
-                      Modifier.layout { measurable, constraints ->
-                          val child = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
-                          val x = ((windowWidth - homeComposerWidth).toPx() / 2f).roundToInt()
-                          val y = (if (homeFullScreen) homeComposerTopPx() - child.height - 10.dp.toPx()
-                              else homeComposerTopPx() + homeInputHeight.toPx() + 10.dp.toPx())
-                              .coerceIn(adaptiveMetrics.safeTop.toPx(), (homeAvailableBottom.toPx() - child.height)
-                                  .coerceAtLeast(adaptiveMetrics.safeTop.toPx())).roundToInt()
-                          layout(child.width, child.height) { child.place(x, y) }
-                      }
-                  } else Modifier
-                      .align(Alignment.BottomStart)
-                      .floatingInputPadding(inputInsets)
-                      .padding(
-                          start = if (anchoredTabletConversation) {
-                              with(density) { targetLeftPx.toDp() } + 14.dp
-                          } else 14.dp,
-                          bottom = 78.dp
-                      ))
-                      .graphicsLayer {
-                          val p = expansion.value
-                          alpha = ((p - 0.12f) / 0.58f).coerceIn(0f, 1f)
-                          translationY = 18.dp.toPx() * (1f - p)
-                      },
-                 enter = fadeIn(
-                     animationSpec = tween(durationMillis = 80)
-                 ) + scaleIn(
-                     initialScale = 0.62f,
-                     transformOrigin = TransformOrigin(0.12f, 1f),
-                     animationSpec = topAssistantBezierSpec(0.62f, 1f, vertical = false)
-                 ) + slideInVertically(
-                     initialOffsetY = { height -> height / 3 },
-                     animationSpec = tween(460, easing = TopAssistantOpenEasing)
-                 ),
-                 exit = fadeOut(
-                     animationSpec = tween(durationMillis = 105)
-                 ) + scaleOut(
-                     targetScale = 0.76f,
-                     transformOrigin = TransformOrigin(0.12f, 1f),
-                     animationSpec = tween(durationMillis = 150)
-                 ) + slideOutVertically(
-                     targetOffsetY = { height -> height / 4 },
-                     animationSpec = tween(durationMillis = 150)
-                 )
-             ) {
-                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                     if (attachmentUploadEnabled) {
-                 AgentAttachmentLiquidButton(
-                     backdrop = agentInputBackdrop,
-                     config = state.config,
-                     foreground = foreground,
-                     darkSurface = homePresentation,
-                     modifier = Modifier.width(184.dp),
-                     onClick = {
-                         attachmentMenuExpanded = false
-                         imagePicker.launch("image/*")
-                     }
-                 )
-                     }
-                     if (onImportFile != null) AgentAttachmentLiquidButton(
-                         backdrop = agentInputBackdrop, config = state.config, foreground = foreground,
-                         darkSurface = homePresentation,
-                         modifier = Modifier.width(184.dp), label = "导入课表文件",
-                         onClick = {
-                             attachmentMenuExpanded = false
-                             importFilePicker.launch(arrayOf("*/*"))
-                         }
-                     )
-                 }
-             }
 
               val composerVisible by remember(homePresentation, homeResponseVisible, homeFullScreen) { derivedStateOf {
                   !homePresentation || !homeResponseVisible || homeFullScreen ||
@@ -1508,6 +1438,14 @@ internal fun DayAgentConversationDialog(
                                          contentDescription = "添加附件",
                                          tint = foreground,
                                          modifier = Modifier.size(24.dp)
+                                     )
+                                     AgentAttachmentPopup(
+                                         show = attachmentMenuExpanded,
+                                         imagesEnabled = attachmentUploadEnabled, filesEnabled = onImportFile != null,
+                                         config = state.config, backdrop = agentInputBackdrop, foreground = foreground,
+                                         onDismiss = { attachmentMenuExpanded = false },
+                                         onImage = { imagePicker.launch("image/*") },
+                                         onFile = { importFilePicker.launch(arrayOf("*/*")) }
                                      )
                                  }
                              }

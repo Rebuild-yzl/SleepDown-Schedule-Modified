@@ -21,7 +21,9 @@ internal data class NativeMaterialSurfaceRequest(
     val tintAlphaScale: Float = 1f,
     val role: NativeMaterialSurfaceRole = NativeMaterialSurfaceRole.Content,
     val followTouch: Boolean = true,
-    val followLightRadius: androidx.compose.ui.unit.Dp? = null
+    val followLightRadius: androidx.compose.ui.unit.Dp? = null,
+    val elasticTouchFeedback: Boolean = false,
+    val followLightIntensityScale: Float = 1f
 )
 
 internal val LocalNativeMaterialSurfaceRenderer =
