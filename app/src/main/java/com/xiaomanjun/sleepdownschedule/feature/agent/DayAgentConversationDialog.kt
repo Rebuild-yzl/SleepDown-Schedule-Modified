@@ -213,17 +213,17 @@ internal fun DayAgentConversationDialog(
     DisposableEffect(hostWindow, homePresentation) {
         val previousSoftInputMode = hostWindow?.attributes?.softInputMode
         hostWindow?.let(::keepHostBehindAgentIme)
-        // MainActivity normally fits system bars. A full-window material cannot paint the
-        // navigation area until its actual window also lays out edge-to-edge. Keep this for
-        // the whole home conversation so compact/fullscreen transitions share one viewport.
-        if (homePresentation && hostWindow != null) {
+        // Both entry points share MainActivity. Insets must reach Compose throughout the IME
+        // animation, including the day-card conversation. Fitted decor can defer the bottom
+        // inset until the final layout, leaving the composer behind the rising keyboard.
+        if (hostWindow != null) {
             androidx.core.view.WindowCompat.setDecorFitsSystemWindows(hostWindow, false)
         }
         onDispose {
             if (previousSoftInputMode != null) {
                 hostWindow.setSoftInputMode(previousSoftInputMode)
             }
-            if (homePresentation && hostWindow != null) {
+            if (hostWindow != null) {
                 androidx.core.view.WindowCompat.setDecorFitsSystemWindows(hostWindow, true)
             }
         }

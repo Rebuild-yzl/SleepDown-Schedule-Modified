@@ -715,8 +715,11 @@ internal fun AiEduImportProgressPage(
                         (current.pageText.isNotBlank() || current.screenshotPreviews.isNotEmpty()),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = with(density) { composerBottomInsetPx.toDp() })
-                        .onSizeChanged { composerHeightPx = it.height },
+                        // Reserve the whole occupied area, including the manual IME/nav inset.
+                        // Measuring inside padding only reserved the capsule, leaving the last
+                        // message and import buttons behind it when the keyboard opened.
+                        .onSizeChanged { composerHeightPx = it.height }
+                        .padding(bottom = with(density) { composerBottomInsetPx.toDp() }),
                     onValueChange = { conversationInput = it.take(600) },
                     onSend = send@{
                         val prompt = conversationInput.trim().ifBlank {
