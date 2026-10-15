@@ -373,7 +373,7 @@ object AiImportSettingsStore {
         )
         return if (AiProviderPresets.isChatGptId(profile.id)) {
             AiProviderPresets.normalizeChatGptProfile(profile)
-        } else profile
+        } else AiProviderPresets.normalizeDeepSeekProfile(profile)
     }
 
     private fun AiProviderProfile.toBackupProvider(): BackupAiProvider = BackupAiProvider(
@@ -443,7 +443,7 @@ object AiImportSettingsStore {
             AiProviderPresets.normalizeChatGptProfile(profile).copy(availableModels = emptyList())
         } else if (id == AiProviderPresets.openAI.id) {
             profile.copy(displayName = AiProviderPresets.openAI.displayName)
-        } else profile
+        } else AiProviderPresets.normalizeDeepSeekProfile(profile)
     }
 
     private fun readCustomProviders(prefs: android.content.SharedPreferences): List<AiCustomProviderEntry> {
@@ -542,7 +542,7 @@ object AiImportSettingsStore {
                 remove(KeyEncryptedApiKey)
             }
         }
-        return AiImportSettings(profile, apiKey)
+        return AiImportSettings(AiProviderPresets.normalizeDeepSeekProfile(profile), apiKey)
     }
 
     fun loadProvider(context: Context, providerId: String): AiImportSettings {
@@ -662,7 +662,7 @@ object AiImportSettingsStore {
             }
         }
         val apiKey = prefs.getString(apiKeyKey(profile.id), null)?.let { decrypt(context, it) }.orEmpty()
-        return AiImportSettings(profile, apiKey)
+        return AiImportSettings(AiProviderPresets.normalizeDeepSeekProfile(profile), apiKey)
     }
 
     private fun chatGptSettings(context: Context, profile: AiProviderProfile): AiImportSettings {

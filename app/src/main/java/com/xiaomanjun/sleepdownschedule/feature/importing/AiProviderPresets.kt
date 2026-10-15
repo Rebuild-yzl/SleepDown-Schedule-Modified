@@ -109,8 +109,9 @@ object AiProviderPresets {
         displayName = "DeepSeek",
         providerType = AiProviderType.OpenAIResponses,
         baseUrl = "https://api.deepseek.com",
-        defaultModel = "deepseek-v4-flash",
+        defaultModel = "deepseek-flash",
         capabilities = AiProviderCapabilities(
+            supportsImageInput = true,
             supportsTextInput = true,
             supportsJsonMode = true,
             supportsResponses = true
@@ -338,9 +339,8 @@ object AiProviderPresets {
             AiModelOption("4.1 nano", "gpt-4.1-nano", supportsResponses = true)
         )
         deepSeek.id -> listOf(
-            AiModelOption("V4 Flash", "deepseek-v4-flash", supportsResponses = true),
-            AiModelOption("V4 Flash Vision Exp", "deepseek-v4-flash-vision-exp", supportsImageInput = true, supportsResponses = true),
-            AiModelOption("V4 Pro", "deepseek-v4-pro", supportsResponses = true)
+            AiModelOption("V4.1 Flash", "deepseek-flash", supportsImageInput = true, supportsResponses = true),
+            AiModelOption("V4 Pro · 0813", "deepseek-v4-pro", supportsResponses = true)
         )
         dashScope.id -> listOf(
             AiModelOption("Qwen Plus", "qwen-plus"),
@@ -394,8 +394,9 @@ object AiProviderPresets {
         if (isCustomId(profile.id)) {
             return profile.supportsVision || profile.capabilities.supportsImageInput
         }
-        val selected = modelOptions(profile).firstOrNull {
-            it.model.equals(profile.defaultModel.trim(), ignoreCase = true)
+        val current = normalizeDeepSeekProfile(profile)
+        val selected = modelOptions(current).firstOrNull {
+            it.model.equals(current.defaultModel.trim(), ignoreCase = true)
         }
         return selected?.supportsImageInput
             ?: (profile.supportsVision || profile.capabilities.supportsImageInput)
@@ -413,7 +414,7 @@ object AiProviderPresets {
             }
         }
         val known = modelOptions(profile.id)
-        val configured = profile.availableModels.mapNotNull { modelId ->
+        val configured = normalizeDeepSeekProfile(profile).availableModels.mapNotNull { modelId ->
             val normalized = modelId.trim()
             if (normalized.isBlank()) null else known.firstOrNull {
                 it.model.equals(normalized, ignoreCase = true)
@@ -425,6 +426,20 @@ object AiProviderPresets {
             )
         }
         return (known + configured).distinctBy { it.model.lowercase() }
+    }
+
+    /** Official retired Flash IDs now route to V4.1; preserve credentials and custom endpoints. */
+    fun normalizeDeepSeekProfile(profile: AiProviderProfile): AiProviderProfile {
+        if (profile.id != deepSeek.id ||
+            normalizeAiBaseUrlForProvider(profile.id, profile.baseUrl) != deepSeek.baseUrl) return profile
+        fun currentId(id: String): String = when (id.trim().lowercase()) {
+            "deepseek-v4-flash", "deepseek-v4-flash-vision-exp" -> "deepseek-flash"
+            else -> id
+        }
+        return profile.copy(
+            defaultModel = currentId(profile.defaultModel),
+            availableModels = profile.availableModels.map(::currentId).distinct()
+        )
     }
 
     fun supportsResponses(profile: AiProviderProfile): Boolean {
