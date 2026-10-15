@@ -62,6 +62,10 @@ open class EduImportActivityHost : ComponentActivity() {
                 adapter?.copy(importUrl = retainedSession?.authenticatedUrl ?: adapter.importUrl)
             }
             var pendingDraft by remember { mutableStateOf<ImportDraft?>(null) }
+            val sessionRestores = remember { mutableListOf<AutoCloseable>() }
+            androidx.compose.runtime.DisposableEffect(Unit) {
+                onDispose { sessionRestores.forEach { it.close() }; sessionRestores.clear() }
+            }
             val eduWebContentBackdrop = rememberGlassLayerBackdrop(
                 domain = GlassBackdropDomain.Content,
                 providerId = "edu-import-web-content"
@@ -97,7 +101,7 @@ open class EduImportActivityHost : ComponentActivity() {
                                 useDetailTopPadding = true,
                                 prepareWebView = { webView ->
                                     retainedSession?.let {
-                                        AutoRefreshWebSession.restore(webView, it)
+                                        AutoRefreshWebSession.restore(webView, it)?.let(sessionRestores::add)
                                     }
                                 },
                                 initialDesktopMode = retainedSession?.desktopMode ?: false,

@@ -71,6 +71,7 @@ internal object AutoRefreshShiguangRunner {
     ): AutoRefreshFetch = suspendCancellableCoroutine { continuation ->
         val handler = Handler(Looper.getMainLooper())
         var target: WebView? = null
+        var sessionRestore: AutoCloseable? = null
         var scriptStarted = false
         var finished = false
         var completing = false
@@ -81,6 +82,8 @@ internal object AutoRefreshShiguangRunner {
         val answers = profile.interactionAnswers.toMutableMap()
 
         fun release() {
+            sessionRestore?.close()
+            sessionRestore = null
             handler.removeCallbacksAndMessages(null)
             onInteraction?.invoke(null)
             target?.let { webView ->
@@ -192,8 +195,10 @@ internal object AutoRefreshShiguangRunner {
             target = webView
             val cookieManager = CookieManager.getInstance().apply { setAcceptCookie(true) }
             profile.cookies.forEach { cookie ->
+                val currentNames = cookieManager.getCookie(cookie.url).orEmpty().split(';')
+                    .map { it.substringBefore('=').trim() }.toSet()
                 cookie.value.split(';').map(String::trim).filter { it.contains('=') }.forEach { value ->
-                    cookieManager.setCookie(cookie.url, "$value; Path=/")
+                    if (value.substringBefore('=') !in currentNames) cookieManager.setCookie(cookie.url, "$value; Path=/")
                 }
             }
             cookieManager.flush()
@@ -204,7 +209,7 @@ internal object AutoRefreshShiguangRunner {
             if (profile.desktopMode) webView.settings.userAgentString =
                 desktopWebUserAgent(WebSettings.getDefaultUserAgent(context))
             webView.configureEduImportSecurity()
-            AutoRefreshWebSession.installStorage(webView, adapter.school.id, profile.webStorage)
+            sessionRestore = AutoRefreshWebSession.installStorage(webView, adapter.school.id, profile.webStorage)
             cookieManager.setAcceptThirdPartyCookies(webView, true)
             val interceptor = ShiguangWebRequestInterceptor()
             webView.webViewClient = object : WebViewClient() {
