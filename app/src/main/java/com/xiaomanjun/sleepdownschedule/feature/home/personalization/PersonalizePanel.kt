@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -104,11 +105,11 @@ fun PersonalizePanel(
     val rowReveal = remember { Animatable(0f) }
     val rowDensity = LocalDensity.current
     val rowEasing = remember { CubicBezierEasing(0.22f, 0f, 0.30f, 1f) }
-    val weekContentRows = if (mode == HomeMode.Week) 4 else 0
+    val weekContentRows = if (mode == HomeMode.Week) 3 else 0
     val nativeMaterialMode = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode.current
     val nativeMaterialActive = nativeMaterialMode?.enabled == true && !AppMaterialPreferences.isSuperPerformance
     val nativeMaterialRows = if (nativeMaterialMode == null) 0 else if (nativeMaterialActive) 3 else 1
-    val rowEntranceDurationMillis = 580 + (weekContentRows + nativeMaterialRows) * 15
+    val rowEntranceDurationMillis = 610 + (weekContentRows + nativeMaterialRows) * 15
     LaunchedEffect(rowEntranceActive, rowEntranceDurationMillis) {
         if (rowEntranceActive) {
             withFrameNanos { }
@@ -206,6 +207,17 @@ fun PersonalizePanel(
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             content = content
+        )
+    }
+    @Composable
+    fun PersonalizeSectionDivider(index: Int) {
+        HorizontalDivider(
+            modifier = Modifier.fillMaxWidth()
+                .padding(vertical = 6.dp)
+                .rowEntrance(index)
+                .personalizePreviewVisibility(previewSliderKey, previewProgress),
+            thickness = 1.dp,
+            color = LocalContentColor.current.copy(alpha = 0.14f)
         )
     }
     @Composable
@@ -377,12 +389,43 @@ fun PersonalizePanel(
                             )
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
-                    Text("周视图卡片内容", style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.rowEntrance(5)
-                            .personalizePreviewVisibility(previewSliderKey, previewProgress))
+                }
+                if (mode == HomeMode.Week) {
+                    PersonalizeValueSlider(
+                        sliderKey = PersonalizeWeekCornerSlider,
+                        modifier = Modifier.rowEntrance(5),
+                        value = state.config.weekCardCornerProgress.coerceIn(0f, 1f),
+                        valueRange = 0f..1f,
+                        backdrop = backdrop,
+                        label = { "课程卡片圆角" },
+                        onCommit = {
+                            onUpdateConfig(
+                                PersonalizeWeekCornerSlider,
+                                state.config.copy(weekCardCornerProgress = it)
+                            )
+                        },
+                        onPreviewValueChange = {
+                            onPreviewConfig(
+                                PersonalizeWeekCornerSlider,
+                                state.config.copy(weekCardCornerProgress = it)
+                            )
+                        },
+                        previewSliderKey = previewSliderKey,
+                        previewProgress = previewProgress,
+                        onSliderPreviewActiveChange = onSliderPreviewActiveChange,
+                        snapValue = 0.5f,
+                        onTouchActiveChange = {
+                            updateSliderTouchOwner(PersonalizeWeekCornerSlider, it)
+                        }
+                    )
+                }
+                if (mode == HomeMode.Week) PersonalizeSectionDivider(6)
+                Text("课程卡片内容", style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.rowEntrance(6)
+                        .personalizePreviewVisibility(previewSliderKey, previewProgress))
+                if (mode == HomeMode.Week) {
                     Row(
-                        Modifier.rowEntrance(6).fillMaxWidth().heightIn(min = 48.dp)
+                        Modifier.rowEntrance(7).fillMaxWidth().heightIn(min = 48.dp)
                             .personalizePreviewVisibility(previewSliderKey, previewProgress),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
@@ -399,7 +442,7 @@ fun PersonalizePanel(
                         )
                     }
                     Row(
-                        Modifier.rowEntrance(7).fillMaxWidth().heightIn(min = 48.dp)
+                        Modifier.rowEntrance(8).fillMaxWidth().heightIn(min = 48.dp)
                             .personalizePreviewVisibility(previewSliderKey, previewProgress),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
@@ -436,7 +479,7 @@ fun PersonalizePanel(
                                 WeekCardContentLayout.MIDDLE, WeekCardContentLayout.CENTERED)) 2 else 0) +
                                 (if (state.config.effectiveWeekCardTextAlignment() == WeekCardTextAlignment.CENTER) 1 else 0),
                             title = "内容对齐",
-                            modifier = Modifier.rowEntrance(8).fillMaxWidth()
+                            modifier = Modifier.rowEntrance(9).fillMaxWidth()
                                 .heightIn(max = rowMaxHeight)
                                 .personalizePreviewVisibility(previewSliderKey, previewProgress),
                             insideMargin = PaddingValues(horizontal = 0.dp, vertical = 6.dp),
@@ -455,198 +498,9 @@ fun PersonalizePanel(
                         )
                     }
                 }
-                Row(
-                    modifier = Modifier.rowEntrance(5 + weekContentRows)
-                        .fillMaxWidth()
-                        .personalizePreviewVisibility(previewSliderKey, previewProgress),
-                    horizontalArrangement = Arrangement.Start,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("课程卡片颜色", style = MaterialTheme.typography.labelLarge)
-                }
-                Spacer(Modifier.height(8.dp))
-                CourseColorModeRow(
-                    title = "纯色",
-                    iconRes = R.drawable.ic_color_solid,
-                    mode = CourseCardColorMode.SOLID,
-                    selectedMode = state.config.courseCardColorMode,
-                    presets = SolidCourseColorPresets.map { listOf(it) },
-                    selectedPreset = { it.firstOrNull() == state.config.cardColorArgb },
-                    customSelected = state.config.courseCardColorMode == CourseCardColorMode.SOLID &&
-                        SolidCourseColorPresets.none { it == state.config.cardColorArgb },
-                    backdrop = backdrop,
-                    modifier = Modifier.rowEntrance(6 + weekContentRows).personalizePreviewVisibility(previewSliderKey, previewProgress),
-                    onPresetSelected = { colors ->
-                        onUpdateConfig(
-                            PersonalizeCardColorChange,
-                            state.config.copy(
-                                cardColorArgb = colors.first(),
-                                courseCardColorMode = CourseCardColorMode.SOLID
-                            )
-                        )
-                    },
-                    onOpenPalette = { openCourseColorDialog(CourseCardColorMode.SOLID) }
-                )
-                CourseColorModeRow(
-                    title = "渐变",
-                    iconRes = R.drawable.ic_color_gradient,
-                    mode = CourseCardColorMode.GRADIENT,
-                    selectedMode = state.config.courseCardColorMode,
-                    presets = GradientCourseColorPresets.map { listOf(it) },
-                    selectedPreset = { it.firstOrNull() == state.config.cardColorArgb },
-                    customSelected = state.config.courseCardColorMode == CourseCardColorMode.GRADIENT &&
-                        GradientCourseColorPresets.none { it == state.config.cardColorArgb },
-                    backdrop = backdrop,
-                    modifier = Modifier.rowEntrance(7 + weekContentRows).personalizePreviewVisibility(previewSliderKey, previewProgress),
-                    onPresetSelected = { colors ->
-                        onUpdateConfig(
-                            PersonalizeCardColorChange,
-                            state.config.copy(
-                                cardColorArgb = colors.first(),
-                                courseCardColorMode = CourseCardColorMode.GRADIENT
-                            )
-                        )
-                    },
-                    onOpenPalette = { openCourseColorDialog(CourseCardColorMode.GRADIENT) }
-                )
-                CourseColorModeRow(
-                    title = "彩色",
-                    iconRes = R.drawable.ic_color_colorful,
-                    mode = CourseCardColorMode.COLORFUL,
-                    selectedMode = state.config.courseCardColorMode,
-                    presets = listOf(AutomaticColorfulCoursePreview),
-                    selectedPreset = { state.config.courseCardPalette.isBlank() },
-                    customSelected = state.config.courseCardColorMode == CourseCardColorMode.COLORFUL &&
-                        state.config.courseCardPalette.isNotBlank(),
-                    backdrop = backdrop,
-                    modifier = Modifier.rowEntrance(8 + weekContentRows).personalizePreviewVisibility(previewSliderKey, previewProgress),
-                    onPresetSelected = {
-                        onUpdateConfig(
-                            PersonalizeCardColorChange,
-                            state.config.copy(
-                                courseCardColorMode = CourseCardColorMode.COLORFUL,
-                                courseCardPalette = ""
-                            )
-                        )
-                    },
-                    onOpenPalette = { openCourseColorDialog(CourseCardColorMode.COLORFUL) }
-                )
-                val superPerformance = AppMaterialPreferences.isSuperPerformance
-                val glassLocked = (!state.config.hasAnyWallpaper() && !nativeMaterialActive) || superPerformance
-                nativeMaterialMode?.let { material ->
-                    Row(
-                        modifier = Modifier.rowEntrance(9 + weekContentRows).fillMaxWidth().heightIn(min = 48.dp)
-                            .personalizePreviewVisibility(previewSliderKey, previewProgress),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("ColorOS 17 凝光视效", style = MaterialTheme.typography.labelLarge)
-                        LiquidControlToggle(checked = material.enabled, compact = true,
-                            onCheckedChange = material.onEnabledChange, enabled = !superPerformance, backdrop = backdrop)
-                    }
-                    if (nativeMaterialActive) {
-                        PersonalizeValueSlider(
-                            sliderKey = PersonalizeNativeCardTintSlider,
-                            modifier = Modifier.rowEntrance(10 + weekContentRows),
-                            value = material.tintStrength, valueRange = 0f..1f, backdrop = backdrop,
-                            label = { "课程着色强度 ${(it * 100).toInt()}%" },
-                            onCommit = { material.onTintStrengthChange(it, true) },
-                            onPreviewValueChange = { material.onTintStrengthChange(it, false) },
-                            previewSliderKey = previewSliderKey, previewProgress = previewProgress,
-                            onSliderPreviewActiveChange = { key, active ->
-                                onSliderPreviewActiveChange(key, active)
-                                if (!active) material.onPreviewFinished()
-                            }, snapValue = 0.5f,
-                            onTouchActiveChange = { updateSliderTouchOwner(PersonalizeNativeCardTintSlider, it) }
-                        )
-                        PersonalizeValueSlider(
-                            sliderKey = PersonalizeNativeCardBlurSlider,
-                            modifier = Modifier.rowEntrance(11 + weekContentRows),
-                            value = material.blurPercent, valueRange = 0f..100f, backdrop = backdrop,
-                            label = { "凝光模糊 ${it.toInt()}%" },
-                            onCommit = { material.onBlurPercentChange(it, true) },
-                            onPreviewValueChange = { material.onBlurPercentChange(it, false) },
-                            previewSliderKey = previewSliderKey, previewProgress = previewProgress,
-                            onSliderPreviewActiveChange = { key, active ->
-                                onSliderPreviewActiveChange(key, active)
-                                if (!active) material.onPreviewFinished()
-                            }, snapValue = 50f,
-                            onTouchActiveChange = { updateSliderTouchOwner(PersonalizeNativeCardBlurSlider, it) }
-                        )
-                    }
-                }
-                val minimumCardAlpha = if (glassLocked) FlatCourseCardMinimumAlpha else 0f
-                val alphaLabel = when {
-                    !glassLocked &&
-                        state.config.courseCardGlassEnabled &&
-                        state.config.courseCardOutlineLightEnabled -> "轮廓光强度"
-                    !glassLocked && state.config.courseCardGlassEnabled -> "课程卡片着色强度"
-                    else -> "课程卡片不透明度"
-                }
-                if (!superPerformance && !nativeMaterialActive) PersonalizeValueSlider(
-                    sliderKey = PersonalizeCardAlphaSlider,
-                    modifier = Modifier.rowEntrance(9 + weekContentRows + nativeMaterialRows),
-                    value = state.config.cardAlpha.coerceIn(minimumCardAlpha, 1f),
-                    valueRange = minimumCardAlpha..1f,
-                    backdrop = backdrop,
-                    label = { "$alphaLabel ${(it * 100).toInt()}%" },
-                    onCommit = {
-                        onUpdateConfig(
-                            PersonalizeCardAlphaSlider,
-                            state.config.copy(cardAlpha = it)
-                        )
-                    },
-                    onPreviewValueChange = {
-                        onPreviewConfig(
-                            PersonalizeCardAlphaSlider,
-                            state.config.copy(cardAlpha = it)
-                        )
-                    },
-                    previewSliderKey = previewSliderKey,
-                    previewProgress = previewProgress,
-                    onSliderPreviewActiveChange = onSliderPreviewActiveChange,
-                    snapValue = 0.5f,
-                    onTouchActiveChange = {
-                        updateSliderTouchOwner(PersonalizeCardAlphaSlider, it)
-                    }
-                )
-                if (
-                    !nativeMaterialActive && (superPerformance || ((state.config.courseCardGlassEnabled || state.config.courseCardGaussianBlurEnabled) &&
-                    !glassLocked))
-                ) {
-                    val maxCourseCardBlur = courseCardBlurMaximum(state.config.courseCardGlassEnabled)
-                    PersonalizeValueSlider(
-                        sliderKey = PersonalizeCardBlurSlider,
-                        modifier = Modifier.rowEntrance(10 + weekContentRows + nativeMaterialRows),
-                        value = state.config.courseCardBlur.coerceIn(0f, maxCourseCardBlur) /
-                            maxCourseCardBlur * 100f,
-                        valueRange = 0f..100f,
-                        backdrop = backdrop,
-                        label = { if (superPerformance) "课程卡片不透明度 ${(AppMaterialPreferences.policy.opacity(it, 100f) * 100).toInt()}%" else "课程卡片模糊 ${it.toInt()}%" },
-                        onCommit = {
-                            onUpdateConfig(
-                                PersonalizeCardBlurSlider,
-                                state.config.copy(courseCardBlur = it / 100f * maxCourseCardBlur)
-                            )
-                        },
-                        onPreviewValueChange = {
-                            onPreviewConfig(
-                                PersonalizeCardBlurSlider,
-                                state.config.copy(courseCardBlur = it / 100f * maxCourseCardBlur)
-                            )
-                        },
-                        previewSliderKey = previewSliderKey,
-                        previewProgress = previewProgress,
-                        onSliderPreviewActiveChange = onSliderPreviewActiveChange,
-                        snapValue = 35f,
-                        onTouchActiveChange = {
-                            updateSliderTouchOwner(PersonalizeCardBlurSlider, it)
-                        }
-                    )
-                }
                 PersonalizeValueSlider(
                     sliderKey = PersonalizeCardFontSlider,
-                    modifier = Modifier.rowEntrance(11 + weekContentRows + nativeMaterialRows),
+                    modifier = Modifier.rowEntrance(7 + weekContentRows),
                     value = state.config.courseCardFontScale,
                     valueRange = 0.80f..1.35f,
                     backdrop = backdrop,
@@ -671,64 +525,151 @@ fun PersonalizePanel(
                         updateSliderTouchOwner(PersonalizeCardFontSlider, it)
                     }
                 )
-                if (mode == HomeMode.Week) {
-                    PersonalizeValueSlider(
-                        sliderKey = PersonalizeWeekCornerSlider,
-                        modifier = Modifier.rowEntrance(12 + weekContentRows + nativeMaterialRows),
-                        value = state.config.weekCardCornerProgress.coerceIn(0f, 1f),
-                        valueRange = 0f..1f,
-                        backdrop = backdrop,
-                        label = { "课程卡片圆角" },
-                        onCommit = {
+                Row(
+                    modifier = Modifier.rowEntrance(8 + weekContentRows)
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .personalizePreviewVisibility(previewSliderKey, previewProgress),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("彩色文字", style = MaterialTheme.typography.labelLarge)
+                    LiquidControlToggle(
+                        checked = state.config.courseCardColoredTextEnabled,
+                        compact = true,
+                        onCheckedChange = {
                             onUpdateConfig(
-                                PersonalizeWeekCornerSlider,
-                                state.config.copy(weekCardCornerProgress = it)
+                                PersonalizeCardColoredTextChange,
+                                state.config.copy(courseCardColoredTextEnabled = it)
                             )
                         },
-                        onPreviewValueChange = {
-                            onPreviewConfig(
-                                PersonalizeWeekCornerSlider,
-                                state.config.copy(weekCardCornerProgress = it)
-                            )
-                        },
-                        previewSliderKey = previewSliderKey,
-                        previewProgress = previewProgress,
-                        onSliderPreviewActiveChange = onSliderPreviewActiveChange,
-                        snapValue = 0.5f,
-                        onTouchActiveChange = {
-                            updateSliderTouchOwner(PersonalizeWeekCornerSlider, it)
-                        }
+                        backdrop = backdrop
                     )
                 }
-                if (!nativeMaterialActive && state.config.courseCardGlassEnabled && !glassLocked &&
-                    !com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isPerformance) {
-                    PersonalizeValueSlider(
-                        sliderKey = PersonalizeCardRefractionSlider,
-                        modifier = Modifier.rowEntrance(13 + weekContentRows + nativeMaterialRows),
-                        value = state.config.courseCardRefractionStrength.coerceIn(0f, 1f),
-                        valueRange = 0f..1f,
-                        backdrop = backdrop,
-                        label = { "折射强度 ${(it * 100f).toInt()}%" },
-                        onCommit = {
-                            onUpdateConfig(
-                                PersonalizeCardRefractionSlider,
-                                state.config.copy(courseCardRefractionStrength = it)
+                PersonalizeSectionDivider(9 + weekContentRows)
+                Row(
+                    modifier = Modifier.rowEntrance(9 + weekContentRows)
+                        .fillMaxWidth()
+                        .personalizePreviewVisibility(previewSliderKey, previewProgress),
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("课程卡片颜色", style = MaterialTheme.typography.labelLarge)
+                }
+                Spacer(Modifier.height(8.dp))
+                CourseColorModeRow(
+                    title = "纯色",
+                    iconRes = R.drawable.ic_color_solid,
+                    mode = CourseCardColorMode.SOLID,
+                    selectedMode = state.config.courseCardColorMode,
+                    presets = SolidCourseColorPresets.map { listOf(it) },
+                    selectedPreset = { it.firstOrNull() == state.config.cardColorArgb },
+                    customSelected = state.config.courseCardColorMode == CourseCardColorMode.SOLID &&
+                        SolidCourseColorPresets.none { it == state.config.cardColorArgb },
+                    backdrop = backdrop,
+                    modifier = Modifier.rowEntrance(10 + weekContentRows).personalizePreviewVisibility(previewSliderKey, previewProgress),
+                    onPresetSelected = { colors ->
+                        onUpdateConfig(
+                            PersonalizeCardColorChange,
+                            state.config.copy(
+                                cardColorArgb = colors.first(),
+                                courseCardColorMode = CourseCardColorMode.SOLID
                             )
-                        },
-                        onPreviewValueChange = {
-                            onPreviewConfig(
-                                PersonalizeCardRefractionSlider,
-                                state.config.copy(courseCardRefractionStrength = it)
+                        )
+                    },
+                    onOpenPalette = { openCourseColorDialog(CourseCardColorMode.SOLID) }
+                )
+                CourseColorModeRow(
+                    title = "渐变",
+                    iconRes = R.drawable.ic_color_gradient,
+                    mode = CourseCardColorMode.GRADIENT,
+                    selectedMode = state.config.courseCardColorMode,
+                    presets = GradientCourseColorPresets.map { listOf(it) },
+                    selectedPreset = { it.firstOrNull() == state.config.cardColorArgb },
+                    customSelected = state.config.courseCardColorMode == CourseCardColorMode.GRADIENT &&
+                        GradientCourseColorPresets.none { it == state.config.cardColorArgb },
+                    backdrop = backdrop,
+                    modifier = Modifier.rowEntrance(11 + weekContentRows).personalizePreviewVisibility(previewSliderKey, previewProgress),
+                    onPresetSelected = { colors ->
+                        onUpdateConfig(
+                            PersonalizeCardColorChange,
+                            state.config.copy(
+                                cardColorArgb = colors.first(),
+                                courseCardColorMode = CourseCardColorMode.GRADIENT
                             )
-                        },
-                        previewSliderKey = previewSliderKey,
-                        previewProgress = previewProgress,
-                        onSliderPreviewActiveChange = onSliderPreviewActiveChange,
-                        snapValue = 0.5f,
-                        onTouchActiveChange = {
-                            updateSliderTouchOwner(PersonalizeCardRefractionSlider, it)
-                        }
-                    )
+                        )
+                    },
+                    onOpenPalette = { openCourseColorDialog(CourseCardColorMode.GRADIENT) }
+                )
+                CourseColorModeRow(
+                    title = "彩色",
+                    iconRes = R.drawable.ic_color_colorful,
+                    mode = CourseCardColorMode.COLORFUL,
+                    selectedMode = state.config.courseCardColorMode,
+                    presets = listOf(AutomaticColorfulCoursePreview),
+                    selectedPreset = { state.config.courseCardPalette.isBlank() },
+                    customSelected = state.config.courseCardColorMode == CourseCardColorMode.COLORFUL &&
+                        state.config.courseCardPalette.isNotBlank(),
+                    backdrop = backdrop,
+                    modifier = Modifier.rowEntrance(12 + weekContentRows).personalizePreviewVisibility(previewSliderKey, previewProgress),
+                    onPresetSelected = {
+                        onUpdateConfig(
+                            PersonalizeCardColorChange,
+                            state.config.copy(
+                                courseCardColorMode = CourseCardColorMode.COLORFUL,
+                                courseCardPalette = ""
+                            )
+                        )
+                    },
+                    onOpenPalette = { openCourseColorDialog(CourseCardColorMode.COLORFUL) }
+                )
+                PersonalizeSectionDivider(13 + weekContentRows)
+                Text("课程卡片材质", style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.rowEntrance(13 + weekContentRows)
+                        .personalizePreviewVisibility(previewSliderKey, previewProgress))
+                val superPerformance = AppMaterialPreferences.isSuperPerformance
+                val glassLocked = (!state.config.hasAnyWallpaper() && !nativeMaterialActive) || superPerformance
+                nativeMaterialMode?.let { material ->
+                    Row(
+                        modifier = Modifier.rowEntrance(14 + weekContentRows).fillMaxWidth().heightIn(min = 48.dp)
+                            .personalizePreviewVisibility(previewSliderKey, previewProgress),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("ColorOS 17 凝光视效", style = MaterialTheme.typography.labelLarge)
+                        LiquidControlToggle(checked = material.enabled, compact = true,
+                            onCheckedChange = material.onEnabledChange, enabled = !superPerformance, backdrop = backdrop)
+                    }
+                    if (nativeMaterialActive) {
+                        PersonalizeValueSlider(
+                            sliderKey = PersonalizeNativeCardTintSlider,
+                            modifier = Modifier.rowEntrance(15 + weekContentRows),
+                            value = material.tintStrength, valueRange = 0f..1f, backdrop = backdrop,
+                            label = { "课程着色强度 ${(it * 100).toInt()}%" },
+                            onCommit = { material.onTintStrengthChange(it, true) },
+                            onPreviewValueChange = { material.onTintStrengthChange(it, false) },
+                            previewSliderKey = previewSliderKey, previewProgress = previewProgress,
+                            onSliderPreviewActiveChange = { key, active ->
+                                onSliderPreviewActiveChange(key, active)
+                                if (!active) material.onPreviewFinished()
+                            }, snapValue = 0.5f,
+                            onTouchActiveChange = { updateSliderTouchOwner(PersonalizeNativeCardTintSlider, it) }
+                        )
+                        PersonalizeValueSlider(
+                            sliderKey = PersonalizeNativeCardBlurSlider,
+                            modifier = Modifier.rowEntrance(16 + weekContentRows),
+                            value = material.blurPercent, valueRange = 0f..100f, backdrop = backdrop,
+                            label = { "凝光模糊 ${it.toInt()}%" },
+                            onCommit = { material.onBlurPercentChange(it, true) },
+                            onPreviewValueChange = { material.onBlurPercentChange(it, false) },
+                            previewSliderKey = previewSliderKey, previewProgress = previewProgress,
+                            onSliderPreviewActiveChange = { key, active ->
+                                onSliderPreviewActiveChange(key, active)
+                                if (!active) material.onPreviewFinished()
+                            }, snapValue = 50f,
+                            onTouchActiveChange = { updateSliderTouchOwner(PersonalizeNativeCardBlurSlider, it) }
+                        )
+                    }
                 }
                 Spacer(
                     Modifier
@@ -815,25 +756,103 @@ fun PersonalizePanel(
                         )
                     }
                 }
-                Row(
-                    modifier = Modifier.rowEntrance(16 + weekContentRows + nativeMaterialRows)
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .personalizePreviewVisibility(previewSliderKey, previewProgress),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                val minimumCardAlpha = if (glassLocked) FlatCourseCardMinimumAlpha else 0f
+                val alphaLabel = when {
+                    !glassLocked &&
+                        state.config.courseCardGlassEnabled &&
+                        state.config.courseCardOutlineLightEnabled -> "轮廓光强度"
+                    !glassLocked && state.config.courseCardGlassEnabled -> "课程卡片着色强度"
+                    else -> "课程卡片不透明度"
+                }
+                if (!superPerformance && !nativeMaterialActive) PersonalizeValueSlider(
+                    sliderKey = PersonalizeCardAlphaSlider,
+                    modifier = Modifier.rowEntrance(16 + weekContentRows + nativeMaterialRows),
+                    value = state.config.cardAlpha.coerceIn(minimumCardAlpha, 1f),
+                    valueRange = minimumCardAlpha..1f,
+                    backdrop = backdrop,
+                    label = { "$alphaLabel ${(it * 100).toInt()}%" },
+                    onCommit = {
+                        onUpdateConfig(
+                            PersonalizeCardAlphaSlider,
+                            state.config.copy(cardAlpha = it)
+                        )
+                    },
+                    onPreviewValueChange = {
+                        onPreviewConfig(
+                            PersonalizeCardAlphaSlider,
+                            state.config.copy(cardAlpha = it)
+                        )
+                    },
+                    previewSliderKey = previewSliderKey,
+                    previewProgress = previewProgress,
+                    onSliderPreviewActiveChange = onSliderPreviewActiveChange,
+                    snapValue = 0.5f,
+                    onTouchActiveChange = {
+                        updateSliderTouchOwner(PersonalizeCardAlphaSlider, it)
+                    }
+                )
+                if (
+                    !nativeMaterialActive && (superPerformance || ((state.config.courseCardGlassEnabled || state.config.courseCardGaussianBlurEnabled) &&
+                    !glassLocked))
                 ) {
-                    Text("彩色文字", style = MaterialTheme.typography.labelLarge)
-                    LiquidControlToggle(
-                        checked = state.config.courseCardColoredTextEnabled,
-                        compact = true,
-                        onCheckedChange = {
+                    val maxCourseCardBlur = courseCardBlurMaximum(state.config.courseCardGlassEnabled)
+                    PersonalizeValueSlider(
+                        sliderKey = PersonalizeCardBlurSlider,
+                        modifier = Modifier.rowEntrance(17 + weekContentRows + nativeMaterialRows),
+                        value = state.config.courseCardBlur.coerceIn(0f, maxCourseCardBlur) /
+                            maxCourseCardBlur * 100f,
+                        valueRange = 0f..100f,
+                        backdrop = backdrop,
+                        label = { if (superPerformance) "课程卡片不透明度 ${(AppMaterialPreferences.policy.opacity(it, 100f) * 100).toInt()}%" else "课程卡片模糊 ${it.toInt()}%" },
+                        onCommit = {
                             onUpdateConfig(
-                                PersonalizeCardColoredTextChange,
-                                state.config.copy(courseCardColoredTextEnabled = it)
+                                PersonalizeCardBlurSlider,
+                                state.config.copy(courseCardBlur = it / 100f * maxCourseCardBlur)
                             )
                         },
-                        backdrop = backdrop
+                        onPreviewValueChange = {
+                            onPreviewConfig(
+                                PersonalizeCardBlurSlider,
+                                state.config.copy(courseCardBlur = it / 100f * maxCourseCardBlur)
+                            )
+                        },
+                        previewSliderKey = previewSliderKey,
+                        previewProgress = previewProgress,
+                        onSliderPreviewActiveChange = onSliderPreviewActiveChange,
+                        snapValue = 35f,
+                        onTouchActiveChange = {
+                            updateSliderTouchOwner(PersonalizeCardBlurSlider, it)
+                        }
+                    )
+                }
+                if (!nativeMaterialActive && state.config.courseCardGlassEnabled && !glassLocked &&
+                    !com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isPerformance) {
+                    PersonalizeValueSlider(
+                        sliderKey = PersonalizeCardRefractionSlider,
+                        modifier = Modifier.rowEntrance(18 + weekContentRows + nativeMaterialRows),
+                        value = state.config.courseCardRefractionStrength.coerceIn(0f, 1f),
+                        valueRange = 0f..1f,
+                        backdrop = backdrop,
+                        label = { "折射强度 ${(it * 100f).toInt()}%" },
+                        onCommit = {
+                            onUpdateConfig(
+                                PersonalizeCardRefractionSlider,
+                                state.config.copy(courseCardRefractionStrength = it)
+                            )
+                        },
+                        onPreviewValueChange = {
+                            onPreviewConfig(
+                                PersonalizeCardRefractionSlider,
+                                state.config.copy(courseCardRefractionStrength = it)
+                            )
+                        },
+                        previewSliderKey = previewSliderKey,
+                        previewProgress = previewProgress,
+                        onSliderPreviewActiveChange = onSliderPreviewActiveChange,
+                        snapValue = 0.5f,
+                        onTouchActiveChange = {
+                            updateSliderTouchOwner(PersonalizeCardRefractionSlider, it)
+                        }
                     )
                 }
             }
