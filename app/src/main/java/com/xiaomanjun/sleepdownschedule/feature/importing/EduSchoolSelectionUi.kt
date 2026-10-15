@@ -547,20 +547,9 @@ fun EduSchoolIndexedSelectScreen(
 
 @Composable
 private fun EduSchoolDockViewport(content: @Composable (Dp) -> Unit) {
-    val density = LocalDensity.current
-    val configuration = LocalConfiguration.current
-    val imeBottom = WindowInsets.ime.getBottom(density)
-    val navigationBottom = WindowInsets.navigationBars.getBottom(density)
-    // Height can itself change under adjustResize; it must not erase the closed-keyboard baseline.
-    var closedBottom by remember(configuration.screenWidthDp, configuration.orientation, density.density) { mutableIntStateOf(0) }
-    var currentBottom by remember { mutableIntStateOf(0) }
-    val remaining = schoolDockBottomInsetPx(imeBottom, navigationBottom, closedBottom, currentBottom)
-    Box(Modifier.fillMaxSize().onGloballyPositioned { coordinates ->
-        val bottom = (coordinates.positionOnScreen().y + coordinates.size.height).toInt()
-        currentBottom = bottom
-        if (imeBottom <= navigationBottom) closedBottom = bottom
-    }) {
-        content(with(density) { remaining.toDp() })
+    val insets = com.xiaomanjun.sleepdownschedule.core.ui.layout.rememberFloatingInputInsets()
+    Box(Modifier.fillMaxSize().then(insets.viewportModifier)) {
+        content(insets.bottom)
     }
 }
 

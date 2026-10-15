@@ -6,10 +6,6 @@ internal fun schoolDockBottomInsetPx(
     navigationBottom: Int,
     closedBottom: Int,
     currentBottom: Int
-): Int {
-    if (imeBottom <= navigationBottom) return navigationBottom
-    val applied = if (closedBottom > 0 && currentBottom > 0) {
-        (closedBottom - currentBottom).coerceAtLeast(0)
-    } else 0
-    return (imeBottom - applied).coerceAtLeast(0)
-}
+): Int = com.xiaomanjun.sleepdownschedule.core.ui.layout.floatingInputBottomInsetPx(
+    imeBottom, navigationBottom, closedBottom, currentBottom
+)

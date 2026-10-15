@@ -42,8 +42,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -57,6 +55,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import com.xiaomanjun.sleepdownschedule.core.ui.layout.rememberFloatingInputInsets
+import com.xiaomanjun.sleepdownschedule.core.ui.layout.floatingInputPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -375,6 +375,7 @@ internal fun DayAgentConversationDialog(
         if (anchoredTabletConversation) 4.dp.toPx() else sourceCornerRadius.toPx()
     }
     val targetRadiusPx = with(density) { if (anchoredTabletConversation) 28.dp.toPx() else 32.dp.toPx() }
+    val inputInsets = rememberFloatingInputInsets()
     val imeBottomPx = WindowInsets.ime.getBottom(density)
     val deviceCornerPx = deviceScreenCornerRadiusPx()
     val compactHomeInput = homePresentation && !homeFullScreen
@@ -392,7 +393,7 @@ internal fun DayAgentConversationDialog(
     // Lift the input into the camera cap instead of reserving a separate status-bar row.
     val homeInputTop = homeTop + 8.dp
     val homeCapsuleHeight = homeInputHeight + 16.dp
-    val homeAvailableBottom = windowHeight - maxOf(adaptiveMetrics.safeBottom, with(density) { imeBottomPx.toDp() }) - 8.dp
+    val homeAvailableBottom = windowHeight - inputInsets.bottom - 8.dp
     val homeTopBarHeight = SleepDownDesignTokens.SecondaryPage.CompactTopBarHeight
     val homeWindowButtonSize = SleepDownDesignTokens.SecondaryPage.BackButtonSize
     val homeHandleHeight = 32.dp
@@ -468,7 +469,7 @@ internal fun DayAgentConversationDialog(
     fun homeComposerTopPx(): Float = with(density) {
         val p = fullMotion.drop.value.coerceIn(0f, 1f)
         val compactY = homeInputTop.toPx()
-        val fullY = homeAvailableBottom.toPx() - homeInputHeight.toPx()
+        val fullY = windowHeight.toPx() - inputInsets.bottomPx - 8.dp.toPx() - homeInputHeight.toPx()
         compactY + (fullY - compactY) * p
     }
     fun conversationGeometry(): Rect {
@@ -745,11 +746,7 @@ internal fun DayAgentConversationDialog(
               else if (homePresentation && homeFullScreen) homeFullScreen = false
               else dismissAnimated()
           }
-          top.yukonga.miuix.kmp.basic.Scaffold(
-              modifier = Modifier.fillMaxSize(),
-              containerColor = Color.Transparent,
-              contentWindowInsets = WindowInsets(0, 0, 0, 0)
-          ) {
+          Box(Modifier.fillMaxSize().then(inputInsets.viewportModifier)) {
               Box(
                   Modifier
                       .fillMaxSize()
@@ -907,7 +904,7 @@ internal fun DayAgentConversationDialog(
                              top = if (homePresentation && homeFullScreen) adaptiveMetrics.safeTop + homeTopBarHeight
                                  else if (!homePresentation) 34.dp else 0.dp,
                              bottom = if (homePresentation && homeFullScreen)
-                                 maxOf(adaptiveMetrics.safeBottom, with(density) { imeBottomPx.toDp() }) +
+                                 inputInsets.bottom +
                                      homeInputHeight + 24.dp
                                  else if (anchoredTabletConversation) 58.dp
                                  else if (compactHomeInput) 4.dp else 16.dp
@@ -1276,7 +1273,7 @@ internal fun DayAgentConversationDialog(
                       modifier = if (homePresentation) Modifier.align(Alignment.BottomCenter) else Modifier,
                       tintColor = if (homePresentation) Color.Black else sourceForeground,
                       height = if (homePresentation)
-                          maxOf(adaptiveMetrics.safeBottom, with(density) { imeBottomPx.toDp() }) +
+                          inputInsets.bottom +
                               homeInputHeight + 72.dp else 52.dp,
                       blurRadius = 9.dp,
                       tintIntensity = 0f,
@@ -1319,8 +1316,7 @@ internal fun DayAgentConversationDialog(
                       }
                   } else Modifier
                       .align(Alignment.BottomStart)
-                      .imePadding()
-                      .navigationBarsPadding()
+                      .floatingInputPadding(inputInsets)
                       .padding(
                           start = if (anchoredTabletConversation) {
                               with(density) { targetLeftPx.toDp() } + 14.dp
@@ -1423,8 +1419,7 @@ internal fun DayAgentConversationDialog(
                                 Modifier.fillMaxWidth()
                             }
                         )
-                        .imePadding()
-                        .navigationBarsPadding()
+                        .floatingInputPadding(inputInsets)
                         .padding(
                             horizontal = if (anchoredTabletConversation) 0.dp else 14.dp,
                             vertical = 10.dp
