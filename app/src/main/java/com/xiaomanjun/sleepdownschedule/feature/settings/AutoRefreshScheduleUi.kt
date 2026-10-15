@@ -200,6 +200,7 @@ private fun AutoRefreshDashboardContent(
     var refreshing by remember { mutableStateOf(false) }
     var message by remember(profile.lastResult) { mutableStateOf(profile.lastResult) }
     var refreshResultMessage by remember { mutableStateOf<String?>(null) }
+    var reviewOpenRequest by remember { mutableIntStateOf(0) }
     var showLogout by remember { mutableStateOf(false) }
     var cropUri by rememberSaveable { mutableStateOf<String?>(null) }
     var cropVisible by rememberSaveable { mutableStateOf(false) }
@@ -319,7 +320,8 @@ private fun AutoRefreshDashboardContent(
                                         refreshing = true
                                         try {
                                             message = AutoRefreshScheduleCoordinator.refreshSaved(context).message
-                                            refreshResultMessage = message
+                                            if (AutoRefreshReviewStore.load(context) == null) refreshResultMessage = message
+                                            else reviewOpenRequest++
                                         } finally {
                                             refreshing = false
                                         }
@@ -403,6 +405,8 @@ private fun AutoRefreshDashboardContent(
         backdrop = backdrop, config = state.config,
         onDismissRequest = { showLogout = false }
     )
+    AutoRefreshReviewHost(state.config, backdrop, enabled = !showLogout && !cropVisible && !refreshing,
+        openRequest = reviewOpenRequest)
     refreshResultMessage?.let { result ->
         LiquidAlertDialog(
             title = "课表刷新结果",

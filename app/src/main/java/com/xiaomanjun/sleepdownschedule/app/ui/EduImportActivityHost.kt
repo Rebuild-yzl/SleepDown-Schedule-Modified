@@ -12,6 +12,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
@@ -64,6 +67,7 @@ open class EduImportActivityHost : ComponentActivity() {
             var pendingDraft by remember { mutableStateOf<ImportDraft?>(null) }
             var submitting by remember { mutableStateOf(false) }
             var saveError by remember { mutableStateOf<String?>(null) }
+            val scope = rememberCoroutineScope()
             val sessionRestores = remember { mutableListOf<AutoCloseable>() }
             androidx.compose.runtime.DisposableEffect(Unit) {
                 onDispose { sessionRestores.forEach { it.close() }; sessionRestores.clear() }
@@ -139,6 +143,18 @@ open class EduImportActivityHost : ComponentActivity() {
                                     if (submitting) return@ConfirmScheduleScreen
                                     submitting = true
                                     saveError = null
+                                    if (retainedSession != null && !createNewSchedule) {
+                                        scope.launch {
+                                            try {
+                                                com.xiaomanjun.sleepdownschedule.feature.schedule.autorefresh.AutoRefreshScheduleCoordinator
+                                                    .reviewBrowserRefresh(app, retainedSession, previewDraft)
+                                                returnToScheduleHome()
+                                            } catch (cancelled: CancellationException) { throw cancelled }
+                                            catch (error: Exception) { saveError = error.message ?: "课表比较失败，请重试" }
+                                            finally { submitting = false }
+                                        }
+                                        return@ConfirmScheduleScreen
+                                    }
                                     viewModel.importDraft(previewDraft, createNewSchedule, onFailure = {
                                         submitting = false
                                         saveError = it.message ?: "保存失败，请重试"

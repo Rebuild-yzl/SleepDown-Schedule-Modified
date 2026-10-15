@@ -4097,6 +4097,11 @@ fun CourseScheduleAppUi(
         )
     }
 
+    com.xiaomanjun.sleepdownschedule.feature.schedule.autorefresh.AutoRefreshReviewHost(
+        config = state.config, backdrop = homeDialogBackdrop,
+        enabled = state.loaded && renderedHomeDialog == null
+    )
+
     // Dialog-based dialogs for all other types (including EditCourse without a source card)
     renderedHomeDialog?.let { dialog ->
         if (dialog !is HomeDialog.EditWallpaper && (dialog !is HomeDialog.EditCourse || dialog.course == null)) {

@@ -772,6 +772,36 @@ class ScheduleRepository(private val database: AppDatabase) {
         }
     }
 
+    /** Review is guarded in the same transaction as the write; unchanged rows keep their IDs. */
+    internal suspend fun applyReviewedRefresh(
+        scheduleId: Int,
+        before: List<com.xiaomanjun.sleepdownschedule.domain.schedule.RefreshCourse>,
+        timingKey: String,
+        selected: List<com.xiaomanjun.sleepdownschedule.domain.schedule.RefreshCourse>,
+        term: com.xiaomanjun.sleepdownschedule.domain.schedule.RefreshTerm?
+    ) = database.withTransaction {
+        require(profileDao.getProfiles().any { it.id == scheduleId }) { "自动刷新绑定的课表已不存在" }
+        val config = requireNotNull(configDao.getConfig(scheduleId)) { "课表配置已不存在" }
+        val periods = configDao.getPeriods(scheduleId)
+        val current = courseDao.getCourses(scheduleId)
+        if (current.map(com.xiaomanjun.sleepdownschedule.domain.schedule.RefreshCourse::from).sortedBy { it.id } !=
+            before.sortedBy { it.id } ||
+            com.xiaomanjun.sleepdownschedule.domain.schedule.refreshTimingKey(config, periods) != timingKey) {
+            throw com.xiaomanjun.sleepdownschedule.domain.schedule.ScheduleRefreshStaleException()
+        }
+        val knownIds = current.map { it.id }.toSet()
+        require(selected.all { it.id == 0L || it.id in knownIds }) { "课表差异选择已失效" }
+        val updatedConfig = if (term == null) config else config.copy(totalWeeks = term.totalWeeks,
+            currentWeek = config.currentWeek.coerceIn(1, term.totalWeeks), termStartDate = term.startDate)
+        val rows = selected.map { it.entity(scheduleId) }
+        projectCourseArrangements(rows, updatedConfig, periods)
+        val retainedIds = rows.map { it.id }.toSet()
+        current.filterNot { it.id in retainedIds }.forEach { courseDao.deleteCourse(it.id) }
+        val previous = current.associateBy { it.id }
+        courseDao.insertCourses(rows.filter { it.id == 0L || it != previous[it.id] })
+        if (updatedConfig != config) configDao.upsertConfig(updatedConfig)
+    }
+
     suspend fun saveConfig(config: ScheduleConfigEntity, periods: List<PeriodEntity>) {
         val scheduleId = activeScheduleId()
         saveConfigForSchedule(scheduleId, config, periods)
