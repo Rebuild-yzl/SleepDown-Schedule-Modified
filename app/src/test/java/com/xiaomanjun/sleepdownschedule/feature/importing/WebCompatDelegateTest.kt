@@ -5,6 +5,18 @@ import org.junit.Test
 import java.util.Locale
 
 class WebCompatDelegateTest {
+    @Test fun desktopZoomCorrectsTheUnscaledViewportAndDoesNotRepeatAtTheTarget() {
+        val expected = desktopViewportScale(1152, 3f, 800)
+        assertEquals(0.3f, expected, 0.00001f)
+        assertEquals(0.3f, desktopZoomFactor(1f, expected)!!, 0.00001f)
+        assertNull(desktopZoomFactor(0.3f, expected))
+        assertNull(desktopZoomFactor(-1f, expected))
+        assertNull(desktopZoomFactor(Float.NaN, expected))
+        assertNull(desktopZoomFactor(Float.POSITIVE_INFINITY, expected))
+        assertEquals(1f, desktopViewportScale(3200, 2f, 800), 0f)
+        assertEquals(0.3f, desktopViewportScale(0, 0f, 384), 0.00001f)
+    }
+
     @Test fun desktopModeKeepsTheInstalledChromiumVersion() {
         val mobile = "Mozilla/5.0 (Linux; Android 16; TestDevice; wv) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Version/4.0 Chrome/140.0.7339.12 Mobile Safari/537.36"
