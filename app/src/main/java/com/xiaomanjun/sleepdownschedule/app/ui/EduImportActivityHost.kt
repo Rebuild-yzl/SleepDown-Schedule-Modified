@@ -118,6 +118,9 @@ open class EduImportActivityHost : ComponentActivity() {
                     }
                 } else {
                     val previewDraft = checkNotNull(pendingDraft)
+                    androidx.activity.compose.BackHandler {
+                        if (!submitting) pendingDraft = null
+                    }
                     DetailActivityScaffold(
                         title = "导入预览",
                         config = state.config,

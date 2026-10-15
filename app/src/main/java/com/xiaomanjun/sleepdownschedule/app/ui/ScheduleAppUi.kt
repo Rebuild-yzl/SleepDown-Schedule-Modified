@@ -444,6 +444,7 @@ fun CourseScheduleAppUi(
     var quickScheduleDraft by remember { mutableStateOf<QuickScheduleDraft?>(null) }
     var quickScheduleReturnToManager by remember { mutableStateOf(false) }
     var importSubmitting by remember { mutableStateOf(false) }
+    var importPreviewMounted by remember { mutableStateOf(false) }
     var importPreviousCourseIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var importExpectedCourseCount by remember { mutableStateOf<Int?>(null) }
     val dayAgentBackgroundMotionState = rememberDayAgentBackgroundMotionState()
@@ -1828,22 +1829,26 @@ fun CourseScheduleAppUi(
 
     LaunchedEffect(pendingImportedSetupId) {
         val scheduleId = pendingImportedSetupId ?: return@LaunchedEffect
+        // All successful imports (new/overwrite/education Activity) leave the old entry first.
+        // The assistant can otherwise keep an overwrite's home data frozen indefinitely.
+        dismissHomeDialog()
+        homeAssistant.reset()
+        previewScheduleId = null
+        if (pickerState.overlayVisible) pickerState.reset()
         screen = Screen.Home
         homeMode = HomeMode.Week
         snapshotFlow {
             val latest = latestAllSchedulesState.value
             val rendered = latestVisualState.value
-            latest.schedules.any { it.id == scheduleId } &&
+            !importPreviewMounted && renderedHomeDialog == null && rendered.loaded &&
+                latest.schedules.any { it.id == scheduleId } &&
                 latest.allConfigs.any { it.id == scheduleId } &&
                 rendered.config.id == scheduleId &&
                 (importExpectedCourseCount == null || (rendered.courses.size == importExpectedCourseCount &&
                     rendered.courses.none { it.id in importPreviousCourseIds }))
         }.first { it }
-        if (pickerState.overlayVisible) pickerState.reset()
         withFrameNanos { }
-        // Reveal the destination only after its live data is ready, including overwrite.
-        dismissHomeDialog()
-        delay(320)
+        // Open setup only after the root preview has really gone and live data is ready.
         importSubmitting = false
         importExpectedCourseCount = null
         importPreviousCourseIds = emptySet()
@@ -4109,6 +4114,7 @@ fun CourseScheduleAppUi(
         if (dialog is HomeDialog.ConfirmImport) {
             ImportPreviewPage(draft = dialog.draft, config = state.config, visible = homeDialogVisible,
                 submitting = importSubmitting, errorMessage = dialog.errorMessage,
+                onContentMountedChanged = { importPreviewMounted = it },
                 onBack = {
                     importExpectedCourseCount = null
                     importPreviousCourseIds = emptySet()
