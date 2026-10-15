@@ -35,6 +35,13 @@ internal class OpenAiResponsesAgentRunner(
     private val interaction: AiImportInteraction? = null,
     private val onReasoning: ((String) -> Unit)? = null
 ) {
+    fun readOnlyAnswer(settings: AiImportSettings, instructions: String, input: String): AgentResponsesTurn =
+        parseAgentResponsesTurn(post(settings, responsesBody(
+            settings, instructions, listOf(buildJsonObject { put("role", "user"); put("content", input) }),
+            stream = false, includeTools = false, includeMemoryTool = false,
+            excludedTools = emptySet(), reasoningEffort = settings.profile.reasoningEffort
+        )))
+
     fun chat(
         settings: AiImportSettings,
         chatMessages: List<JsonObject>,
