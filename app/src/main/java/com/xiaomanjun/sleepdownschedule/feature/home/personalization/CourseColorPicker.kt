@@ -3,6 +3,7 @@ package com.xiaomanjun.sleepdownschedule.feature.home.personalization
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -179,12 +180,13 @@ internal fun CourseColorModeRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(
-            modifier = Modifier.width(42.dp),
+            modifier = Modifier.width(64.dp),
             horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -197,8 +199,8 @@ internal fun CourseColorModeRow(
             Text(
                 text = title,
                 color = labelColor,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (selectedMode == mode) FontWeight.Bold else FontWeight.Medium,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (selectedMode == mode) FontWeight.Medium else FontWeight.Normal,
                 maxLines = 1,
                 softWrap = false
             )

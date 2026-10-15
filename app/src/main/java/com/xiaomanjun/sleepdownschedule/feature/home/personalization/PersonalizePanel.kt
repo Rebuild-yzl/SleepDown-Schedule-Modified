@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.catalog.components.LiquidPanel
@@ -221,17 +222,24 @@ fun PersonalizePanel(
         )
     }
     @Composable
+    fun PersonalizeGroupTitle(title: String, index: Int) {
+        Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 8.dp).rowEntrance(index)
+            .personalizePreviewVisibility(previewSliderKey, previewProgress), contentAlignment = Alignment.CenterStart) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        }
+    }
+    @Composable
     fun PanelContent(modifier: Modifier = Modifier) {
         Column(modifier = modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             PersonalizeSection {
                 Row(
                     modifier = Modifier.rowEntrance(0)
-                        .fillMaxWidth()
+                        .fillMaxWidth().heightIn(min = 48.dp)
                         .personalizePreviewVisibility(previewSliderKey, previewProgress),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("首页壁纸", style = MaterialTheme.typography.labelLarge)
+                    Text("首页壁纸", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         LiquidMenuButton(
                             backdrop,
@@ -319,13 +327,14 @@ fun PersonalizePanel(
                 )
             }
             PersonalizeSection {
+                PersonalizeGroupTitle("尺寸与字体", 3)
                 if (mode == HomeMode.Week) {
                     Text(
                         text = "周视图行高",
                         modifier = Modifier.rowEntrance(3)
                             .fillMaxWidth()
                             .personalizePreviewVisibility(previewSliderKey, previewProgress),
-                        style = MaterialTheme.typography.labelLarge
+                        style = MaterialTheme.typography.bodyMedium
                     )
                     Column(
                         modifier = Modifier.rowEntrance(4).personalizePreviewVisibility(
@@ -375,17 +384,17 @@ fun PersonalizePanel(
                             Text(
                                 "紧凑",
                                 modifier = Modifier.align(Alignment.CenterStart),
-                                style = MaterialTheme.typography.labelSmall
+                                style = MaterialTheme.typography.bodySmall
                             )
                             Text(
                                 "自适应",
                                 modifier = Modifier.align(Alignment.Center),
-                                style = MaterialTheme.typography.labelSmall
+                                style = MaterialTheme.typography.bodySmall
                             )
                             Text(
                                 "宽松",
                                 modifier = Modifier.align(Alignment.CenterEnd),
-                                style = MaterialTheme.typography.labelSmall
+                                style = MaterialTheme.typography.bodySmall
                             )
                         }
                     }
@@ -419,88 +428,9 @@ fun PersonalizePanel(
                         }
                     )
                 }
-                if (mode == HomeMode.Week) PersonalizeSectionDivider(6)
-                Text("课程卡片内容", style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.rowEntrance(6)
-                        .personalizePreviewVisibility(previewSliderKey, previewProgress))
-                if (mode == HomeMode.Week) {
-                    Row(
-                        Modifier.rowEntrance(7).fillMaxWidth().heightIn(min = 48.dp)
-                            .personalizePreviewVisibility(previewSliderKey, previewProgress),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("显示上课地点", style = MaterialTheme.typography.labelLarge)
-                        LiquidControlToggle(
-                            checked = state.config.weekCardShowLocation,
-                            compact = true,
-                            onCheckedChange = {
-                                onUpdateConfig(PersonalizeWeekLocationChange,
-                                    state.config.copy(weekCardShowLocation = it))
-                            },
-                            backdrop = backdrop
-                        )
-                    }
-                    Row(
-                        Modifier.rowEntrance(8).fillMaxWidth().heightIn(min = 48.dp)
-                            .personalizePreviewVisibility(previewSliderKey, previewProgress),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("显示教师", style = MaterialTheme.typography.labelLarge)
-                        LiquidControlToggle(
-                            checked = state.config.weekCardShowTeacher,
-                            compact = true,
-                            onCheckedChange = {
-                                onUpdateConfig(PersonalizeWeekTeacherChange,
-                                    state.config.copy(weekCardShowTeacher = it))
-                            },
-                            backdrop = backdrop
-                        )
-                    }
-                    val textLayouts = listOf(
-                        WeekCardContentLayout.CURRENT to WeekCardTextAlignment.CENTER,
-                        WeekCardContentLayout.TOP to WeekCardTextAlignment.START,
-                        WeekCardContentLayout.TOP to WeekCardTextAlignment.CENTER,
-                        WeekCardContentLayout.MIDDLE to WeekCardTextAlignment.START,
-                        WeekCardContentLayout.MIDDLE to WeekCardTextAlignment.CENTER
-                    )
-                    val rowTextColor = LocalContentColor.current
-                    val rowTextStyle = MaterialTheme.typography.labelLarge
-                    val rowMaxHeight = maxOf(48.dp, with(rowDensity) { rowTextStyle.lineHeight.toDp() } + 12.dp)
-                    MiuixTheme(colors = MiuixTheme.colorScheme.copy(
-                        onBackground = rowTextColor,
-                        onSurfaceVariantActions = rowTextColor.copy(alpha = 0.72f)
-                    )) {
-                        SleepDownLiquidDropdownPreference(
-                            items = listOf("默认", "顶部居左", "顶部居中", "中部居左", "中部居中"),
-                            selectedIndex = if (state.config.weekCardContentLayout == WeekCardContentLayout.CURRENT) 0
-                                else 1 + (if (state.config.weekCardContentLayout in listOf(
-                                WeekCardContentLayout.MIDDLE, WeekCardContentLayout.CENTERED)) 2 else 0) +
-                                (if (state.config.effectiveWeekCardTextAlignment() == WeekCardTextAlignment.CENTER) 1 else 0),
-                            title = "内容对齐",
-                            modifier = Modifier.rowEntrance(9).fillMaxWidth()
-                                .heightIn(max = rowMaxHeight)
-                                .personalizePreviewVisibility(previewSliderKey, previewProgress),
-                            insideMargin = PaddingValues(horizontal = 0.dp, vertical = 6.dp),
-                            maxHeight = 260.dp,
-                            compactTextStyle = rowTextStyle,
-                            showAnchorPressFeedback = false,
-                            backdrop = backdrop,
-                            config = state.config,
-                            onSelectedIndexChange = { index ->
-                                textLayouts.getOrNull(index)?.let { (layout, alignment) ->
-                                    onUpdateConfig(PersonalizeWeekLayoutChange,
-                                        state.config.copy(weekCardContentLayout = layout,
-                                            weekCardTextAlignment = alignment))
-                                }
-                            }
-                        )
-                    }
-                }
                 PersonalizeValueSlider(
                     sliderKey = PersonalizeCardFontSlider,
-                    modifier = Modifier.rowEntrance(7 + weekContentRows),
+                    modifier = Modifier.rowEntrance(6),
                     value = state.config.courseCardFontScale,
                     valueRange = 0.80f..1.35f,
                     backdrop = backdrop,
@@ -525,15 +455,17 @@ fun PersonalizePanel(
                         updateSliderTouchOwner(PersonalizeCardFontSlider, it)
                     }
                 )
+                PersonalizeSectionDivider(7)
+                PersonalizeGroupTitle("课程卡片内容", 7)
                 Row(
-                    modifier = Modifier.rowEntrance(8 + weekContentRows)
+                    modifier = Modifier.rowEntrance(8)
                         .fillMaxWidth()
                         .heightIn(min = 48.dp)
                         .personalizePreviewVisibility(previewSliderKey, previewProgress),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("彩色文字", style = MaterialTheme.typography.labelLarge)
+                    Text("彩色文字", style = MaterialTheme.typography.bodyMedium)
                     LiquidControlToggle(
                         checked = state.config.courseCardColoredTextEnabled,
                         compact = true,
@@ -546,17 +478,83 @@ fun PersonalizePanel(
                         backdrop = backdrop
                     )
                 }
-                PersonalizeSectionDivider(9 + weekContentRows)
-                Row(
-                    modifier = Modifier.rowEntrance(9 + weekContentRows)
-                        .fillMaxWidth()
-                        .personalizePreviewVisibility(previewSliderKey, previewProgress),
-                    horizontalArrangement = Arrangement.Start,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("课程卡片颜色", style = MaterialTheme.typography.labelLarge)
+                if (mode == HomeMode.Week) {
+                    Row(
+                        Modifier.rowEntrance(9).fillMaxWidth().heightIn(min = 48.dp)
+                            .personalizePreviewVisibility(previewSliderKey, previewProgress),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("显示上课地点", style = MaterialTheme.typography.bodyMedium)
+                        LiquidControlToggle(
+                            checked = state.config.weekCardShowLocation,
+                            compact = true,
+                            onCheckedChange = {
+                                onUpdateConfig(PersonalizeWeekLocationChange,
+                                    state.config.copy(weekCardShowLocation = it))
+                            },
+                            backdrop = backdrop
+                        )
+                    }
+                    Row(
+                        Modifier.rowEntrance(10).fillMaxWidth().heightIn(min = 48.dp)
+                            .personalizePreviewVisibility(previewSliderKey, previewProgress),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("显示教师", style = MaterialTheme.typography.bodyMedium)
+                        LiquidControlToggle(
+                            checked = state.config.weekCardShowTeacher,
+                            compact = true,
+                            onCheckedChange = {
+                                onUpdateConfig(PersonalizeWeekTeacherChange,
+                                    state.config.copy(weekCardShowTeacher = it))
+                            },
+                            backdrop = backdrop
+                        )
+                    }
+                    val textLayouts = listOf(
+                        WeekCardContentLayout.CURRENT to WeekCardTextAlignment.CENTER,
+                        WeekCardContentLayout.TOP to WeekCardTextAlignment.START,
+                        WeekCardContentLayout.TOP to WeekCardTextAlignment.CENTER,
+                        WeekCardContentLayout.MIDDLE to WeekCardTextAlignment.START,
+                        WeekCardContentLayout.MIDDLE to WeekCardTextAlignment.CENTER
+                    )
+                    val rowTextColor = LocalContentColor.current
+                    val rowTextStyle = MaterialTheme.typography.bodyMedium
+                    val rowMaxHeight = maxOf(48.dp, with(rowDensity) { rowTextStyle.lineHeight.toDp() } + 12.dp)
+                    MiuixTheme(colors = MiuixTheme.colorScheme.copy(
+                        onBackground = rowTextColor,
+                        onSurfaceVariantActions = rowTextColor.copy(alpha = 0.72f)
+                    )) {
+                        SleepDownLiquidDropdownPreference(
+                            items = listOf("默认", "顶部居左", "顶部居中", "中部居左", "中部居中"),
+                            selectedIndex = if (state.config.weekCardContentLayout == WeekCardContentLayout.CURRENT) 0
+                                else 1 + (if (state.config.weekCardContentLayout in listOf(
+                                WeekCardContentLayout.MIDDLE, WeekCardContentLayout.CENTERED)) 2 else 0) +
+                                (if (state.config.effectiveWeekCardTextAlignment() == WeekCardTextAlignment.CENTER) 1 else 0),
+                            title = "内容对齐",
+                            modifier = Modifier.rowEntrance(11).fillMaxWidth()
+                                .heightIn(max = rowMaxHeight)
+                                .personalizePreviewVisibility(previewSliderKey, previewProgress),
+                            insideMargin = PaddingValues(horizontal = 0.dp, vertical = 6.dp),
+                            maxHeight = 260.dp,
+                            compactTextStyle = rowTextStyle,
+                            showAnchorPressFeedback = false,
+                            backdrop = backdrop,
+                            config = state.config,
+                            onSelectedIndexChange = { index ->
+                                textLayouts.getOrNull(index)?.let { (layout, alignment) ->
+                                    onUpdateConfig(PersonalizeWeekLayoutChange,
+                                        state.config.copy(weekCardContentLayout = layout,
+                                            weekCardTextAlignment = alignment))
+                                }
+                            }
+                        )
+                    }
                 }
-                Spacer(Modifier.height(8.dp))
+                PersonalizeSectionDivider(9 + weekContentRows)
+                PersonalizeGroupTitle("课程卡片颜色", 9 + weekContentRows)
                 CourseColorModeRow(
                     title = "纯色",
                     iconRes = R.drawable.ic_color_solid,
@@ -624,9 +622,7 @@ fun PersonalizePanel(
                     onOpenPalette = { openCourseColorDialog(CourseCardColorMode.COLORFUL) }
                 )
                 PersonalizeSectionDivider(13 + weekContentRows)
-                Text("课程卡片材质", style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.rowEntrance(13 + weekContentRows)
-                        .personalizePreviewVisibility(previewSliderKey, previewProgress))
+                PersonalizeGroupTitle("课程卡片材质", 13 + weekContentRows)
                 val superPerformance = AppMaterialPreferences.isSuperPerformance
                 val glassLocked = (!state.config.hasAnyWallpaper() && !nativeMaterialActive) || superPerformance
                 nativeMaterialMode?.let { material ->
@@ -636,7 +632,7 @@ fun PersonalizePanel(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("ColorOS 17 凝光视效", style = MaterialTheme.typography.labelLarge)
+                        Text("ColorOS 17 凝光视效", style = MaterialTheme.typography.bodyMedium)
                         LiquidControlToggle(checked = material.enabled, compact = true,
                             onCheckedChange = material.onEnabledChange, enabled = !superPerformance, backdrop = backdrop)
                     }
@@ -671,11 +667,6 @@ fun PersonalizePanel(
                         )
                     }
                 }
-                Spacer(
-                    Modifier
-                        .height(4.dp)
-                        .personalizePreviewVisibility(previewSliderKey, previewProgress)
-                )
                 if (!nativeMaterialActive) Row(
                     modifier = Modifier.rowEntrance(14 + weekContentRows + nativeMaterialRows)
                         .fillMaxWidth()
@@ -684,7 +675,7 @@ fun PersonalizePanel(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("课程卡片液态玻璃", style = MaterialTheme.typography.labelLarge)
+                    Text("课程卡片液态玻璃", style = MaterialTheme.typography.bodyMedium)
                     LiquidControlToggle(
                         checked = state.config.courseCardGlassEnabled && !glassLocked,
                         compact = true,
@@ -719,7 +710,7 @@ fun PersonalizePanel(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("质感轮廓光", style = MaterialTheme.typography.labelLarge)
+                        Text("质感轮廓光", style = MaterialTheme.typography.bodyMedium)
                         LiquidControlToggle(
                             checked = state.config.courseCardOutlineLightEnabled,
                             compact = true,
@@ -741,7 +732,7 @@ fun PersonalizePanel(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("课程卡片高斯模糊", style = MaterialTheme.typography.labelLarge)
+                        Text("课程卡片高斯模糊", style = MaterialTheme.typography.bodyMedium)
                         LiquidControlToggle(
                             checked = state.config.courseCardGaussianBlurEnabled && !glassLocked,
                             compact = true,
