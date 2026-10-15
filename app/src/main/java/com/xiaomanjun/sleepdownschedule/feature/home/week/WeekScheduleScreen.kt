@@ -223,7 +223,9 @@ internal fun SinglePillWeekScheduleScreen(
     val latestWeekJumpSettled by rememberUpdatedState(onWeekJumpSettled)
     val weekTail = rememberWeekPageTailMotion(pagerState,
         com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.policy.courseSamples(
-            state.config.courseCardGlassEnabled, state.config.courseCardGaussianBlurEnabled, state.config.hasAnyWallpaper()))
+            state.config.courseCardGlassEnabled, state.config.courseCardGaussianBlurEnabled, state.config.hasAnyWallpaper()),
+        tailEnabled = !com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isSuperPerformance ||
+            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current != null)
     val homeSwitching = LocalHomeTextContrastFrozen.current
     LaunchedEffect(pagerState, boundless) {
         try {
