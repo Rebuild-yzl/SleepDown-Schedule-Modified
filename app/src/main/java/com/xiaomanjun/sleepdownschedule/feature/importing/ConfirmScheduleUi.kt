@@ -43,6 +43,7 @@ import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.catalog.components.LiquidPanel
 import com.kyant.shapes.RoundedRectangle
 import com.xiaomanjun.sleepdownschedule.*
+import com.xiaomanjun.sleepdownschedule.domain.schedule.withCompatiblePeriodGrid
 import com.xiaomanjun.sleepdownschedule.app.ui.*
 import com.xiaomanjun.sleepdownschedule.core.remoteconfig.*
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.*
@@ -70,22 +71,25 @@ private fun importDraftConfigurationSummary(draft: ImportDraft): String = buildL
 fun ConfirmScheduleScreen(
     draft: ImportDraft,
     warning: String? = null,
+    submitting: Boolean = false,
+    errorMessage: String? = null,
     backdrop: Backdrop? = null,
     onCancel: () -> Unit,
     onDraftChanged: ((ImportDraft) -> Unit)? = null,
     onConfirm: (Boolean) -> Unit
 ) {
     val historyContext = LocalContext.current
+    val compatibility = remember(draft) { runCatching { draft.withCompatiblePeriodGrid() } }
     val previewDraft = remember(draft) {
-        draft.copy(
-            periods = draft.periods.distinctBy { it.periodIndex }.sortedBy { it.periodIndex },
-            courses = draft.courses.map {
+        compatibility.getOrDefault(draft).let { compatible -> compatible.copy(
+            periods = compatible.periods,
+            courses = compatible.courses.map {
                 it.copy(
                     periods = it.periods.distinct().sorted(),
                     weeks = it.weeks.distinct().sorted()
                 )
             }
-        )
+        ) }
     }
     if (previewDraft.source == ImportDraftSource.AI_EDU) {
         LaunchedEffect(previewDraft) {
@@ -94,6 +98,8 @@ fun ConfirmScheduleScreen(
         AiImportChatPreview(
             draft = previewDraft,
             warning = warning,
+            submitting = submitting,
+            errorMessage = errorMessage ?: compatibility.exceptionOrNull()?.message,
             backdrop = backdrop,
             onCancel = onCancel,
             onDraftChanged = onDraftChanged,
@@ -107,6 +113,9 @@ fun ConfirmScheduleScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item { Text("即将导入 " + previewDraft.courses.size + " 门课程，请确认后写入课表。") }
+        itemsIndexed(previewDraft.notices) { _, notice -> Text(notice, style = MaterialTheme.typography.bodyMedium) }
+        (errorMessage ?: compatibility.exceptionOrNull()?.message)?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
+        if (submitting) item { Text("正在保存课表…") }
         warning?.let { text ->
             item { Text(text, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
         }
@@ -131,9 +140,9 @@ fun ConfirmScheduleScreen(
                 Text("请选择导入方式：", style = MaterialTheme.typography.bodyMedium)
                 LiquidAlertActions(
                     actions = listOf(
-                        LiquidAlertAction("创建新课表", LiquidAlertActionStyle.Primary) { onConfirm(true) },
-                        LiquidAlertAction("覆盖当前课表", LiquidAlertActionStyle.Destructive) { onConfirm(false) },
-                        LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel, onClick = onCancel)
+                        LiquidAlertAction("创建新课表", LiquidAlertActionStyle.Primary, enabled = !submitting) { onConfirm(true) },
+                        LiquidAlertAction("覆盖当前课表", LiquidAlertActionStyle.Destructive, enabled = !submitting) { onConfirm(false) },
+                        LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel, enabled = !submitting, onClick = onCancel)
                     ),
                     backdrop = backdrop,
                     config = previewDraft.config
@@ -164,6 +173,8 @@ internal fun AiImportHistoryBackgroundCapture.cropToAiHistorySource(bounds: Rect
 private fun AiImportChatPreview(
     draft: ImportDraft,
     warning: String?,
+    submitting: Boolean,
+    errorMessage: String?,
     backdrop: Backdrop?,
     onCancel: () -> Unit,
     onDraftChanged: ((ImportDraft) -> Unit)?,
@@ -193,6 +204,8 @@ private fun AiImportChatPreview(
         ownedRevisionTaskId = null
     }
     Column(Modifier.fillMaxSize()) {
+        errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) }
+        if (submitting) Text("正在保存课表…", modifier = Modifier.padding(16.dp))
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
@@ -230,6 +243,7 @@ private fun AiImportChatPreview(
                         warning?.let {
                             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         }
+                        draft.notices.forEach { Text(it, color = textColor, style = MaterialTheme.typography.bodySmall) }
                     }
                 }
             }
@@ -292,7 +306,7 @@ private fun AiImportChatPreview(
                             revising = true
                             revisionError = null
                             val settings = AiImportSettingsStore.load(context)
-                            val baseProgress = progress ?: AiEduImportProgress(routeLabel = "AI 手动导入")
+                            val baseProgress = progress ?: AiEduImportProgress(routeLabel = "口令/文件导入")
                             ownedRevisionTaskId = AiImportTaskManager.startRevision(
                                 context = context,
                                 baseDraft = draft,
@@ -307,9 +321,9 @@ private fun AiImportChatPreview(
             }
             LiquidAlertActions(
                 actions = listOf(
-                    LiquidAlertAction("创建新课表", LiquidAlertActionStyle.Primary) { onConfirm(true) },
-                    LiquidAlertAction("覆盖当前课表", LiquidAlertActionStyle.Destructive) { onConfirm(false) },
-                    LiquidAlertAction("返回检查", LiquidAlertActionStyle.Cancel, onClick = onCancel)
+                    LiquidAlertAction("创建新课表", LiquidAlertActionStyle.Primary, enabled = !submitting && !revising) { onConfirm(true) },
+                    LiquidAlertAction("覆盖当前课表", LiquidAlertActionStyle.Destructive, enabled = !submitting && !revising) { onConfirm(false) },
+                    LiquidAlertAction("返回检查", LiquidAlertActionStyle.Cancel, enabled = !submitting, onClick = onCancel)
                 ),
                 backdrop = backdrop,
                 config = draft.config

@@ -62,6 +62,8 @@ open class EduImportActivityHost : ComponentActivity() {
                 adapter?.copy(importUrl = retainedSession?.authenticatedUrl ?: adapter.importUrl)
             }
             var pendingDraft by remember { mutableStateOf<ImportDraft?>(null) }
+            var submitting by remember { mutableStateOf(false) }
+            var saveError by remember { mutableStateOf<String?>(null) }
             val sessionRestores = remember { mutableListOf<AutoCloseable>() }
             androidx.compose.runtime.DisposableEffect(Unit) {
                 onDispose { sessionRestores.forEach { it.close() }; sessionRestores.clear() }
@@ -105,7 +107,7 @@ open class EduImportActivityHost : ComponentActivity() {
                                     }
                                 },
                                 initialDesktopMode = retainedSession?.desktopMode ?: false,
-                                onParsed = { draft -> pendingDraft = draft }
+                                onParsed = { draft -> saveError = null; pendingDraft = draft }
                             )
                         }
                     }
@@ -115,7 +117,7 @@ open class EduImportActivityHost : ComponentActivity() {
                     DetailActivityScaffold(
                         title = "导入预览",
                         config = state.config,
-                        onBack = { pendingDraft = null },
+                        onBack = { if (!submitting) pendingDraft = null },
                         isolateContentFromBackdrop = true,
                         compactTopBar = true,
                         centerCompactTitle = true,
@@ -128,14 +130,20 @@ open class EduImportActivityHost : ComponentActivity() {
                         Box(modifier = Modifier.padding(top = detailContentTopPadding())) {
                             ConfirmScheduleScreen(
                                 draft = previewDraft,
+                                submitting = submitting,
+                                errorMessage = saveError,
                                 warning = if (adapter.isGeneralEduTool()) "可能部分节次信息会有误，请自行检查修改。" else null,
                                 backdrop = backdrop,
-                                onCancel = { pendingDraft = null },
+                                onCancel = { if (!submitting) pendingDraft = null },
                                 onConfirm = { createNewSchedule ->
-                                    viewModel.importDraft(previewDraft, createNewSchedule) { scheduleId ->
-                                        if (previewDraft.source == ImportDraftSource.AI_EDU) {
-                                            PendingImportSetupStore.put(this@EduImportActivityHost, scheduleId)
-                                        }
+                                    if (submitting) return@ConfirmScheduleScreen
+                                    submitting = true
+                                    saveError = null
+                                    viewModel.importDraft(previewDraft, createNewSchedule, onFailure = {
+                                        submitting = false
+                                        saveError = it.message ?: "保存失败，请重试"
+                                    }) { scheduleId ->
+                                        PendingImportSetupStore.put(this@EduImportActivityHost, scheduleId)
                                         returnToScheduleHome()
                                     }
                                 }

@@ -1,4 +1,5 @@
 package com.xiaomanjun.sleepdownschedule.feature.importing
+import com.xiaomanjun.sleepdownschedule.domain.schedule.withCompatiblePeriodGrid
 
 import com.xiaomanjun.sleepdownschedule.*
 import com.xiaomanjun.sleepdownschedule.domain.schedule.captureOriginalPeriodTimes
@@ -410,7 +411,7 @@ object ScheduleImportParser {
             config = config,
             periods = periods,
             courses = courses
-        )
+        ).withCompatiblePeriodGrid()
     }
 
     private fun parseTime(value: String, label: String): LocalTime = try {

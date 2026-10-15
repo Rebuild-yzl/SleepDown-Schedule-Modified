@@ -20,6 +20,10 @@ import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
 
 object IcsScheduleCodec {
+    fun isSleepDown(bytes: ByteArray): Boolean = bytes.toString(Charsets.UTF_8).lineSequence().any {
+        it.startsWith("X-SLEEPDOWN-", ignoreCase = true) ||
+            (it.startsWith("PRODID:", ignoreCase = true) && it.contains("SleepDown", ignoreCase = true))
+    }
     private val compactDate = DateTimeFormatter.BASIC_ISO_DATE
     private val compactDateTime = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss")
     private val compactDateTimeMinutes = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmm")
@@ -31,18 +35,20 @@ object IcsScheduleCodec {
         val metadata = parseSleepDownMetadata(text)
         val events = parseEvents(text)
         require(events.isNotEmpty()) { "ICS 中没有找到日历事件" }
+        require(events.none { "RECURRENCE-ID" in it.properties }) { "日历包含单次例外安排，请通过 AI 文件导入核对" }
 
         val occurrences = events.flatMap(::expandEvent).distinctBy {
             listOf(it.name, it.location, it.description, it.start, it.end, it.customPeriodTimes)
         }
         require(occurrences.isNotEmpty()) { "ICS 中没有可导入的定时课程事件" }
 
-        val firstMonday = occurrences.minOf { it.start.toLocalDate() }
+        val firstMonday = (metadata.termStartDate ?: occurrences.minOf { it.start.toLocalDate() })
             .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val rawLastWeek = occurrences.maxOf { occurrence ->
             ChronoUnit.WEEKS.between(firstMonday, occurrence.start.toLocalDate().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))).toInt() + 1
         }
         val totalWeeks = (metadata.totalWeeks ?: rawLastWeek).coerceIn(1, 60)
+        require(rawLastWeek <= totalWeeks) { "日历日期超出课表周数范围，请通过 AI 文件导入确认学期范围" }
         val usable = occurrences.filter { occurrence ->
             val week = ChronoUnit.WEEKS.between(
                 firstMonday,
@@ -56,8 +62,13 @@ object IcsScheduleCodec {
             .distinct()
             .sortedWith(compareBy<Pair<LocalTime, LocalTime>> { it.first }.thenBy { it.second })
         require(timeRanges.isNotEmpty()) { "ICS 中没有可识别的课程时间" }
-        val periodIndexByRange = timeRanges.withIndex().associate { it.value to it.index + 1 }
-        val inferredPeriods = timeRanges.mapIndexed { index, range ->
+        // Events on different weekdays may overlap in clock time. Split at event boundaries
+        // instead of making each event a global period, which creates an invalid bell scheme.
+        val boundaries = timeRanges.flatMap { listOf(it.first, it.second) }.distinct().sorted()
+        val inferredRanges = boundaries.zipWithNext().filter { (start, end) ->
+            timeRanges.any { it.first <= start && it.second >= end }
+        }
+        val inferredPeriods = inferredRanges.mapIndexed { index, range ->
             PeriodEntity(
                 periodIndex = index + 1,
                 startTime = range.first.format(displayTime),
@@ -90,11 +101,8 @@ object IcsScheduleCodec {
                 .filter { it in periodsByIndex }
                 .distinct()
                 .sorted()
-            val inferredPeriod = periodIndexByRange[occurrence.start.toLocalTime() to occurrence.end.toLocalTime()]
             val anchors = embeddedPeriods.ifEmpty {
-                listOfNotNull(inferredPeriod).ifEmpty {
-                    courseAnchorPeriodsForTimeRange(occurrence.start.toLocalTime(), occurrence.end.toLocalTime(), periods)
-                }
+                courseAnchorPeriodsForTimeRange(occurrence.start.toLocalTime(), occurrence.end.toLocalTime(), periods)
             }
             CourseKey(
                 name = occurrence.name.ifBlank { "未命名课程" },
@@ -165,7 +173,10 @@ object IcsScheduleCodec {
                 eveningPeriodCount = counts.evening
             ),
             periods = periods,
-            courses = courses
+            courses = courses,
+            notices = if (metadata.periods.isEmpty()) listOf(
+                "此日历没有学校节次，已按事件起止时间生成 ${periods.size} 个显示节次，保留各课程的实际时间。请核对开学日期与作息。"
+            ) else emptyList()
         )
     }
 
@@ -336,14 +347,17 @@ object IcsScheduleCodec {
     }
 
     private fun expandEvent(event: IcsEvent): List<Occurrence> {
-        val startProperty = event.properties["DTSTART"]?.firstOrNull() ?: return emptyList()
-        val start = parseDateTime(startProperty) ?: return emptyList()
+        if (event.properties["STATUS"]?.firstOrNull()?.value.equals("CANCELLED", true)) return emptyList()
+        val startProperty = event.properties["DTSTART"]?.firstOrNull() ?: error("日历事件缺少开始时间")
+        val start = parseDateTime(startProperty) ?: error("日历包含全天事件或无法确定的上课时间，请通过 AI 文件导入核对")
         val end = event.properties["DTEND"]?.firstOrNull()?.let(::parseDateTime)
             ?: event.properties["DURATION"]?.firstOrNull()?.value?.let { value ->
                 runCatching { start.plus(Duration.parse(value)) }.getOrNull()
             }
-            ?: start.plusHours(1)
-        if (!end.isAfter(start)) return emptyList()
+            ?: error("日历没有提供结束时间，请通过 AI 文件导入核对")
+        require(end.isAfter(start) && end.toLocalDate() == start.toLocalDate()) {
+            "日历包含跨日或不完整的课程时间，请通过 AI 文件导入核对"
+        }
         val duration = Duration.between(start, end)
         val exclusions = event.properties["EXDATE"].orEmpty().flatMap { property ->
             property.value.split(',').mapNotNull { value -> parseDateTime(property.copy(value = value)) }
@@ -354,6 +368,13 @@ object IcsScheduleCodec {
         val recurrence = event.properties["RRULE"]?.firstOrNull()?.value?.split(';')
             ?.mapNotNull { part -> part.split('=', limit = 2).takeIf { it.size == 2 }?.let { it[0].uppercase() to it[1] } }
             ?.toMap()
+        require(recurrence == null || (recurrence.keys.all {
+            it in setOf("FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "WKST")
+        } && recurrence["FREQ"]?.uppercase() in setOf("DAILY", "WEEKLY") &&
+            (recurrence["WKST"] == null || recurrence["WKST"] == "MO") &&
+            recurrence["BYDAY"].orEmpty().none(Char::isDigit))) {
+            "日历包含复杂重复规则，请通过 AI 文件导入核对"
+        }
         val starts = when (recurrence?.get("FREQ")?.uppercase()) {
             "WEEKLY" -> expandWeekly(start, recurrence)
             "DAILY" -> expandDaily(start, recurrence)

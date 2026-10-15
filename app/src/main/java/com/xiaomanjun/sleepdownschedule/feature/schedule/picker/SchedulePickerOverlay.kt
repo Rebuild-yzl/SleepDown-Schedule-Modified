@@ -1095,7 +1095,7 @@ fun SchedulePickerOverlay(
                         modifier = Modifier.align(Alignment.Center).offset(x = -sideOffset).size(buttonSize)
                     ) { showShareOptions = true }
                     PickerTextButton(
-                        "自定义",
+                        "课表设置",
                         pagerInputEnabled,
                         managerBackdrop,
                         visualConfig,

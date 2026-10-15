@@ -1,4 +1,5 @@
 package com.xiaomanjun.sleepdownschedule.data.repository
+import com.xiaomanjun.sleepdownschedule.domain.schedule.withCompatiblePeriodGrid
 
 import androidx.room.withTransaction
 import com.xiaomanjun.sleepdownschedule.*
@@ -725,6 +726,7 @@ class ScheduleRepository(private val database: AppDatabase) {
     }
 
     suspend fun importDraft(draft: ImportDraft, createNewSchedule: Boolean = false): Int {
+        val compatible = draft.withCompatiblePeriodGrid()
         return database.withTransaction {
             val oldActiveId = activeScheduleId()
             val globalConfig = configDao.getConfig(oldActiveId) ?: defaultConfig(oldActiveId)
@@ -735,15 +737,15 @@ class ScheduleRepository(private val database: AppDatabase) {
             } else {
                 oldActiveId
             }
-            val importedPeriods = normalizePeriodsForSchedule(draft.periods, scheduleId)
+            val importedPeriods = normalizePeriodsForSchedule(compatible.periods, scheduleId)
             val importedConfig = configWithCountsFromPeriods(
-                draft.config.withImportedCourseCardDefaults().withGlobalSettingsFrom(globalConfig), importedPeriods)
+                compatible.config.withImportedCourseCardDefaults().withGlobalSettingsFrom(globalConfig), importedPeriods)
             configDao.upsertConfig(normalizeConfigForSchedule(importedConfig, scheduleId))
             configDao.deletePeriods(scheduleId)
             configDao.upsertPeriods(importedPeriods)
             replaceSchemesWithPeriods(scheduleId, importedConfig, importedPeriods, "导入作息", reuseIdentical = true)
             courseDao.deleteBySchedule(scheduleId)
-            val importedCourses = normalizeImportedCoursesForSchedule(draft.courses, scheduleId)
+            val importedCourses = normalizeImportedCoursesForSchedule(compatible.courses, scheduleId)
             projectCourseArrangements(importedCourses, importedConfig, importedPeriods)
             courseDao.insertCourses(importedCourses)
             scheduleId

@@ -1,10 +1,10 @@
 # AI 文件导入与服务能力
 
-更新：2026-08-25
+更新：2026-10-15
 
 ## 统一处理顺序
 
-1. ICS 始终走独立的本地日历解析，不调用 AI。
+1. SleepDown 导出的 ICS 直接在本地解析；外部 ICS 优先本地解析并按事件时间推导节次。复杂重复规则等无法完整解析时进入 AI 文件确认流程，仅在用户确认后发送日历文字；超过 60,000 字符要求缩小日历范围，不截断事件。导入预览使用全屏页。
 2. CSV、TSV、TXT、Markdown、JSON、XML、HTML、XLSX、DOCX、PPTX、ODS 在设备本地提取为文字，只把最多 60,000 字符的提取结果交给当前文本模型。
 3. PDF 必须先尝试本地文字提取；提取结果满足课表文本判定时只发送文字。
 4. PDF 文字不足时才渲染为有序 JPEG 页面，并且只允许发送给当前明确支持图片的模型。
@@ -55,8 +55,8 @@ Office/ODS 解包只读取与正文有关的 XML，并限制 ZIP 条目数、单
 | 服务 | 图片 | 通用文档直传 | SleepDown 路线 |
 | --- | --- | --- | --- |
 | OpenAI Responses | 支持 | 支持 `input_file` | 可本地提取的格式优先只发文字；其余已知文档格式可走原生文件输入 |
-| DeepSeek V4 Flash / Pro | 不支持图片 | Responses 不支持通用文件输入 | 文档本地转文字；扫描 PDF 会提示切换视觉模型 |
-| DeepSeek V4 Flash Vision Exp | 支持 JPEG/PNG/GIF/WebP；Chat 与 Responses 均支持 | Files API 可保存图片，但 Responses 仍不接收通用文档 | 小于应用上限的图片直接内联；PDF 文字不足后转图 |
+| DeepSeek V4.1 Flash (`deepseek-flash`) | 支持图片 | Responses 不支持通用文件输入 | 文档本地转文字；PDF 文字不足后转图，旧 Flash 别名迁移到此模型 |
+| DeepSeek V4 Pro · 0813 | 不支持图片 | Responses 不支持通用文件输入 | 文档本地转文字；扫描 PDF 提示切换视觉模型 |
 | MiMo / 每日免费 AI | 按具体视觉模型 | 当前接入协议不假设通用文件输入 | 文档本地转文字；图片按模型能力发送 |
 | 自定义兼容接口 | 由用户声明 | 仅显式 Responses 文件模式才假定支持 | 默认本地转文字，不把“兼容 OpenAI”误判为支持文件 |
 | 百炼、Kimi 等独立文件解析 API | 官方有上传/解析流程 | 需要独立上传、状态管理和远端文件清理 | 当前统一入口优先本地提取，避免产生未清理的服务端文件 |
@@ -69,4 +69,4 @@ Office/ODS 解包只读取与正文有关的 XML，并限制 ZIP 条目数、单
 - OpenAI Responses `input_file`：<https://platform.openai.com/docs/api-reference/responses>
 - 阿里云百炼文件上传：<https://help.aliyun.com/zh/model-studio/upload-file-api>
 
-注意：DeepSeek 官方文档在 2026-08-25 已加入 `deepseek-v4-flash-vision-exp`。旧缓存页面仍可能显示“Responses 不支持图片”，实现与验收以当天官方价格页、图像理解页及 Responses 页为准。
+DeepSeek 模型预设按 2026-10-15 官方模型页更新，图片能力按所选模型判断。自定义端点不自动改写其模型名称。

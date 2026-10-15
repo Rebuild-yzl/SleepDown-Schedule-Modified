@@ -117,12 +117,11 @@ internal class ShiguangImportSession {
             json
         )
         require(parsed.isNotEmpty()) { "时间段数据为空" }
-        val sorted = (if (mergeOverlappingTimeSlots) parsed.distinct() else parsed)
+        val sorted = parsed.distinct()
             .sortedBy(ShiguangTimeSlotPayload::number)
         require(sorted.map { it.number }.distinct().size == sorted.size) { "同一节次存在不同时间，无法确定课程的真实作息" }
         sorted.forEachIndexed { index, slot ->
             require(slot.number > 0) { "时间段编号必须大于 0" }
-            require(mergeOverlappingTimeSlots || slot.number == index + 1) { "时间段编号必须从 1 连续递增" }
             val start = parseTime(slot.startTime, "第 ${slot.number} 节 startTime")
             val end = parseTime(slot.endTime, "第 ${slot.number} 节 endTime")
             require(start < end) { "第 ${slot.number} 节结束时间必须晚于开始时间" }
@@ -137,9 +136,9 @@ internal class ShiguangImportSession {
                     val target = normalized.slots[normalized.sectionMapping.getValue(slot.number) - 1]
                     slot.number != target.number || slot.startTime != target.startTime || slot.endTime != target.endTime
                 } }
-            } else if (allowImportedBellTimes && sorted.zipWithNext().any { (previous, next) ->
+            } else if (allowImportedBellTimes && (sorted.map { it.number } != (1..sorted.size).toList() || sorted.zipWithNext().any { (previous, next) ->
                 parseTime(next.startTime, "startTime") < parseTime(previous.endTime, "endTime")
-            }) {
+            })) {
                 // The shared grid is only a display reference. Each course keeps its source
                 // period numbers and exact clocks, including periods absent from this grid.
                 originalConflictingSlots = sorted

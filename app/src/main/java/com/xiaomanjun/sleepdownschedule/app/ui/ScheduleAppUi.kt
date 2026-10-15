@@ -324,6 +324,7 @@ import com.xiaomanjun.sleepdownschedule.feature.importing.AiEduImportProgressSes
 import com.xiaomanjun.sleepdownschedule.feature.importing.AiImportHistoryBackgroundCapture
 import com.xiaomanjun.sleepdownschedule.feature.importing.AiImportSettingsStore
 import com.xiaomanjun.sleepdownschedule.feature.importing.ConfirmScheduleScreen
+import com.xiaomanjun.sleepdownschedule.feature.importing.ImportPreviewPage
 import com.xiaomanjun.sleepdownschedule.feature.importing.EduSchoolPickerScreen
 import com.xiaomanjun.sleepdownschedule.feature.importing.IcsScheduleCodec
 import com.xiaomanjun.sleepdownschedule.feature.importing.NormalizedAiManualImportScreen
@@ -441,6 +442,10 @@ fun CourseScheduleAppUi(
     var previewScheduleId by remember { mutableStateOf<Int?>(null) }
     var pendingPickerEditorScheduleId by remember { mutableStateOf<Int?>(null) }
     var quickScheduleDraft by remember { mutableStateOf<QuickScheduleDraft?>(null) }
+    var quickScheduleReturnToManager by remember { mutableStateOf(false) }
+    var importSubmitting by remember { mutableStateOf(false) }
+    var importPreviousCourseIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var importExpectedCourseCount by remember { mutableStateOf<Int?>(null) }
     val dayAgentBackgroundMotionState = rememberDayAgentBackgroundMotionState()
     val dayAgentCountdownCinematic = remember { DayAgentCountdownCinematicState() }
     var dayAgentPagerSettled by remember { mutableStateOf(false) }
@@ -645,6 +650,7 @@ fun CourseScheduleAppUi(
     var jumpWeekDialogVisible by remember { mutableStateOf(false) }
     var pendingJumpWeekDialog by remember { mutableStateOf(false) }
     var pendingOpenScheduleSettings by remember { mutableStateOf(false) }
+    var pendingQuickScheduleSettings by remember { mutableStateOf(false) }
     var homeMenuActivityLaunched by remember { mutableStateOf(false) }
     var destinationOwnsButtonReturn by remember { mutableStateOf(false) }
     var destinationCollapseHandedOff by remember { mutableStateOf(false) }
@@ -915,8 +921,13 @@ fun CourseScheduleAppUi(
     }
     LaunchedEffect(aiFinalImportRequest) {
         aiFinalImportRequest?.let { request ->
+            importPreviousCourseIds = state.courses.map { it.id }.toSet()
+            importExpectedCourseCount = request.draft.courses.size
             viewModel.importDraft(request.draft, request.createNewSchedule, onFailure = {
-                homeDialog = HomeDialog.ConfirmImport(request.draft, returnDialog = null)
+                importExpectedCourseCount = null
+                importPreviousCourseIds = emptySet()
+                homeDialog = HomeDialog.ConfirmImport(request.draft, returnDialog = null,
+                    errorMessage = it.message ?: "课表保存失败，请重试")
             }) { scheduleId ->
                 dismissHomeDialog()
                 screen = Screen.Home
@@ -946,7 +957,12 @@ fun CourseScheduleAppUi(
                         homeDialog = HomeDialog.ConfirmImport(draft, returnDialog = null)
                     }
                     .onFailure { error ->
-                        Toast.makeText(context, error.message ?: "ICS 解析失败", Toast.LENGTH_SHORT).show()
+                        if (IcsScheduleCodec.isSleepDown(file.bytes)) {
+                            Toast.makeText(context, error.message ?: "ICS 解析失败", Toast.LENGTH_SHORT).show()
+                        } else {
+                            assistantImportUri = uri
+                            homeDialog = HomeDialog.ImportSchedule
+                        }
                     }
             }
             .onFailure { error ->
@@ -1814,20 +1830,24 @@ fun CourseScheduleAppUi(
         val scheduleId = pendingImportedSetupId ?: return@LaunchedEffect
         screen = Screen.Home
         homeMode = HomeMode.Week
-        dismissHomeDialog()
         snapshotFlow {
             val latest = latestAllSchedulesState.value
+            val rendered = latestVisualState.value
             latest.schedules.any { it.id == scheduleId } &&
                 latest.allConfigs.any { it.id == scheduleId } &&
-                latestVisualState.value.config.id == scheduleId
+                rendered.config.id == scheduleId &&
+                (importExpectedCourseCount == null || (rendered.courses.size == importExpectedCourseCount &&
+                    rendered.courses.none { it.id in importPreviousCourseIds }))
         }.first { it }
         if (pickerState.overlayVisible) pickerState.reset()
         withFrameNanos { }
-        enterCustomizePage()
-        snapshotFlow {
-            pickerState.phase is CustomizeUiState.Picker &&
-                pickerState.selectedScheduleId == scheduleId
-        }.first { it }
+        // Reveal the destination only after its live data is ready, including overwrite.
+        dismissHomeDialog()
+        delay(320)
+        importSubmitting = false
+        importExpectedCourseCount = null
+        importPreviousCourseIds = emptySet()
+        quickScheduleReturnToManager = false
         quickScheduleDraft = quickDraftFor(scheduleId)
         pendingImportedSetupId = null
     }
@@ -2279,7 +2299,8 @@ fun CourseScheduleAppUi(
                             onDismissFinished = {
                                 // Direct customization leaves the manager below the sheet. New-schedule setup
                                 // still returns through the existing home-to-picker Morph after its sheet closes.
-                                if (!pickerState.overlayVisible) {
+                                if (quickScheduleReturnToManager && !pickerState.overlayVisible) {
+                                    quickScheduleReturnToManager = false
                                     pickerState.phase = CustomizeUiState.Home
                                     enterCustomizePage()
                                 }
@@ -3162,6 +3183,7 @@ fun CourseScheduleAppUi(
                                 commitTarget = true,
                                 crossfadeToTarget = true,
                                 onFinished = {
+                                    quickScheduleReturnToManager = true
                                     quickScheduleDraft = quickDraftFor(newId)
                                 }
                             )
@@ -3193,6 +3215,7 @@ fun CourseScheduleAppUi(
             },
             onCustomize = { scheduleId ->
                 if (pickerState.phase is CustomizeUiState.Picker) {
+                    quickScheduleReturnToManager = false
                     quickScheduleDraft = quickDraftFor(scheduleId)
                 }
             },
@@ -3429,6 +3452,10 @@ fun CourseScheduleAppUi(
         homeAnchoredOverlayRequest = null
     }
     val latestOpenScheduleSettings = rememberUpdatedState<() -> Unit> {
+        pendingQuickScheduleSettings = true
+        homeAnchoredOverlayRequest = null
+    }
+    val latestOpenScheduleManager = rememberUpdatedState<() -> Unit> {
         pendingOpenScheduleSettings = true
         homeAnchoredOverlayRequest = null
     }
@@ -3437,7 +3464,7 @@ fun CourseScheduleAppUi(
             AddMenuAction(R.drawable.ic_add_course, "添加单节课") {
                 latestOpenHomeMenuDestination.value(HomeMenuDestinationKind.AddCourse)
             },
-            AddMenuAction(R.drawable.ic_ai_import, "手动导入课表") {
+            AddMenuAction(R.drawable.ic_ai_import, "口令/文件导入") {
                 latestOpenHomeMenuDestination.value(HomeMenuDestinationKind.ManualImport)
             },
             AddMenuAction(R.drawable.ic_school_import, "教务系统导入") {
@@ -3451,6 +3478,9 @@ fun CourseScheduleAppUi(
             },
             AddMenuAction(R.drawable.ic_settings, "课表设置") {
                 latestOpenScheduleSettings.value()
+            },
+            AddMenuAction(R.drawable.ic_schedule_layers, "多课表管理") {
+                latestOpenScheduleManager.value()
             }
         )
     }
@@ -3466,7 +3496,7 @@ fun CourseScheduleAppUi(
     }
     val nativeOverflowActions = remember(homeAddActions) {
         listOf(AddMenuAction(R.drawable.ic_courses, "课程管理") { latestNativeCourseManagement.value() }) +
-            homeAddActions.takeLast(2)
+            homeAddActions.takeLast(3)
     }
     androidx.compose.runtime.SideEffect { colorOsOverflowActions.value = nativeOverflowActions }
 
@@ -3540,6 +3570,14 @@ fun CourseScheduleAppUi(
         }
     )
 
+    LaunchedEffect(pendingQuickScheduleSettings, homeAnchoredMorphState.phase, screen) {
+        if (pendingQuickScheduleSettings && screen is Screen.Home &&
+            homeAnchoredMorphState.phase == HomeAnchoredOverlayPhase.Idle) {
+            pendingQuickScheduleSettings = false
+            quickScheduleReturnToManager = false
+            quickScheduleDraft = quickDraftFor(state.config.id)
+        }
+    }
     LaunchedEffect(
         pendingOpenScheduleSettings,
         homeAnchoredMorphState.phase,
@@ -3599,7 +3637,7 @@ fun CourseScheduleAppUi(
         backdrop = homeAnchoredOverlayBackdrop,
         config = state.config,
         addActions = if (homeMenuFromDock) homeAddActions.take(3)
-            else if (parallelPhoneNavigation) homeAddActions.takeLast(3) else homeAddActions,
+            else if (parallelPhoneNavigation) homeAddActions.drop(3) else homeAddActions,
         showModeSwitch = !parallelPhoneNavigation,
         homeMode = homeMode,
         onHomeModeChange = { homeMode = it },
@@ -3793,7 +3831,7 @@ fun CourseScheduleAppUi(
         awaitOpeningGate = { awaitHomeBackgroundFrame(routeEligible = true) },
         onDismissRequest = ::closeHomeMenuDestination,
         sourceActions = if (homeMenuFromDock) homeAddActions.take(3)
-            else if (parallelPhoneNavigation) homeAddActions.takeLast(3) else homeAddActions,
+            else if (parallelPhoneNavigation) homeAddActions.drop(3) else homeAddActions,
         onSourceHandoff = { homeMenuSourceHidden = true },
         collapseContent = { returnModifier ->
             if (homeMenuFromDock) {
@@ -4062,8 +4100,33 @@ fun CourseScheduleAppUi(
     // Dialog-based dialogs for all other types (including EditCourse without a source card)
     renderedHomeDialog?.let { dialog ->
         if (dialog !is HomeDialog.EditWallpaper && (dialog !is HomeDialog.EditCourse || dialog.course == null)) {
-        if (dialog is HomeDialog.ApplyCourseEdit) {
+        if (dialog is HomeDialog.ConfirmImport) {
+            ImportPreviewPage(draft = dialog.draft, config = state.config, visible = homeDialogVisible,
+                submitting = importSubmitting, errorMessage = dialog.errorMessage,
+                onBack = {
+                    importExpectedCourseCount = null
+                    importPreviousCourseIds = emptySet()
+                    homeDialog = dialog.returnDialog
+                },
+                onDraftChanged = { homeDialog = dialog.copy(draft = it, errorMessage = null) },
+                onConfirm = { createNew ->
+                    if (!importSubmitting) {
+                        importSubmitting = true
+                        importPreviousCourseIds = state.courses.map { it.id }.toSet()
+                        importExpectedCourseCount = dialog.draft.courses.size
+                        homeDialog = dialog.copy(errorMessage = null)
+                        viewModel.importDraft(dialog.draft, createNew, onFailure = {
+                            importSubmitting = false
+                            importExpectedCourseCount = null
+                            importPreviousCourseIds = emptySet()
+                            homeDialog = dialog.copy(errorMessage = it.message ?: "保存失败，请重试")
+                        }) { scheduleId -> pendingImportedSetupId = scheduleId }
+                    }
+                })
+        } else if (dialog is HomeDialog.ApplyCourseEdit) {
             val allScope = courseEditorApplyAllScope(dialog.originals, dialog.editedCourses, state.courses)
+            val destinationWeek = com.xiaomanjun.sleepdownschedule.feature.course.editor.courseEditorSingleDestinationWeek(
+                dialog.original, dialog.edited, dialog.targetWeek)
             val singleEdited = dialog.edited.copy(
                 id = dialog.original.id,
                 weeks = listOf(destinationWeek ?: dialog.targetWeek),
@@ -4078,6 +4141,7 @@ fun CourseScheduleAppUi(
                 originals = allScope.originals,
                 editedCourses = allScope.edited,
                 singleAllowed = dialog.editedCourses.size == 1 &&
+                    destinationWeek != null &&
                     courseEditorHasOccurrence(dialog.original, dialog.targetWeek),
                 onSingle = {
                     val conflictWeeks = conflictWeeksForSingleWeekEdit(
@@ -4095,6 +4159,7 @@ fun CourseScheduleAppUi(
                         )
                         dismissHomeDialog()
                         closeCourseEditor()
+                        homeDisplayWeek = destinationWeek ?: dialog.targetWeek
                     } else {
                         homeDialog = HomeDialog.ConfirmCourseConflicts(
                             dialog.original,
@@ -4125,8 +4190,6 @@ fun CourseScheduleAppUi(
                             conflictWeeks,
                             returnEdit = dialog
                         )
-            val destinationWeek = com.xiaomanjun.sleepdownschedule.feature.course.editor.courseEditorSingleDestinationWeek(
-                dialog.original, dialog.edited, dialog.targetWeek)
                     }
                 },
                 onCancel = { dismissHomeDialog() }
@@ -4141,7 +4204,6 @@ fun CourseScheduleAppUi(
                     pendingCourseGroupEdit?.let { groupEdit ->
                         if (groupEdit.originals.isEmpty()) {
                             viewModel.addCourses(groupEdit.edited)
-                    destinationWeek != null &&
                             pendingCourseGroupEdit = null
                             pendingConflictCourseId = null
                             pendingConflictCourseKey = groupEdit.edited.firstOrNull()?.occurrenceOverrideKey()
@@ -4159,7 +4221,6 @@ fun CourseScheduleAppUi(
                         val editorWasOpen = courseEditorRequest != null
                         viewModel.replaceCourseGroup(groupEdit.originals, groupEdit.edited)
                         pendingCourseGroupEdit = null
-                        homeDisplayWeek = destinationWeek ?: dialog.targetWeek
                         pendingConflictCourseId = groupEdit.edited.firstOrNull()?.id?.takeIf { it > 0 }
                         pendingConflictCourseKey = groupEdit.edited.firstOrNull()?.occurrenceOverrideKey()
                         pendingConflictWeeks = dialog.conflictWeeks
@@ -4347,26 +4408,7 @@ fun CourseScheduleAppUi(
                     )
                     HomeDialog.EduImport -> Unit
                     is HomeDialog.EditWallpaper -> Unit
-                    is HomeDialog.ConfirmImport -> ConfirmScheduleScreen(
-                        draft = dialog.draft,
-                        backdrop = homeDialogBackdrop,
-                        onCancel = { homeDialog = dialog.returnDialog },
-                        onDraftChanged = { revised ->
-                            homeDialog = dialog.copy(draft = revised)
-                        },
-                        onConfirm = { createNewSchedule ->
-                            viewModel.importDraft(dialog.draft, createNewSchedule) { scheduleId ->
-                                dismissHomeDialog()
-                                if (dialog.draft.source == ImportDraftSource.AI_EDU) {
-                                    screen = Screen.Home
-                                    homeMode = HomeMode.Week
-                                    pendingImportedSetupId = scheduleId
-                                } else {
-                                    pendingImportedSetupId = scheduleId
-                                }
-                            }
-                        }
-                    )
+                    is HomeDialog.ConfirmImport -> Unit
                     is HomeDialog.ApplyCourseEdit -> Unit
                     is HomeDialog.ConfirmCourseConflicts -> Unit
                     is HomeDialog.ApplyCourseDelete -> Unit

@@ -506,7 +506,7 @@ fun ScheduleManagerScreen(
                 surfaceColor = Color.Black.copy(alpha = 0.30f),
                 contentPadding = PaddingValues(horizontal = 24.dp)
             ) {
-                Text("自定义", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("课表设置", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             }
             LiquidButton(
                 onClick = onCreate,

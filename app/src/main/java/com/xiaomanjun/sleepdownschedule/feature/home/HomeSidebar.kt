@@ -367,7 +367,7 @@ internal fun HomeSidebar(
                             actions.firstOrNull { it.iconRes == R.drawable.ic_material_event }?.let { item ->
                                 SidebarActionRow(item, ink, enabled, !lightGlass) { action(item) }
                             }
-                            SidebarDestinationRow(HomeSidebarDestination.Schedules, "课表设置", MiuixIcons.Layers,
+                            SidebarDestinationRow(HomeSidebarDestination.Schedules, "多课表管理", MiuixIcons.Layers,
                                 selected, ink, enabled, !lightGlass) { navigate(HomeSidebarDestination.Schedules) }
                             val imports = actions.filter {
                                 it.iconRes != R.drawable.ic_material_event &&
