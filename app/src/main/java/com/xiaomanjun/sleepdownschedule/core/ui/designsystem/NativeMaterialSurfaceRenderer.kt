@@ -20,7 +20,8 @@ internal data class NativeMaterialSurfaceRequest(
     val blurRadiusScale: Float = 1f,
     val tintAlphaScale: Float = 1f,
     val role: NativeMaterialSurfaceRole = NativeMaterialSurfaceRole.Content,
-    val followTouch: Boolean = true
+    val followTouch: Boolean = true,
+    val followLightRadius: androidx.compose.ui.unit.Dp? = null
 )
 
 internal val LocalNativeMaterialSurfaceRenderer =

@@ -157,6 +157,7 @@ fun CourseGlassCard(
     sampledShape: Shape? = null,
     expandedOutlineLight: Boolean = false,
     followTouch: Boolean = true,
+    followLightRadius: androidx.compose.ui.unit.Dp? = null,
     muted: Boolean = false,
     flatOpacityOverride: Float? = null,
     morphAllocation: com.xiaomanjun.sleepdownschedule.glass.GlassMorphAllocation? = null,
@@ -231,7 +232,8 @@ fun CourseGlassCard(
         if (renderer?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeCourseCardRequest(
                 statusModifier.onGloballyPositioned { coordinates[0] = it }, shape, appUsesDarkTheme(config),
                 renderSurface, drawMaterialNodes, onClick, tintDraw,
-                followTouch = followTouch
+                followTouch = followTouch,
+                followLightRadius = followLightRadius
             )) {
                 CompositionLocalProvider(LocalCourseTextBackground provides background) { content() }
             } == true) return

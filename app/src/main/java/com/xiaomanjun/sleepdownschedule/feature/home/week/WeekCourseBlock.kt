@@ -148,6 +148,7 @@ internal fun WeekResizeCornerHandle(
         contentAlignment = Alignment.BottomEnd
     ) {
         GlassSurface(
+            nativeMaterial = true,
             backdrop = backdrop,
             config = config,
             modifier = Modifier.size(badgeSize),
@@ -800,6 +801,7 @@ fun WeekCourseBlock(
                 val pillTextColor =
                     if (glassUsesLightStyle(config)) ComposeColor.Black else ComposeColor.White
                 GlassSurface(
+                    nativeMaterial = true,
                     backdrop = activeCardBackdrop,
                     config = config,
                     // The parent card owns pager/tail motion, as for adjustment badges.
@@ -897,6 +899,7 @@ fun WeekCourseBlock(
                     scaleOut(tween(120), targetScale = 0.55f, transformOrigin = TransformOrigin(1f, 1f))
             ) {
                 GlassSurface(
+                    nativeMaterial = true,
                     backdrop = activeCardBackdrop,
                     config = config,
                     modifier = Modifier.fillMaxSize(),

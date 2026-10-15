@@ -47,6 +47,16 @@ internal fun Modifier.courseBadgeCornerAnchor(corner: Dp): Modifier = layout { m
 
 @Composable
 internal fun CourseAdjustmentBadge(label: String, backdrop: Backdrop?, config: ScheduleConfigEntity, modifier: Modifier = Modifier) {
+    val native = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current
+    if (native?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
+            modifier = modifier, shape = Capsule(), dark = !glassUsesLightStyle(config), followTouch = false
+        )) {
+            Box(Modifier.sizeIn(minWidth = 16.dp, minHeight = 16.dp).padding(horizontal = 2.dp, vertical = 1.dp),
+                contentAlignment = Alignment.Center) {
+                Text(label, fontSize = 9.sp, lineHeight = 11.sp, fontWeight = FontWeight.SemiBold,
+                    color = if (glassUsesLightStyle(config)) Color.Black else Color.White)
+            }
+        } == true) return
     // Paint in the course's own display list. A tiny status label must not create another
     // backdrop consumer, blur texture or refractive layer on every card during pager motion.
     val tint = if (label == "停") MutedCourseLightColor else Color(0xFFFFC654)

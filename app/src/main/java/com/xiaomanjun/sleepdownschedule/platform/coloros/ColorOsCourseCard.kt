@@ -213,6 +213,7 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         .getConstructor(Context::class.java).newInstance(context) as View else null
     private var menuEdge: Drawable? = null
     private var courseRadiusRatio = 0f
+    private var appliedLightRadius = 0f
     private val lightTouch: Method = light.javaClass.getMethod("onTouchEvent", MotionEvent::class.java)
     private val location = IntArray(2)
     private val tintDrawScope = CanvasDrawScope()
@@ -274,6 +275,7 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         surfaceShape = shape
         tintDensity = density
         tintDirection = direction
+        updateFollowLightRadius()
         invalidateOutline()
         if (isAttachedToWindow) updateMaterialCorners()
     }
@@ -304,6 +306,7 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         request = value
         tintDensity = density
         tintDirection = direction
+        updateFollowLightRadius()
         // Tint/content updates only need a redraw. Reinstalling COUI effects for every slider
         // sample resets the native light/material animation even though its parameters match.
         if (isAttachedToWindow && materialChanged) applyMaterial() else invalidate()
@@ -323,12 +326,19 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        if (style == ColorOsSurfaceStyle.CourseCard && w > 0 && h > 0) {
-            val radius = kotlin.math.hypot(w.toFloat(), h.toFloat())
+        updateFollowLightRadius()
+        if (isAttachedToWindow) applyMaterial()
+    }
+
+    private fun updateFollowLightRadius() {
+        if (style == ColorOsSurfaceStyle.CourseCard && width > 0 && height > 0) {
+            val radius = request?.followLightRadius?.let { with(tintDensity) { it.toPx() } }
+                ?: kotlin.math.hypot(width.toFloat(), height.toFloat())
+            if (radius == appliedLightRadius) return
             light.javaClass.getMethod("setRadiusRange", Float::class.javaPrimitiveType, Float::class.javaPrimitiveType)
                 .invoke(light, radius * courseRadiusRatio, radius)
+            appliedLightRadius = radius
         }
-        if (isAttachedToWindow) applyMaterial()
     }
 
     override fun draw(canvas: Canvas) {

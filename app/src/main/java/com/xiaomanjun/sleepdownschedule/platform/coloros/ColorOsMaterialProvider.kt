@@ -8,6 +8,7 @@ private val ColorOsRenderers = ControlMaterialRenderers(
     home = ColorOsHomeMaterialControls,
     alert = { ColorOsAlertDialog(it) },
     button = { request, content -> ColorOsCapsuleButton(request, content) },
+    followLight = { ColorOsFollowLight(it) },
     courseCard = { request, content -> ColorOsCourseCard(request, content) },
     surface = { request, content -> ColorOsMaterialSurface(request, content) },
     slider = { ColorOsSlider(it) },
