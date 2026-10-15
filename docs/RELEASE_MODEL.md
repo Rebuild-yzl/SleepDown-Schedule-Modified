@@ -1,13 +1,13 @@
 # 版本基线与发布关系
 
-本文说明当前维护方式；历史发布事实以 Git 标签、构建配置和对应 Release 附件为准。基线快照核对于 **2026-10-10**。
+本文说明当前维护方式；历史发布事实以 Git 标签、构建配置和对应 Release 附件为准。基线快照核对于 **2026-10-15**。
 
 ## 当前基线
 
 | 项目 | 当前事实 | 核对入口 |
 | --- | --- | --- |
-| 持续开发分支 | `main`；当前已发布正式版为 `v1.2.6` | Git 标签与 `app/build.gradle.kts` |
-| Android 主应用 | `com.xiaomanjun.sleepdownschedule`，当前 Beta 为 `versionName=1.2.7_beta5`，`versionCode=34` | `app/build.gradle.kts` |
+| 持续开发分支 | `main`；当前正式版为 `v1.2.7` | Git 标签与 `app/build.gradle.kts` |
+| Android 主应用 | `com.xiaomanjun.sleepdownschedule`，正式版为 `versionName=1.2.7`，`versionCode=35` | `app/build.gradle.kts` |
 | 发行渠道 | `github` 与 `store` 两种 flavor；厂商实验入口由 `SLEEPDOWN_EXPERIMENTAL_FEATURES` 按渠道控制 | `app/build.gradle.kts`、`app/src/github/`、`app/src/store/` |
 | 课程组件 | 独立包 `com.suda.yzune.wakeupschedule`；构建版本 `6.0.19` / `259` | `coloros-wakeup-proxy/build.gradle.kts` |
 | 历史实验线 | `exp` 与 `v1.2.6-exp*` 保留作为已发布历史，停止作为后续功能基线 | Git 历史与旧 Release |
@@ -21,16 +21,16 @@
 
 | 类型 | 命名和标签 | 代码来源 | 更新日志与发布页 |
 | --- | --- | --- | --- |
-| 正式版 | `1.2.6` / `v1.2.6` | `main` 上经过发布验证的提交 | 将本轮有效 Beta 内容归并为一篇正式日志，去重并删除已撤回项目；非预发布 |
-| 普通 Beta | 当前轮次为 `1.2.7_betaN` / `v1.2.7_betaN` | 同一 `main` 基线的发布候选 | 每个 Beta 保留独立应用内记录、仓库说明和预发布附件，不改写旧标签 |
+| 正式版 | `1.2.7` / `v1.2.7` | `main` 上经过发布验证的提交 | 将本轮有效 Beta 内容归并为一篇正式日志，去重并移除已撤回项目；非预发布 |
+| 普通 Beta | 每轮按下一正式版号命名为 `N.N.N_betaN` / `vN.N.N_betaN` | 同一 `main` 基线的发布候选 | 每个 Beta 保留独立仓库说明和预发布附件，不改写旧标签；正式版应用内只显示归并后的正式日志 |
 | 历史 `exp` | `1.2.6-expN` / `v1.2.6-expN` | 当时的 `exp` 分支 | 只作为历史预发布保留，不再用于新的普通功能、当前更新通道或下一版号 |
 | 厂商实验功能 | 无独立版本后缀 | 当前 `main` 的隔离实现 | 随对应正式版或 Beta 交付，在说明中标明实验状态与设备条件 |
 
-同一 `1.2.6` 轮次的正式、Beta 与历史实验 APK 使用 `versionCode=33`。覆盖安装仍须核对**相同 applicationId、签名、版本代码及渠道**；不能仅凭版本名称判断。后续版本的 `versionCode` 必须满足 Android 升级要求。旧身份 `com.example.courseschedule` 不能直接覆盖安装当前包，需先在旧版导出 `.sleepdown` 再恢复，见[迁移说明](migration/1_2_0_PACKAGE_MIGRATION.md)。
+1.2.7 Beta1 至 Beta5 使用 `versionCode=34`，正式版使用 `versionCode=35`，使 Beta 用户可直接升级正式版。覆盖安装仍须核对**相同 applicationId、签名、版本代码及渠道**；不能仅凭版本名称判断。旧身份 `com.example.courseschedule` 不能直接覆盖安装当前包，需先在旧版导出 `.sleepdown` 再恢复，见[迁移说明](migration/1_2_0_PACKAGE_MIGRATION.md)。
 
-`1.2.7_beta5` 沿用本轮 Beta 的 `versionCode=34`，保留 `1.2.7_beta1` 至 `1.2.7_beta4` 的独立记录；正式版 `v1.2.6` 仍是最新正式发布。课程组件升级到 `6.0.19` / `259`，使已安装旧组件的设备可识别更新。
+`1.2.7_beta5` 与修订标签 `v1.2.7_beta5-r1` 是本轮最后的预发布，沿用 `versionCode=34`；正式版 `v1.2.7` 使用 `versionCode=35`。Beta1 至 Beta5 的独立发布说明继续保留在仓库和历史 Release 中。课程组件为 `6.0.19` / `259`。
 
-2026-10-10 的首份 Beta5 发布包已按用户要求撤回；周视图“默认”布局入口恢复后，修复包完成构建及覆盖安装，并以新标签 `v1.2.7_beta5-r1` 在 GitHub 与 Gitee 重发为预发布。两端原源码标签保留，旧 GitHub Release 保持草稿；应用仍为 `1.2.7_beta5` / `34`，撤回前 Beta5 用户需手动重新下载覆盖安装。接受 Beta 时当前更新渠道选择修订版 Beta5，仅正式版时仍选择 `v1.2.6`，见[发布与核验记录](2026-10-10-beta5-1.2.7-release.md)。
+2026-10-10 的首份 Beta5 发布包已按用户要求撤回；周视图“默认”布局入口恢复后，修复包完成构建及覆盖安装，并以新标签 `v1.2.7_beta5-r1` 在 GitHub 与 Gitee 重发为预发布。当时正式版仍为 `v1.2.6`，撤回前 Beta5 用户需手动重新下载覆盖安装；详见[发布与核验记录](2026-10-10-beta5-1.2.7-release.md)。
 
 ## 一轮发布怎样收口
 
