@@ -6,7 +6,7 @@
 
 | 项目 | 当前事实 | 核对入口 |
 | --- | --- | --- |
-| 持续开发分支 | `main`；当前正式版为 `v1.2.7` | Git 标签与 `app/build.gradle.kts` |
+| 持续开发分支 | `main`；当前正式版为 `v1.2.7`（已发布） | Git 标签与 `app/build.gradle.kts` |
 | Android 主应用 | `com.xiaomanjun.sleepdownschedule`，正式版为 `versionName=1.2.7`，`versionCode=35` | `app/build.gradle.kts` |
 | 发行渠道 | `github` 与 `store` 两种 flavor；厂商实验入口由 `SLEEPDOWN_EXPERIMENTAL_FEATURES` 按渠道控制 | `app/build.gradle.kts`、`app/src/github/`、`app/src/store/` |
 | 课程组件 | 独立包 `com.suda.yzune.wakeupschedule`；构建版本 `6.0.19` / `259` | `coloros-wakeup-proxy/build.gradle.kts` |
@@ -30,7 +30,9 @@
 
 `1.2.7_beta5` 与修订标签 `v1.2.7_beta5-r1` 是本轮最后的预发布，沿用 `versionCode=34`；正式版 `v1.2.7` 使用 `versionCode=35`。Beta1 至 Beta5 的独立发布说明继续保留在仓库和历史 Release 中。课程组件为 `6.0.19` / `259`。
 
-2026-10-10 的首份 Beta5 发布包已按用户要求撤回；周视图“默认”布局入口恢复后，修复包完成构建及覆盖安装，并以新标签 `v1.2.7_beta5-r1` 在 GitHub 与 Gitee 重发为预发布。当时正式版仍为 `v1.2.6`，撤回前 Beta5 用户需手动重新下载覆盖安装；详见[发布与核验记录](2026-10-10-beta5-1.2.7-release.md)。
+2026-10-10 的首份 Beta5 发布包已按用户要求撤回；周视图“默认”布局入口恢复后，修复包完成构建及覆盖安装，并以新标签 `v1.2.7_beta5-r1` 在 GitHub 与 Gitee 重发为预发布。撤回前 Beta5 用户需手动重新下载覆盖安装；详见[发布与核验记录](2026-10-10-beta5-1.2.7-release.md)。
+
+2026-10-15 正式版 `v1.2.7` 已在 GitHub 与 Gitee 发布，`prerelease=false`，GitHub `latest` 随之由 `v1.2.6` 更新为 `v1.2.7`。发布对象为此前已构建、签名核验的产物，源码提交为 `cfe8776f`，未合并入 `main`；详见[正式版发布记录](2026-10-15-stable-1.2.7-release.md)。
 
 ## 一轮发布怎样收口
 
