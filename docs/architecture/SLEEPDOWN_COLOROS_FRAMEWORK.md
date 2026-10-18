@@ -78,6 +78,8 @@ Alert 的原生窗口仅按操作槽位等结构创建，外观和标签变化�
 
 `NativeValueControls` 是业务协议，`ColorOsValueControls` 负责加载系统 COUI：数值使用 `COUISeekBar`，开关使用 `COUISwitch`，导入类型等 `LiquidOptionTabs` 使用 `COUISegmentButtonLayout`。旧入口保留给调用方，优先交给原生 renderer；能力不可用时才进入原实现。原生控件负责滑块、文字、拖动、弹簧、触觉与无障碍，不再将 Compose 文本独立贴在原生分段滑块上。
 
+横屏紧凑导航沿用液态玻璃的组合边界：外壳提供一次材质，分段控件以 `containerSurfaceEnabled=false` 只保留文字、选中条和原生运动。COUI Canvas 材质模式关闭 View 整体模糊/描边，以透明背景画笔和无背景描边预设去掉内层轨道的重复外框。侧栏展开/收起按钮保留 Compose 点击及语义，只叠加无材质的原生跟手光，不经过完整胶囊按钮 renderer。
+
 Slider 的值范围与预览/提交协议独立于厂商：拖动开始打开预览，值变化只预览，正常结束先提交再结束预览；取消恢复开始值而不提交；键盘/无障碍变化无需制造触摸预览。禁用状态传入原生 View。课程模糊使用上文百分比映射。
 
 点按轨道时，COUI 的 click spring 每帧更新内部 progress，公共值回调只在终点报告。桥接层监听同一弹簧的更新以逐帧预览背景，中间帧不吸附默认值、不提交；终点仍经原值回调吸附并提交一次。卸载控件时移除监听。

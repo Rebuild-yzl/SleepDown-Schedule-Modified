@@ -61,3 +61,7 @@ Compose GraphicsLayer 的 Android 实现使用 RenderNode 的 beginRecording/end
 - 用户确认 USB 连接后，通过项目 SDK ADB 的 5038 通道向 PLJ110（Android 17 / ColorOS V17.0.0）执行 `install -r`，返回 `Success`。未启动应用、未操作课程或用户配置；由用户自行测试。
 - 未运行真机 UI 操作、帧率采集或性能对照。日周视图、横竖屏、手机/平板、按压/拖动/编辑、Morph、参数边界、阴影与色彩观感由用户在安装后测试。构建成功不代表 FPS 已改善。
 - 独立草稿 [PR #78](https://github.com/xiaomanjun233/SleepDown-Schedule/pull/78) 目标为 main；代码提交 `9474495f`，正式版整理提交 `9f34ea08`。未合并或发布新 Release。
+
+## 同日实机反馈后续
+
+用户确认切周改善后，继续修复课程展开时背景自订阅重绘、横屏凝光组合控件的重复边框，并调整个性化排版。后续安装包、源码 patch 修正及交付结果见[本轮反馈记录](2026-10-18-glass-feedback-followup.md)；上节 APK 信息保留为首轮历史记录。
