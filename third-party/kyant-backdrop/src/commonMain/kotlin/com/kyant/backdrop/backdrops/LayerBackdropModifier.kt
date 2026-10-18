@@ -1,6 +1,8 @@
 // Modified for SleepDown on 2026-09-08; upstream 2.0.0, Apache-2.0 (see README.md).
 package com.kyant.backdrop.backdrops
 
+import androidx.compose.runtime.snapshots.Snapshot
+
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -79,7 +81,10 @@ private class LayerBackdropNode(
             recordLayer(backdrop.graphicsLayer) { backdrop.onDraw(this@draw) }
             recordingCache.recorded(key, dimensions, density, fontScale, layoutDirection)
             layerDiagnostics.recorded(backdrop.graphicsLayer.size)
-            backdrop.contentVersion++
+            // Publishing a recording must not subscribe this producer to its own revision.
+            // A read/write in draw otherwise keeps invalidating retained home RenderNodes,
+            // including while the course editor is sampling the frozen scene.
+            Snapshot.withoutReadObservation { backdrop.contentVersion++ }
         } else {
             BackdropDiagnostics.event("ProducerRecord.Reused")
         }

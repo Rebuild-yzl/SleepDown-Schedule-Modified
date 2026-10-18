@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.RectangleShape
@@ -116,7 +117,7 @@ private class RecorderNode(var backdrop: SharedBlurBackdrop, var sourceKey: () -
             published.record(dimensions) { drawLayer(filtered) }
             diagnostics.recorded(dimensions)
             backdrop.layer = published
-            backdrop.contentRevision++
+            Snapshot.withoutReadObservation { backdrop.contentRevision++ }
         }
     }
 
