@@ -5,6 +5,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -74,11 +75,12 @@ internal fun HomeSidebarTabBar(
                 labels = tabs.map { it.second },
                 selected = tabs.indexOfFirst { it.first == selected }.coerceAtLeast(0),
                 onSelected = { onNavigate(tabs[it].first) },
-                modifier = Modifier.fillMaxWidth().padding(start = 36.dp, top = 4.dp, bottom = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 56.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
                 dark = !lightGlass,
                 height = 40.dp,
                 enabled = enabled,
-                containerSurfaceEnabled = false
+                containerSurfaceEnabled = false,
+                commitOnRelease = true
             )
         ) == true
         if (nativeTabs) {
@@ -90,13 +92,6 @@ internal fun HomeSidebarTabBar(
                     dark = !lightGlass
                 )
             ) {}
-            HomeSidebarIconButton(
-                description = "展开侧栏", dark = !lightGlass, enabled = enabled,
-                modifier = Modifier.width(36.dp).align(Alignment.CenterStart),
-                height = 48.dp, onClick = onExpand
-            ) {
-                Icon(MiuixIcons.Sidebar, null, tint = ink, modifier = Modifier.size(20.dp))
-            }
         } else {
             CompositionLocalProvider(LocalContentColor provides ink) {
                 LiquidBottomTabs(
@@ -117,16 +112,10 @@ internal fun HomeSidebarTabBar(
                     lightAccentColor = HomeLightGlassSelectedAccentColor,
                     useOfficialGlassParameters = true,
                     containerSurfaceEnabled = !moving,
-                    leadingWidth = 36.dp,
+                    leadingWidth = 52.dp,
                     leadingContent = {
-                        Box(Modifier.width(36.dp).fillMaxHeight()
-                            .clickable(enabled = enabled, role = Role.Button,
-                                interactionSource = remember { MutableInteractionSource() }, indication = null
-                            ) { onExpand() }
-                            .semantics { contentDescription = "展开侧栏" },
-                            contentAlignment = Alignment.Center) {
-                            Icon(MiuixIcons.Sidebar, null, tint = ink, modifier = Modifier.size(20.dp))
-                        }
+                        // Reserve space only. The toggle owns a later, independent input layer.
+                        Spacer(Modifier.width(52.dp).fillMaxHeight())
                     }
                 ) {
                     tabs.forEach { (destination, label) ->
@@ -136,6 +125,16 @@ internal fun HomeSidebarTabBar(
                     }
                 }
             }
+        }
+        // A 36 dp target expanded into the first tab's hit area. Use a full 48 dp target
+        // above the indicator so its pressed overflow cannot steal the toggle's DOWN.
+        HomeSidebarIconButton(
+            description = "展开侧栏", dark = !lightGlass, enabled = enabled,
+            modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp)
+                .width(48.dp).zIndex(1f),
+            height = 48.dp, onClick = onExpand
+        ) {
+            Icon(MiuixIcons.Sidebar, null, tint = ink, modifier = Modifier.size(20.dp))
         }
     }
 }

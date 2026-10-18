@@ -228,26 +228,88 @@ internal fun ColorOsSegments(request: NativeSegmentRequest): Boolean {
             }
             type.getMethod("setSegmentHeight", Float::class.javaPrimitiveType).invoke(view, request.height.value)
             type.getMethod("selectSegmentAt", Int::class.javaPrimitiveType).invoke(view, request.selected.coerceIn(request.labels.indices))
-            val listener = source.load("${type.name}\$OnSegmentSelectedListener")
-            type.getMethod("setOnSegmentSelectedListener", listener).invoke(view, source.listener(listener.name) { name, args ->
-                if (name == "onSegmentSelected") (args?.firstOrNull() as? Int)?.let {
-                    if (latest.value.enabled && it in latest.value.labels.indices && it != latest.value.selected)
-                        latest.value.onSelected(it)
-                }
-                null
-            })
             source.bindFollowLightIntensity(view)
-            Triple(type, view, listener)
+            NativeSegmentBinding(source, type, view) { latest.value }
         }
     } ?: return false
-    key(binding.second) { AndroidView(factory = { binding.second }, modifier = request.modifier.height(request.height), update = {
-        if (it.isEnabled != request.enabled) it.isEnabled = request.enabled
-        val selected = request.selected.coerceIn(request.labels.indices)
-        if (binding.first.getMethod("getSelectedSegmentPosition").invoke(it) != selected)
-            binding.first.getMethod("selectSegmentAt", Int::class.javaPrimitiveType).invoke(it, selected)
-    }) }
-    DisposableEffect(binding) { onDispose {
-        binding.first.getMethod("setOnSegmentSelectedListener", binding.third).invoke(binding.second, null)
-    } }
+    key(binding.view) { AndroidView(factory = { binding.view }, modifier = request.modifier.height(request.height),
+        update = { binding.synchronize() }) }
+    DisposableEffect(binding) { onDispose { binding.dispose() } }
     return true
+}
+
+private class NativeSegmentBinding(
+    source: ColorOsNativeUi.Source,
+    type: Class<*>,
+    val view: View,
+    private val request: () -> NativeSegmentRequest
+) {
+    private val getSelected = type.getMethod("getSelectedSegmentPosition")
+    private val select = type.getMethod("selectSegmentAt", Int::class.javaPrimitiveType)
+    private val listenerType = source.load("${type.name}\$OnSegmentSelectedListener")
+    private val setListener = type.getMethod("setOnSegmentSelectedListener", listenerType)
+    private var touching = false
+    private var pending: Int? = null
+    private val listener = source.listener(listenerType.name) { name, args ->
+        if (name == "onSegmentSelected") (args.firstOrNull() as? Int)?.let { index ->
+            val current = request()
+            if (current.enabled && index in current.labels.indices) {
+                if (current.commitOnRelease && touching) pending = index
+                else if (index != current.selected) current.onSelected(index)
+            }
+        }
+        null
+    }
+
+    init {
+        // COUI handles selection in dispatchTouchEvent, then delegates event acceptance to
+        // View. Programmatic construction needs this flag to retain MOVE/UP after DOWN.
+        view.isClickable = true
+        setListener.invoke(view, listener)
+        view.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    touching = true
+                    pending = null
+                    view.parent?.requestDisallowInterceptTouchEvent(true)
+                }
+                MotionEvent.ACTION_UP -> finish(cancelled = false)
+                MotionEvent.ACTION_CANCEL -> finish(cancelled = true)
+            }
+            false // COUI retains gesture processing, springs, light and haptics.
+        }
+    }
+
+    fun synchronize() {
+        val current = request()
+        if (!current.enabled && touching) {
+            touching = false
+            pending = null
+            view.parent?.requestDisallowInterceptTouchEvent(false)
+        }
+        view.isEnabled = current.enabled
+        // Compose still has the previously committed page while the native indicator moves.
+        if (touching) return
+        val selected = current.selected.coerceIn(current.labels.indices)
+        if (getSelected.invoke(view) == selected) return
+        setListener.invoke(view, null)
+        try { select.invoke(view, selected) } finally { setListener.invoke(view, listener) }
+    }
+
+    private fun finish(cancelled: Boolean) {
+        touching = false
+        val selection = pending
+        pending = null
+        view.parent?.requestDisallowInterceptTouchEvent(false)
+        val current = request()
+        if (cancelled || !current.enabled) synchronize()
+        else if (selection != null && selection in current.labels.indices && selection != current.selected)
+            current.onSelected(selection)
+    }
+
+    fun dispose() {
+        setListener.invoke(view, null)
+        view.setOnTouchListener(null)
+        view.parent?.requestDisallowInterceptTouchEvent(false)
+    }
 }

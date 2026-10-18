@@ -26,7 +26,9 @@ internal data class NativeSegmentRequest(
     val height: Dp = 42.dp,
     val enabled: Boolean = true,
     // Composite navigation owns its shell; this renderer then draws only tabs/indicator.
-    val containerSurfaceEnabled: Boolean = true
+    val containerSurfaceEnabled: Boolean = true,
+    // Navigation must not disable the native rail by switching pages halfway through a drag.
+    val commitOnRelease: Boolean = false
 )
 
 internal val LocalNativeSliderRenderer = compositionLocalOf<(@Composable (NativeSliderRequest) -> Boolean)?> { null }
