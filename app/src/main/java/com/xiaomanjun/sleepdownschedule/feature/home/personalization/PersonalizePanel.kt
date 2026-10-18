@@ -225,7 +225,7 @@ fun PersonalizePanel(
     fun PersonalizeGroupTitle(title: String, index: Int, section: Boolean = false) {
         Box(Modifier.fillMaxWidth().padding(top = if (section) 2.dp else 6.dp, bottom = 2.dp).rowEntrance(index)
             .personalizePreviewVisibility(previewSliderKey, previewProgress), contentAlignment = Alignment.CenterStart) {
-            Text(title, style = if (section) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+            Text(title, style = MaterialTheme.typography.titleMedium,
                 fontWeight = if (section) FontWeight.SemiBold else FontWeight.Medium)
         }
     }
@@ -240,7 +240,7 @@ fun PersonalizePanel(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("首页壁纸", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text("首页壁纸", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         LiquidMenuButton(
                             backdrop,
