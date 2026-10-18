@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.kyant.backdrop.Backdrop
 import com.kyant.shapes.RoundedRectangle
-import com.xiaomanjun.sleepdownschedule.BuildConfig
 import com.xiaomanjun.sleepdownschedule.CourseEntity
 import com.xiaomanjun.sleepdownschedule.PeriodEntity
 import com.xiaomanjun.sleepdownschedule.ScheduleConfigEntity
@@ -79,7 +78,6 @@ import com.xiaomanjun.sleepdownschedule.glass.CourseGlassRestoreGroup
 import com.xiaomanjun.sleepdownschedule.glass.LocalCourseGlassOcclusionPhase
 import com.xiaomanjun.sleepdownschedule.glass.LocalCourseGlassRestorePlan
 import com.xiaomanjun.sleepdownschedule.glass.LocalCourseGlassRestoreRegistry
-import com.xiaomanjun.sleepdownschedule.glass.adaptiveCourseGlassSampleScale
 import com.xiaomanjun.sleepdownschedule.glass.courseGlassRestoreGroupKey
 import com.xiaomanjun.sleepdownschedule.glass.ui.CourseGlassCard
 import com.xiaomanjun.sleepdownschedule.glass.ui.MutedCourseLightColor
@@ -218,7 +216,6 @@ private fun WeekDayColumn(
     onDeleteSingleWeekCourse: (CourseEntity) -> Unit = {},
     onCourseClick: (CourseEntity, Rect?) -> Unit,
     onDragStateChanged: (dayIndex: Int?, courseId: Long?) -> Unit = { _, _ -> },
-    composedCourseCardCount: Int = courses.size,
     occlusionMaterialMounted: Boolean = true,
     draggingCourseId: Long? = null,
     activeOverlayCourseId: Long? = null,
@@ -233,10 +230,6 @@ private fun WeekDayColumn(
     val density = LocalDensity.current
     val periodIndexes = remember(periods) { periods.map { it.periodIndex } }
     val courseGlassRestorePlan = LocalCourseGlassRestorePlan.current
-    val courseBackdropSampleScale = adaptiveCourseGlassSampleScale(
-        composedCardCount = composedCourseCardCount,
-        enabled = !editMode && BuildConfig.SLEEPDOWN_LARGE_GLASS_EXPERIMENT
-    )
     val visibleCardBounds = remember(renderedSegments, periods, cardHeight) {
         renderedSegments.map { it.segment.course.id to weekCardVerticalBounds(it.segment, periods, cardHeight) }
     }
@@ -378,8 +371,7 @@ private fun WeekDayColumn(
                     onFinishResizeOverlay = onFinishResizeOverlay,
                     onCancelWeekEditOverlay = onCancelWeekEditOverlay,
                     occlusionMaterialMounted = occlusionMaterialMounted &&
-                        courseGlassRestorePlan.mountsGroup(courseGlassRestoreGroupKey(editWeek, listOf(glassCandidateId))),
-                    backdropSampleScale = courseBackdropSampleScale
+                        courseGlassRestorePlan.mountsGroup(courseGlassRestoreGroupKey(editWeek, listOf(glassCandidateId)))
                 )
                 timeLabels?.let { labels ->
                     val labelColor = glassForegroundColor(config)
@@ -712,7 +704,6 @@ fun WeekCourseColumnsLayer(
                             draggingDayIndex = dayIndex
                             draggingCourseId = courseId
                         },
-                        composedCourseCardCount = courses.size,
                         occlusionMaterialMounted = true,
                         draggingCourseId = draggingCourseId,
                         activeOverlayCourseId = activeOverlayCourseId,

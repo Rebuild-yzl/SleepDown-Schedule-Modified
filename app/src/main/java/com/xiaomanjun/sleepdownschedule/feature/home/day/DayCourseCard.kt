@@ -99,7 +99,6 @@ fun DayTimelineCourse(course: CourseEntity, currentWeek: Int, periods: List<Peri
             course = course,
             modifier = Modifier.wrapContentWidth(),
             shape = Capsule(),
-            cacheSharedSamples = false,
             expandedOutlineLight = true,
             muted = subdued
         ) {
@@ -246,7 +245,6 @@ fun CourseCard(course: CourseEntity, periods: List<PeriodEntity>, showTime: Bool
             // Lazy rows are detached/reused while scrolling and paging. Share the wallpaper
             // blur, but record each visible row's current sample on draw instead of retaining
             // its position-dependent display list across those lifecycle transitions.
-            cacheSharedSamples = false,
             expandedOutlineLight = true,
             muted = muted,
             onClick = if (onClick != null) ({

@@ -215,8 +215,7 @@ fun WeekCourseBlock(
     onFinishMoveOverlay: (Velocity) -> Unit = {},
     onFinishResizeOverlay: (Velocity) -> Unit = {},
     onCancelWeekEditOverlay: () -> Unit = {},
-    occlusionMaterialMounted: Boolean = true,
-    backdropSampleScale: Float = 1f
+    occlusionMaterialMounted: Boolean = true
 ) {
     val personalizationPreview = LocalPersonalizationPreview.current
     val locationText = course.location.orEmpty()
@@ -338,9 +337,6 @@ fun WeekCourseBlock(
             ?: config.weekCardCornerProgress
     )
     val cardShape = remember(cardCorner) { RoundedRectangle(cardCorner) }
-    val sampledCardShape = remember(cardCorner, backdropSampleScale) {
-        RoundedRectangle(cardCorner * backdropSampleScale.coerceIn(0.5f, 1f))
-    }
     val resizeStartIndex = periodIndexes.indexOf(periodIndex).coerceAtLeast(0)
     val resizeMaxSpan = (periodIndexes.size - resizeStartIndex).coerceAtLeast(1)
     val baseHeightPx = with(density) { height.toPx() }
@@ -771,8 +767,6 @@ fun WeekCourseBlock(
                 mountMaterial = occlusionMaterialMounted,
                 // Pager owns lifetime; scrolling never toggles a card's material nodes.
                 viewportMaterialVisible = true,
-                backdropSampleScale = backdropSampleScale,
-                sampledShape = sampledCardShape,
                 muted = subdued,
                 followTouch = !editMode,
                 onClick = null

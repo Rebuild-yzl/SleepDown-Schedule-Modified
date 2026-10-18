@@ -32,10 +32,11 @@ internal fun DrawScope.drawBottomLitGlassTint(
 
 internal fun bottomLitGlassTintBrush(
     color: Color, height: Float, topTintFloor: Float = 0.20f,
-    expanded: Boolean = false
+    expanded: Boolean = false,
+    colorTransform: (Color) -> Color = { it }
 ): Brush {
     val top = topTintFloor.coerceIn(0f, 0.72f)
-    fun tint(weight: Float) = color.copy(alpha = color.alpha * weight)
+    fun tint(weight: Float) = colorTransform(color.copy(alpha = color.alpha * weight))
     val firstLiftY = if (expanded) 0.68f else 0.82f
     val brightBandY = if (expanded) 0.82f else 0.90f
     val rimY = if (expanded) 0.92f else 0.96f
@@ -46,7 +47,7 @@ internal fun bottomLitGlassTintBrush(
                 firstLiftY to tint(maxOf(top, 0.48f)),
                 brightBandY to tint(maxOf(top, 0.84f)),
                 rimY to tint(maxOf(top, 0.88f)),
-                1f to color
+                1f to colorTransform(color)
             ),
             endY = height
         )

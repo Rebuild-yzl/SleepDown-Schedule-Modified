@@ -94,6 +94,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.layout.positionOnScreen
@@ -2017,6 +2018,7 @@ fun CourseScheduleAppUi(
     ) {
     val sharedTransitionScope = this
     val activeSharedTransitionScope = if (startupPhase == StartupPhase.FullQuality) sharedTransitionScope else null
+    val courseBackdropViewport = remember { com.kyant.backdrop.BackdropViewport() }
     val sharedCourseFrame = courseCardGlassEffectFrame(
         tokens = GlassTokens.courseCard(visualState.config.courseCardBlur),
         liveBlur = personalizationPreviewState.cardBlur ?: visualState.config.courseCardBlur,
@@ -2028,8 +2030,11 @@ fun CourseScheduleAppUi(
         visualState.config.courseCardGlassEnabled, visualState.config.courseCardGaussianBlurEnabled,
         visualState.config.hasAnyWallpaper())
     val sharedCourseBackdrop = if (courseMaterialsEnabled && visualState.config.courseCardGlassEnabled)
-        remember(courseWallpaperBackdrop, sharedCourseRadiusPx, sharedCourseFrame.useVibrancy) {
+        remember(courseWallpaperBackdrop) {
         com.kyant.backdrop.backdrops.SharedBlurBackdrop(courseWallpaperBackdrop, sharedCourseRadiusPx, sharedCourseFrame.useVibrancy)
+    }.apply {
+        radiusPx = sharedCourseRadiusPx
+        vibrant = sharedCourseFrame.useVibrancy
     } else null
     // Retained timetable cards must retain their material source as well. Removing this on
     // Settings used to replace every card's sampler and allocate it again on the return frame.
@@ -2184,6 +2189,7 @@ fun CourseScheduleAppUi(
         LocalCourseRemoval provides courseRemoval,
         com.xiaomanjun.sleepdownschedule.glass.LocalSharedCourseBackdrop provides
             sharedCourseBackdrop.takeIf { sharedCourseBackdropExpected },
+        com.xiaomanjun.sleepdownschedule.glass.LocalCourseBackdropViewport provides courseBackdropViewport,
         LocalSharedTransitionScope provides activeSharedTransitionScope,
         LocalEditingCourseId provides editingCourseId,
         LocalCourseEditorFlightRegistry provides courseEditorFlightRegistry,
@@ -2899,7 +2905,9 @@ fun CourseScheduleAppUi(
                         }
                     }))
                 }
-                Box(Modifier.fillMaxSize().glassBackdropProducer(contentBackdrop)) {
+                Box(Modifier.fillMaxSize()
+                    .onGloballyPositioned { courseBackdropViewport.update(it.boundsInWindow()) }
+                    .glassBackdropProducer(contentBackdrop)) {
                 val contentModifier = Modifier.fillMaxSize().homeSidebarContentInset(homeSidebarState)
                 Column(modifier = contentModifier) {
                     if (screen !is Screen.Home) {

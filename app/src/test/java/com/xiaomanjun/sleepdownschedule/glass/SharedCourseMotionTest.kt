@@ -18,7 +18,6 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.BackdropDiagnostics
 import com.kyant.backdrop.backdrops.SharedBlurBackdrop
-import com.kyant.backdrop.backdrops.SharedBlurSampleScale
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -37,7 +36,7 @@ class SharedCourseMotionTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     @After fun cleanup() { BackdropDiagnostics.observer = null }
 
-    @Test fun sharedSamplesSurviveCommonPageTranslationButRefreshOnRelativeMotion() {
+    @Test fun sharedPrefixSurvivesMotionWhileLocalLensesRefreshAndRelease() {
         val pageX = mutableFloatStateOf(0f)
         val cardX = mutableFloatStateOf(0f)
         val refraction = mutableStateOf(true)
@@ -60,8 +59,8 @@ class SharedCourseMotionTest {
                                 .graphicsLayer { translationX = cardX.floatValue }
                                 .sleepDownGlassSurface(shared, descriptor, spec, { RoundedCornerShape(10.dp) },
                                     GlassEffectFrame(blur = null, lensHeight = if (refraction.value) 8.dp else null,
-                                        lensAmount = if (refraction.value) 12.dp else null), backdropSampleScale = SharedBlurSampleScale,
-                                    cacheSharedSamples = true, placementLayer = false))
+                                        lensAmount = if (refraction.value) 12.dp else null),
+                                    placementLayer = false))
                         }
                     }
                 }
@@ -85,7 +84,8 @@ class SharedCourseMotionTest {
             compose.runOnIdle { pageX.floatValue = x }
             draw()
         }
-        assertEquals("Common page translation must retain samples: $counts", 0L, counts["Sample.Recorded"] ?: 0L)
+        assertEquals("Page translation must retain the shared wallpaper: $counts", 0L, counts["SharedWallpaper.Recorded"] ?: 0L)
+        assertEquals("Page translation must retain the wallpaper producer: $counts", 0L, counts["ProducerRecord.Recorded"] ?: 0L)
         counts.clear()
         compose.runOnIdle { cardX.floatValue = 24f }
         draw()

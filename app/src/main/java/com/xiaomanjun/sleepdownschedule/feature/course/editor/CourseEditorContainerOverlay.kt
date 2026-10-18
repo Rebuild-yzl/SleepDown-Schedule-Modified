@@ -1031,9 +1031,7 @@ private fun CourseEditorAnimatedContainer(
         },
         shape = shape,
         blurOverride = editorBlur,
-        cacheSharedSamples = !expandedOutlineLight,
-        backdropSampleScale = if (expandedOutlineLight && currentProgress.value.invoke() <= 0.12f) 1f else 0.5f,
-        sampledShape = shape,
+        editorSampleScale = if (expandedOutlineLight && currentProgress.value.invoke() <= 0.12f) 1f else 0.5f,
         surfaceBackdrop = surfaceBackdrop,
         morphAllocation = morphAllocation
     ) {

@@ -79,6 +79,7 @@ private class LayerBackdropNode(
             recordLayer(backdrop.graphicsLayer) { backdrop.onDraw(this@draw) }
             recordingCache.recorded(key, dimensions, density, fontScale, layoutDirection)
             layerDiagnostics.recorded(backdrop.graphicsLayer.size)
+            backdrop.contentVersion++
         } else {
             BackdropDiagnostics.event("ProducerRecord.Reused")
         }

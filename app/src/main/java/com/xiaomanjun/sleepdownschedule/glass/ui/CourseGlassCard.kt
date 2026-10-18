@@ -22,7 +22,6 @@ import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -37,7 +36,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.backdrops.SharedBlurSampleScale
 import com.kyant.shapes.RoundedRectangle
 import com.xiaomanjun.sleepdownschedule.CourseEntity
 import com.xiaomanjun.sleepdownschedule.LiquidCourseCardBlurMax
@@ -64,7 +62,6 @@ import com.xiaomanjun.sleepdownschedule.glass.LocalCourseGlassOcclusionPhase
 import com.xiaomanjun.sleepdownschedule.glass.decorationOnly
 import com.xiaomanjun.sleepdownschedule.glass.glassBackdropProducer
 import com.xiaomanjun.sleepdownschedule.glass.materialEffectsOnly
-import com.xiaomanjun.sleepdownschedule.glass.referenceLensSampleScale
 import com.xiaomanjun.sleepdownschedule.glass.rememberGlassSurfaceDescriptor
 import com.xiaomanjun.sleepdownschedule.glass.sleepDownGlassSurface
 
@@ -152,9 +149,8 @@ fun CourseGlassCard(
     renderSurface: Boolean = true,
     mountMaterial: Boolean = true,
     viewportMaterialVisible: Boolean = true,
-    cacheSharedSamples: Boolean = true,
-    backdropSampleScale: Float = 1f,
-    sampledShape: Shape? = null,
+    // Compatibility for the course editor's shell; timetable cards always sample at 1x.
+    editorSampleScale: Float = 1f,
     expandedOutlineLight: Boolean = false,
     followTouch: Boolean = true,
     followLightRadius: androidx.compose.ui.unit.Dp? = null,
@@ -319,10 +315,7 @@ fun CourseGlassCard(
         materialRole = GlassMaterialRole.SimpleBlur,
         sceneKey = "course-card-simple-blur"
     )
-    val activeBackdropSampleScale = referenceLensSampleScale(
-        requestedScale = backdropSampleScale,
-        hasSupportedSampledShape = sampledShape != null
-    )
+    val backdropViewport = com.xiaomanjun.sleepdownschedule.glass.LocalCourseBackdropViewport.current
     val sharedWallpaper = com.xiaomanjun.sleepdownschedule.glass.LocalSharedCourseBackdrop.current
     val requiredBlurPx = with(androidx.compose.ui.platform.LocalDensity.current) { (liquidEffectFrame.blur ?: 0.dp).toPx() }
     val sharedWallpaperCompatible = sharedWallpaper != null &&
@@ -334,15 +327,19 @@ fun CourseGlassCard(
     val cardEffects = if (useSharedWallpaper) {
         liquidEffectFrame.materialEffectsOnly().copy(blur = null, useVibrancy = false)
     } else liquidEffectFrame.materialEffectsOnly()
-    val decorationEffectFrame = liquidEffectFrame.decorationOnly().copy(highlight = null)
+    // Timetable shadows use Compose's cached drawing masks. The editor/morph compatibility
+    // shell retains its existing allocation and decoration geometry.
+    val drawCourseShadows = morphAllocation == null && surfaceBackdrop == null
+    val decoratedFrame = if (drawCourseShadows) liquidEffectFrame.copy(shadowAlpha = null, innerShadow = null) else liquidEffectFrame
+    val decorationEffectFrame = decoratedFrame.decorationOnly().copy(highlight = null)
     // At rest and during ordinary card motion, one draw node owns the sampled material,
     // tint and decorations. They then use the same measured size, outline and placement.
     // Keep the split path while the sampled material alone is crossfading or suspended.
     val unifiedLiquidSurface = useGlass && renderSurface && drawMaterialNodes &&
         !materialCrossfadeActive
     val unifiedLiquidEffectFrame = if (useSharedWallpaper) {
-        liquidEffectFrame.copy(blur = null, useVibrancy = false, highlight = null)
-    } else liquidEffectFrame.copy(highlight = null)
+        decoratedFrame.copy(blur = null, useVibrancy = false, highlight = null)
+    } else decoratedFrame.copy(highlight = null)
     val presetHighlight = Modifier.presetCourseCardHighlight(
         shape = shape,
         alpha = if (performanceMaterial) 0.20f else (liquidEffectFrame.highlight?.alpha ?: 0f) *
@@ -358,7 +355,11 @@ fun CourseGlassCard(
     // its pixels are identical, which otherwise repeats work on unrelated recompositions.
     val liquidSurfaceDraw: DrawScope.() -> Unit = remember(previewState, configuredAlpha,
         configuredBrightness, outlineLightEnabled, quality, hasWallpaper, baseColor,
-        expandedOutlineLight, lightGlass) { {
+        expandedOutlineLight, lightGlass) {
+        var cachedTint = Color.Unspecified
+        var cachedHeight = Float.NaN
+        var cachedBrush: Brush? = null
+        val draw: DrawScope.() -> Unit = {
         val liveAlpha = previewState?.cardAlpha ?: configuredAlpha
         val brightnessAttenuation = courseCardBrightnessAttenuation(
             configuredBrightness,
@@ -369,16 +370,19 @@ fun CourseGlassCard(
             brightnessAttenuation
         val tint = baseColor.copy(alpha = tintAlpha)
         if (outlineLightEnabled) {
-            drawBottomLitGlassTint(tint, expanded = expandedOutlineLight)
+            if (cachedTint != tint || cachedHeight != size.height) {
+                cachedTint = tint
+                cachedHeight = size.height
+                cachedBrush = bottomLitGlassTintBrush(tint, size.height, expanded = expandedOutlineLight,
+                    colorTransform = { courseGlassSurfaceColor(it, lightGlass) })
+            }
+            drawRect(requireNotNull(cachedBrush))
         } else {
-            drawRect(tint)
+            drawRect(courseGlassSurfaceColor(tint, lightGlass))
         }
-        drawRect(
-            Color.White.copy(alpha = if (lightGlass) 0.012f else 0.008f),
-            blendMode = BlendMode.Screen
-        )
-        drawRect(Color.Black.copy(alpha = if (lightGlass) 0.004f else 0.014f))
-    } }
+        }
+        draw
+    }
     val stableCardShape: () -> Shape = remember(shape) { { shape } }
     val stableMaterialEnabled: () -> Boolean = remember(drawMaterialNodes) { { drawMaterialNodes } }
     val stableMaterialBounds: () -> Rect? = remember(morphAllocation) { { morphAllocation?.localBounds() } }
@@ -419,6 +423,11 @@ fun CourseGlassCard(
     Box(modifier = cardModifier) {
         // Only sampled blur/lens is suspended. Tint and full-resolution decoration stay intact.
         val surfaceContent: @Composable BoxScope.() -> Unit = {
+            if (renderSurface && useGlass && drawCourseShadows) {
+                liquidEffectFrame.shadowAlpha?.let { shadowAlpha ->
+                    Box(Modifier.matchParentSize().courseGlassOuterShadow(shape, shadowAlpha) { viewportMaterialVisible })
+                }
+            }
             val surfaceModifier = if (!renderSurface || (!mountMaterialNodes && (useGlass || simpleBlurBackdrop != null))) {
                 Modifier
             } else if (useGlass) {
@@ -431,17 +440,8 @@ fun CourseGlassCard(
                             shape = stableCardShape,
                             effectFrame = if (unifiedLiquidSurface) unifiedLiquidEffectFrame else cardEffects,
                             effectInputKey = if (unifiedLiquidSurface) unifiedLiquidEffectFrame.materialEffectsOnly() else cardEffects,
-                            cacheSharedSamples = cacheSharedSamples,
-                            backdropSampleScale = when {
-                                morphAllocation != null -> 1f
-                                // The shared recorder becomes ready during the first home draw.
-                                // Match its buffer even before that handoff: the lens keeps one
-                                // resolution, and the shared pixels go directly into the card.
-                                // Node-internal sampling scales effect density and geometry;
-                                // tint, text, highlights and shadows stay at full resolution.
-                                sharedWallpaperCompatible -> SharedBlurSampleScale
-                                else -> activeBackdropSampleScale
-                            },
+                            backdropViewport = backdropViewport.takeIf { morphAllocation == null },
+                            backdropSampleScale = if (surfaceBackdrop != null && morphAllocation == null) editorSampleScale else 1f,
                             cacheDecorations = morphAllocation == null,
                             placementLayer = morphAllocation != null,
                             renderEnabled = stableMaterialEnabled,
@@ -544,6 +544,11 @@ fun CourseGlassCard(
             }
             // Full-resolution additive inner light, independent of the sampled blur/lens. The base
             // tint fades toward the top while the brighter bottom light spreads with smooth falloff.
+            if (renderSurface && useGlass && drawCourseShadows) {
+                liquidEffectFrame.innerShadow?.let { shadow ->
+                    Box(Modifier.matchParentSize().courseGlassInnerShadow(shape, shadow.radius, shadow.alpha) { viewportMaterialVisible })
+                }
+            }
             if (outlineLightEnabled && !performanceMaterial) {
                 VerticalGlassAccentOverlay(
                     accentColor = baseColor,
