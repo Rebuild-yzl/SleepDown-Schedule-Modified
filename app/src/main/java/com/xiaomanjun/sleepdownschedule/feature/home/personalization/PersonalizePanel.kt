@@ -205,7 +205,7 @@ fun PersonalizePanel(
                     ),
                     shape = RoundedRectangle(18.dp)
                 )
-                .padding(12.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             content = content
         )
@@ -223,9 +223,9 @@ fun PersonalizePanel(
     }
     @Composable
     fun PersonalizeGroupTitle(title: String, index: Int, section: Boolean = false) {
-        Box(Modifier.fillMaxWidth().heightIn(min = if (section) 48.dp else 40.dp).padding(vertical = 8.dp).rowEntrance(index)
+        Box(Modifier.fillMaxWidth().padding(top = if (section) 2.dp else 6.dp, bottom = 2.dp).rowEntrance(index)
             .personalizePreviewVisibility(previewSliderKey, previewProgress), contentAlignment = Alignment.CenterStart) {
-            Text(title, style = if (section) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall,
+            Text(title, style = if (section) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
                 fontWeight = if (section) FontWeight.SemiBold else FontWeight.Medium)
         }
     }
@@ -240,7 +240,7 @@ fun PersonalizePanel(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("首页壁纸", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text("首页壁纸", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         LiquidMenuButton(
                             backdrop,
