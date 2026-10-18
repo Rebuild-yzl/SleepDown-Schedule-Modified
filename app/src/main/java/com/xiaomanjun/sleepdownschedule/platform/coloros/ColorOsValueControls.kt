@@ -204,7 +204,7 @@ internal fun ColorOsSegments(request: NativeSegmentRequest): Boolean {
     if (request.labels.isEmpty()) return false
     val native = rememberNativeContext(request.dark) ?: return false
     val latest = rememberUpdatedState(request)
-    val binding = remember(native, request.labels, request.height) {
+    val binding = remember(native, request.labels, request.height, request.containerSurfaceEnabled) {
         ColorOsNativeUi.prepare("create native segmented control") {
             val source = native.first
             val type = source.load("com.coui.appcompat.segmentbutton.COUISegmentButtonLayout")
@@ -212,6 +212,20 @@ internal fun ColorOsSegments(request: NativeSegmentRequest): Boolean {
             type.getMethod("setSegmentButtons", Array<String>::class.java)
                 .invoke(view, request.labels.toTypedArray() as Any)
             type.getMethod("setMaterialEffectEnabled", Boolean::class.javaPrimitiveType).invoke(view, true)
+            if (!request.containerSurfaceEnabled) {
+                // COUI's canvas mode keeps the native indicator and its spring/light, while
+                // removing the View-wide blur/stroke that would frame the inset tab rail.
+                type.getMethod("setIsDrawMaterialEffect", Boolean::class.javaPrimitiveType).invoke(view, true)
+                val strokeType = source.load("com.coui.appcompat.COUIMaterialStrokeEffect\$StrokeEffectType")
+                type.getMethod("setStrokeEffectType", strokeType, Context::class.java)
+                    .invoke(view, strokeType.getField("TYPE_NO_EFFECT").get(null), native.second)
+                val delegate = source.load("${type.name}\$SegmentButtonDrawDelegate")
+                val transparentBackground = arrayOf(Paint().apply { color = android.graphics.Color.TRANSPARENT })
+                type.getMethod("setSegmentButtonDrawDelegate", delegate).invoke(view,
+                    source.listener(delegate.name) { name, _ ->
+                        if (name == "getCustomBackgroundPaint") transparentBackground else null
+                    })
+            }
             type.getMethod("setSegmentHeight", Float::class.javaPrimitiveType).invoke(view, request.height.value)
             type.getMethod("selectSegmentAt", Int::class.javaPrimitiveType).invoke(view, request.selected.coerceIn(request.labels.indices))
             val listener = source.load("${type.name}\$OnSegmentSelectedListener")

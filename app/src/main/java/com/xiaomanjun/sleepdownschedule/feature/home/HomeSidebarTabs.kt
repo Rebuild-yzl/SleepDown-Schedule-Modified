@@ -2,8 +2,9 @@ package com.xiaomanjun.sleepdownschedule.feature.home
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,10 +17,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -37,10 +44,10 @@ import com.xiaomanjun.sleepdownschedule.core.ui.chrome.HomeLightGlassSelectedAcc
 import com.xiaomanjun.sleepdownschedule.core.ui.chrome.HomeLightGlassSurfaceColor
 import com.xiaomanjun.sleepdownschedule.core.ui.chrome.homeChromeBlur
 import com.xiaomanjun.sleepdownschedule.core.ui.chrome.homeChromeGlassSurfaceAlpha
-import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCapsuleButtonRenderer
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeFollowLightRenderer
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeSegmentRenderer
-import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeCapsuleButtonRequest
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeFollowLightRequest
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeSegmentRequest
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -70,7 +77,8 @@ internal fun HomeSidebarTabBar(
                 modifier = Modifier.fillMaxWidth().padding(start = 36.dp, top = 4.dp, bottom = 4.dp),
                 dark = !lightGlass,
                 height = 40.dp,
-                enabled = enabled
+                enabled = enabled,
+                containerSurfaceEnabled = false
             )
         ) == true
         if (nativeTabs) {
@@ -143,15 +151,23 @@ internal fun HomeSidebarIconButton(
     content: @Composable () -> Unit
 ) {
     val described = modifier.semantics { contentDescription = description }
-    if (LocalNativeCapsuleButtonRenderer.current?.invoke(
-        NativeCapsuleButtonRequest(
-            onClick = onClick, modifier = described, height = height,
-            contentPadding = PaddingValues(0.dp), dark = dark, enabled = enabled
-        )
-    ) { content() } == true) return
+    val nativeLight = LocalNativeFollowLightRenderer.current
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    var center by remember { mutableStateOf(Offset.Zero) }
+    val radius = with(LocalDensity.current) { height.toPx() * 0.75f }
     Box(
         described.height(height).clip(RoundedRectangle(12.dp))
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+            .onSizeChanged { center = Offset(it.width / 2f, it.height / 2f) }
+            .clickable(interactionSource = interaction,
+                indication = if (nativeLight == null) LocalIndication.current else null,
+                enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
-    ) { content() }
+    ) {
+        nativeLight?.invoke(NativeFollowLightRequest(
+            modifier = Modifier.matchParentSize(), dark = dark, position = center,
+            pressed = enabled && pressed, radiusPx = radius
+        ))
+        content()
+    }
 }

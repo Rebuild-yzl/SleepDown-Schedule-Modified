@@ -24,7 +24,9 @@ internal data class NativeSegmentRequest(
     val labels: List<String>, val selected: Int, val onSelected: (Int) -> Unit,
     val modifier: Modifier, val dark: Boolean,
     val height: Dp = 42.dp,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    // Composite navigation owns its shell; this renderer then draws only tabs/indicator.
+    val containerSurfaceEnabled: Boolean = true
 )
 
 internal val LocalNativeSliderRenderer = compositionLocalOf<(@Composable (NativeSliderRequest) -> Boolean)?> { null }
