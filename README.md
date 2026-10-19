@@ -15,7 +15,7 @@ SleepDown 是面向日常学习的 Android 课程表：从导入整学期课程�
 
 ### 正式版、Beta 与厂商实验功能
 
-`main` 是唯一持续维护的应用基线。当前正式版为 [`1.2.7`](https://github.com/xiaomanjun233/SleepDown-Schedule/releases/tag/v1.2.7)，该轮最后预发布为 `1.2.7_beta5-r1`。Beta 是下一正式版本的逐次候选；每个 Beta 保留独立记录，正式版把仍有效的改动归并成正式日志。下载时按发行页的正式版或预发布标记选择，源码 `main` 不等同于已安装的正式版本。OPPO/一加/realme 流体云、荣耀 YOYO 建议和小米超级岛作为按设备出现的实验功能进入 GitHub 版普通应用，商店版关闭相应实验入口。
+`main` 是唯一持续维护的应用基线。当前正式版为 [`1.2.7-r1`](https://github.com/xiaomanjun233/SleepDown-Schedule/releases/tag/v1.2.7-r1)（`1.2.7` 的修复版本），该轮最后预发布为 `1.2.7_beta5-r1`。Beta 是下一正式版本的逐次候选；每个 Beta 保留独立记录，正式版把仍有效的改动归并成正式日志。下载时按发行页的正式版或预发布标记选择，源码 `main` 不等同于已安装的正式版本。OPPO/一加/realme 流体云、荣耀 YOYO 建议和小米超级岛作为按设备出现的实验功能进入 GitHub 版普通应用，商店版关闭相应实验入口。
 
 早期的 `1.01 beta`—`1.10 beta` 是独立的历史版本序列，不是当前 1.2.6 的 Beta 编号。每一版的更新日志摘要与有证据的时间锚点收录在[最初十个 Beta](docs/EARLY_BETA_HISTORY.md)；无法确认日期或归属的早期画面没有硬配到某一版。
 

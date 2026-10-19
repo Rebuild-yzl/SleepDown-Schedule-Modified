@@ -27,6 +27,7 @@
 | 最初十个 Beta 的功能与时间证据 | [EARLY_BETA_HISTORY.md](EARLY_BETA_HISTORY.md) |
 | 每轮开发、PR、收尾与工作树整理 | [DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md) |
 | 2026-10-19 的旧 PR、Actions 通知与回流调查 | [仓库整理报告](reports/2026-10-19-repository-pr-actions-cleanup.md) |
+| 1.2.7-r1 修复版发布 | [发布与核验记录](2026-10-19-stable-1.2.7-r1-release.md) |
 | 按用户任务查功能与实现入口 | [FEATURE_MAP.md](FEATURE_MAP.md) |
 | 目录、依赖与结构调整 | [PROJECT_STRUCTURE.md](architecture/PROJECT_STRUCTURE.md)、[CODE_ORGANIZATION.md](architecture/CODE_ORGANIZATION.md) |
 | 页面、弹窗、选择器与公共控件 | [SLEEPDOWN_DESIGN_SYSTEM.md](architecture/SLEEPDOWN_DESIGN_SYSTEM.md) |
