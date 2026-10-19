@@ -9,7 +9,9 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.Drawable
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.CompoundButton
+import android.widget.FrameLayout
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
@@ -232,7 +234,7 @@ internal fun ColorOsSegments(request: NativeSegmentRequest): Boolean {
             NativeSegmentBinding(source, type, view) { latest.value }
         }
     } ?: return false
-    key(binding.view) { AndroidView(factory = { binding.view }, modifier = request.modifier.height(request.height),
+    key(binding.host) { AndroidView(factory = { binding.host }, modifier = request.modifier.height(request.height),
         update = { binding.synchronize() }) }
     DisposableEffect(binding) { onDispose { binding.dispose() } }
     return true
@@ -260,24 +262,37 @@ private class NativeSegmentBinding(
         }
         null
     }
+    val host = object : FrameLayout(view.context) {
+        init {
+            clipChildren = false
+            clipToPadding = false
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            addView(view, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
 
-    init {
-        // COUI handles selection in dispatchTouchEvent, then delegates event acceptance to
-        // View. Programmatic construction needs this flag to retain MOVE/UP after DOWN.
-        view.isClickable = true
-        setListener.invoke(view, listener)
-        view.setOnTouchListener { _, event ->
+        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+            // COUI's clickable TextView children can own the sequence, bypassing an
+            // OnTouchListener on their container. Observe before dispatching to that tree.
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                if (!request().enabled) return false
+                touching = true
+                pending = null
+                parent?.requestDisallowInterceptTouchEvent(true)
+            }
+            val handled = super.dispatchTouchEvent(event)
+            // COUI updates its final selection during UP; commit only after it has done so.
             when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    touching = true
-                    pending = null
-                    view.parent?.requestDisallowInterceptTouchEvent(true)
-                }
                 MotionEvent.ACTION_UP -> finish(cancelled = false)
                 MotionEvent.ACTION_CANCEL -> finish(cancelled = true)
             }
-            false // COUI retains gesture processing, springs, light and haptics.
+            return handled
         }
+    }
+
+    init {
+        // Keep the rail's padding clickable too; child TextViews retain their own input.
+        view.isClickable = true
+        setListener.invoke(view, listener)
     }
 
     fun synchronize() {
@@ -309,7 +324,8 @@ private class NativeSegmentBinding(
 
     fun dispose() {
         setListener.invoke(view, null)
-        view.setOnTouchListener(null)
+        touching = false
+        pending = null
         view.parent?.requestDisallowInterceptTouchEvent(false)
     }
 }
