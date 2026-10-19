@@ -118,8 +118,10 @@ internal fun ParallelHomeDock(
     val bottomInset = with(density) { systemBottom.toDp() }
     val imeCompensation = dockImeCompensationPx(WindowInsets.ime.getBottom(density), systemBottom)
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val groupWidth = minOf(270.dp, maxWidth - 36.dp)
-        val dockWidth = minOf(210.dp, groupWidth - 60.dp)
+        // COUI's expansion view uses a 12dp edge-to-edge gap. Keep the same resting
+        // spacing in liquid glass, including when a narrow window reduces the dock.
+        val groupWidth = minOf(276.dp, maxWidth - 36.dp)
+        val dockWidth = minOf(210.dp, groupWidth - 54.dp - 12.dp)
         val dockTop = 24.dp
         val dockBounds = remember(density, groupWidth, dockWidth) {
             derivedStateOf { with(density) {
