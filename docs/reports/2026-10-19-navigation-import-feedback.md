@@ -35,4 +35,5 @@
 - APK：`tmp/review-apks/SleepDown-1.2.7-navigation-import-defaults-20261019.apk`，7,574,871 字节，SHA-256 `501c345545aa5d8d3ea4ff327d6a853ac66e29e51d4fdaef259b18619157c790`，与标准输出 APK 摘要一致。
 - Manifest 为 `com.xiaomanjun.sleepdownschedule`，`1.2.7` / 35。`apksigner verify --verbose --print-certs` 通过，v2 签名有效，证书 SHA-256 `0f2b50dfb7e10c6f5981ab966f1f4ebd76af81a7ad9ba31663284eaa88c0181a`，与既有正式签名一致。
 - `testGithubDebugUnitTest --tests 'com.xiaomanjun.sleepdownschedule.domain.schedule.ScheduleTermBoundaryTest' --tests 'com.xiaomanjun.sleepdownschedule.model.ImportedCourseCardDefaultsTest' --console=plain --no-parallel --max-workers=2` 通过，含编译 3m37s。JUnit XML 确认分别运行 8 与 1 项，共 9 项，失败、错误及跳过均为 0。工程未提供 Release 单元测试任务，故使用既有 Debug 入口；没有运行完整套件。
-- 沿用户最后选择交付 APK，未安装、未启动应用；没有截图、自动 UI 或性能测试。界面与原生运行时效果仍由用户实机验收，静态审计不等于设备验证；系统反编译源码与构建产物不提交。
+- 先按用户选择交付 APK；用户随后明确要求“安装”，于 2026-10-19 13:08 经项目 ADB 5038 通道向 USB 设备 PLJ110（Android 17）执行 `install -r`，返回 Success。系统核对为 `1.2.7` / 35，更新时间为 13:08:23；保留应用数据，未自动启动。
+- 没有截图、自动 UI 或性能测试。界面与原生运行时效果仍由用户实机验收，安装成功不等于交互验收通过；系统反编译源码与构建产物不提交。
