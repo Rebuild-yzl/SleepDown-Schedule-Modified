@@ -57,7 +57,7 @@ internal fun AgentAttachmentPopup(
             items = actions.mapIndexed { index, action -> SleepDownLiquidMenuItem(
                 key = "attachment_$index", text = action.label, iconRes = action.iconRes, onClick = action.onClick) },
             onDismissRequest = onDismiss, backdrop = backdrop, config = config,
-            contentColor = foreground, panelMinWidth = 184.dp,
+            panelMinWidth = 184.dp,
             morphFromAnchor = true, collapseContent = iconContent,
             alignment = PopupPositionProvider.Align.Start, morphHorizontalInset = 0.dp,
             onDismissFinished = {
