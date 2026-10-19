@@ -1420,34 +1420,15 @@ internal fun DayAgentConversationDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                              if (!compactHomeInput && (attachmentUploadEnabled || onImportFile != null)) {
-                                 Box(
-                                     modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null,
-                                            onClick = {
-                                                attachmentMenuExpanded = !attachmentMenuExpanded
-                                            }
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                 ) {
-                                     Icon(
-                                         painter = painterResource(R.drawable.ic_add_course),
-                                         contentDescription = "添加附件",
-                                         tint = foreground,
-                                         modifier = Modifier.size(24.dp)
-                                     )
                                      AgentAttachmentPopup(
                                          show = attachmentMenuExpanded,
                                          imagesEnabled = attachmentUploadEnabled, filesEnabled = onImportFile != null,
                                          config = state.config, backdrop = agentInputBackdrop, foreground = foreground,
                                          onDismiss = { attachmentMenuExpanded = false },
+                                         onToggle = { attachmentMenuExpanded = !attachmentMenuExpanded },
                                          onImage = { imagePicker.launch("image/*") },
                                          onFile = { importFilePicker.launch(arrayOf("*/*")) }
                                      )
-                                 }
                              }
                             if (compactHomeInput && homeResponseVisible) Text(
                                 homeSubmittedText,
