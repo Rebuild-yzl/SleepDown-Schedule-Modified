@@ -299,7 +299,21 @@ fun SettingsActionRow(
 }
 
 @Composable
-fun SettingsValueRow(title: String, value: String) {
+fun SettingsValueRow(title: String, value: String, compact: Boolean = false) {
+    if (compact && LocalGlassMiuixEnabled.current) {
+        MiuixBasicComponent(title = title, summary = value, modifier = Modifier.fillMaxWidth(),
+            insideMargin = PaddingValues(horizontal = 4.dp, vertical = 8.dp))
+        return
+    }
+    if (compact) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+            Text(value, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
     if (LocalGlassMiuixEnabled.current) {
         MiuixBasicComponent(
             title = title,
@@ -343,25 +357,41 @@ fun SettingsPickerValueRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    compact: Boolean = false
+    compact: Boolean = false,
+    valueBelowTitle: Boolean = false
 ) {
     if (LocalGlassMiuixEnabled.current) {
         MiuixArrowPreference(
             title = title,
+            summary = value.ifBlank { "未设置" }.takeIf { valueBelowTitle },
             endActions = {
-                Text(
-                    value.ifBlank { "未设置" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                if (!valueBelowTitle) {
+                    Text(
+                        value.ifBlank { "未设置" },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             },
             onClick = onClick,
             enabled = enabled,
             modifier = modifier.fillMaxWidth(),
             insideMargin = PaddingValues(horizontal = if (compact) 4.dp else 14.dp, vertical = if (compact) 8.dp else 12.dp)
         )
+        return
+    }
+    if (valueBelowTitle) {
+        Column(modifier.fillMaxWidth().heightIn(min = 52.dp)
+            .graphicsLayer(alpha = if (enabled) 1f else 0.48f)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+            Text(value.ifBlank { "未设置" }, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         return
     }
     Row(

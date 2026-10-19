@@ -50,6 +50,7 @@ fun SettingsTextFieldRow(
             value.matches(Regex("\\d{4}[./-]\\d{1,2}[./-]\\d{1,2}")) ||
                     title.contains("日期")
             )
+    val fieldWidth = if (compact && keyboardType == KeyboardType.Number) 64.dp else 170.dp
     if (isTimePicker || isDatePicker) {
         SettingsPickerValueRow(
             title = title,
@@ -83,7 +84,8 @@ fun SettingsTextFieldRow(
                         textAlign = TextAlign.End
                     ),
                     placeholder = placeholder,
-                    moveCursorToEndOnFocus = moveCursorToEndOnFocus
+                    moveCursorToEndOnFocus = moveCursorToEndOnFocus,
+                    fieldWidth = fieldWidth
                 )
             }
         )
@@ -117,7 +119,8 @@ fun SettingsTextFieldRow(
                 textAlign = TextAlign.End
             ),
             placeholder = placeholder,
-            moveCursorToEndOnFocus = moveCursorToEndOnFocus
+            moveCursorToEndOnFocus = moveCursorToEndOnFocus,
+            fieldWidth = fieldWidth
         )
     }
 }
@@ -130,9 +133,10 @@ private fun SettingsInlineTextField(
     keyboardType: KeyboardType,
     textStyle: TextStyle,
     placeholder: String,
-    moveCursorToEndOnFocus: Boolean
+    moveCursorToEndOnFocus: Boolean,
+    fieldWidth: androidx.compose.ui.unit.Dp
 ) {
-    val fieldModifier = Modifier.width(170.dp)
+    val fieldModifier = Modifier.width(fieldWidth)
     val decoration: @Composable ((@Composable () -> Unit) -> Unit) = { innerTextField ->
         Box(contentAlignment = Alignment.CenterEnd) {
             if (value.isEmpty() && placeholder.isNotEmpty()) {

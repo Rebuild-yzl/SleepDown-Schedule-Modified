@@ -363,7 +363,7 @@ private fun QuickScheduleSettingsSheetSession(
                 QuickScheduleSettingsGroup(backdrop, config) {
                     SettingsTextFieldRow(
                         title = "总周数",
-                        compact = LocalNativeDialogSurface.current,
+                        compact = true,
                         value = totalWeeksText,
                         onValueChange = { input ->
                             totalWeeksText = input.filter(Char::isDigit).take(2)
@@ -383,8 +383,8 @@ private fun QuickScheduleSettingsSheetSession(
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
                     )
                     SettingsTextFieldRow(
-                        title = "当前周（自动）",
-                        compact = LocalNativeDialogSurface.current,
+                        title = "当前周",
+                        compact = true,
                         value = currentWeekText,
                         onValueChange = { input ->
                             currentWeekText = input.filter(Char::isDigit).take(2)
@@ -405,11 +405,11 @@ private fun QuickScheduleSettingsSheetSession(
                                 autoCurrentWeek = true,
                                 termStartDate = value.termStartDate.ifBlank { null }
                             ), LocalDate.now()
-                        )
+                        ), compact = true
                     )
                     SettingsToggleRow(
                         title = "隐藏空周末",
-                        compact = LocalNativeDialogSurface.current,
+                        compact = true,
                         subtitle = "周六、周日无课时自动收起",
                         checked = value.hideEmptyWeekends,
                         backdrop = backdrop,
@@ -421,7 +421,7 @@ private fun QuickScheduleSettingsSheetSession(
                     )
                     SettingsToggleRow(
                         title = "显示非本周课程",
-                        compact = LocalNativeDialogSurface.current,
+                        compact = true,
                         subtitle = "以灰色显示，与本周课程重叠时隐藏",
                         checked = value.showNonCurrentWeekCourses,
                         backdrop = backdrop,
@@ -431,7 +431,8 @@ private fun QuickScheduleSettingsSheetSession(
                     )
                     SettingsPickerValueRow(
                         title = "学期开始日期",
-                        compact = LocalNativeDialogSurface.current,
+                        compact = true,
+                        valueBelowTitle = true,
                         value = value.termStartDate,
                         onClick = { beginDateSelection(value.termStartDate) }
                     )
