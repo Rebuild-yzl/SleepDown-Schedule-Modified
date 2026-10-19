@@ -92,6 +92,10 @@ Slider 的值范围与预览/提交协议独立于厂商：拖动开始打开预
 
 ## 菜单与教务面板
 
+横屏顶部导航的 Segment 保留主题 Context 与 View，设置/课表页的明暗变化通过原地 `refresh` 更新外观，再恢复无外框协议。抬手提交的导航由宿主锁定触摸、键盘和无障碍输入，不通过禁用原生 View 打断指示器弹簧；其他分段控件继续使用正常 disabled 语义。
+
+教务搜索框的入场透明度使用 ModulateAlpha，保留 View 级模糊对窗口前序内容的采样，底部渐变与控件共用入场进度。原生功能按钮文字只在值或外观确需变化时更新，避免逐帧重组重复调用 setter。
+
 加号菜单通过完整 `COUITouchListView` 和 `DefaultAdapter` 处理条目点击、取消及触觉，嵌入页面的外壳使用 `ColorOsMaterialSurface` 的 View 级材质。原宿主仍维护位置、尺寸、源按钮交接和开合动画。同一个原生背景 View 贯穿展开、稳定和收回，不在动画端点替换表面；透明度采用 ModulateAlpha，避免把模糊隔离到空离屏层。原生列表启用时不再叠加 Compose 整面板按压形变。
 
 加号菜单保留 SleepDown 的尺寸、圆角、图标、文字、间距和开合形变。`COUITouchListView` 放在原内容下面，只绘制 COUI mask 并处理触摸、逐项滑动选中、取消与触觉；行高和间隔由原布局提供，不让系统菜单测量值改写目标几何。DefaultAdapter 的偶数位置是数据行、奇数位置是分隔行，回调按数据行映射。外部滑入仍归原 Morph 手势宿主，原生条目显示相同选中反馈。
@@ -152,11 +156,11 @@ AI 外壳使用固定 Morph 容器时，原生背景 View 按容器内当前的�
 
 ## 验证入口
 
-本轮弹层、白光、滑条点按及 shortcut 对齐修复见[2026-10-13 弹层修复记录](../reports/2026-10-13-coui-popup-surface-fixes.md)。后续反馈已恢复日视图课程卡和日/周课程编辑外壳的跟手光，展开态继续按实际尺寸计算范围，课程强度保持 1.2×；不能再通过 expandedOutlineLight 隐式关闭反馈。当前补救范围见 [菜单与转场补救记录](../reports/2026-10-13-coloros-menu-rescue.md)。
+日视图课程卡和日/周课程编辑外壳保留跟手光，展开态按实际尺寸计算范围，课程强度为 1.2×；不能通过 expandedOutlineLight 隐式关闭反馈。旧文曾引用 2026-10-13 的弹层与菜单补救报告，当前分支未收录原文，不能据这些名称声称已有本轮验收。
 
-当前浮动面板、完整原生 popup、全局主题色与完整甩尾的验证见[2026-10-13 修订记录](../reports/2026-10-13-coloros-floating-native-popup.md)。完整原生 popup 路线及其专用测试现已撤回，`QuickScheduleSheetLifecycleTest` 检查浮动面板反复显示及保存语义，`HomeSwitchMotionTest` 检查密集页面追随、回弹、反向及结束状态。
+完整原生 popup 路线及其专用测试已撤回；对应 2026-10-13 浮动面板报告未收录于当前分支。`QuickScheduleSheetLifecycleTest` 检查浮动面板反复显示及保存语义，`HomeSwitchMotionTest` 检查密集页面追随、回弹、反向及结束状态。它们是按风险选择的验证入口，不表示每轮均已执行。
 
-UI 改动使用 `assembleGithubRelease` 验证编译、R8、资源和签名；`ColorOsAlertSlotsTest` 保护三操作排列、取消/删除回调映射及空表单动作。`ColorOsDockCompositionTest` 检查背景依赖隔离，`ColorOsCapsuleMotionTest` 检查内容运动及更新，`CourseShortcutTest` 保护退出交接。`NativeDialogTouchGateTest` 检查窗口坐标与触摸序列，`NativeValueControlsTest` 检查预览事务及百分比映射，`ColorOsMaterialCornersTest` 检查真实圆角。桌面测试不加载系统 COUI，实机仍需检查：加号展开收回、菜单反色、滚动过程中取消按钮按压、明暗主题、原生渐变模糊、三操作弹窗及 shortcut / 多课表快照。本轮证据见[输入、控件与材质修订](../reports/2026-10-13-coloros-picker-input.md)，前轮记录见[shortcut 与渐变模糊修订](../reports/2026-10-12-coloros-shortcut-native-blur.md)。
+UI 改动使用 `assembleGithubRelease` 验证编译、R8、资源和签名。已有定向用例分别覆盖三操作排列（`ColorOsAlertSlotsTest`）、背景边界（`ColorOsDockCompositionTest`）、胶囊运动（`ColorOsCapsuleMotionTest`）、shortcut 交接（`CourseShortcutTest`）、窗口触摸（`NativeDialogTouchGateTest`）、值控件映射（`NativeValueControlsTest`）与圆角（`ColorOsMaterialCornersTest`），按实际风险选择，不机械全跑。桌面测试不加载系统 COUI，相关改动仍需实机验收。旧文引用的 2026-10-12/13 输入和 shortcut 报告当前未收录；本轮实际构建与未验收项见[2026-10-19 修订记录](../reports/2026-10-19-navigation-import-feedback.md)，后续从[当前交接](../AI_HANDOFF.md)查对应证据。
 
 ## 菜单触摸与浮动窗口转场补充（2026-10-13）
 
