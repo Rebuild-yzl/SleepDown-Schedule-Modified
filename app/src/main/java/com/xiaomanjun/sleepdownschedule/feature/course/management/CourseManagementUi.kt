@@ -1010,6 +1010,7 @@ private fun CourseArrangementEditorCard(
     val effective = projectCourseArrangement(captureOriginalPeriodTimes(course, periods), config, periods)
     val matchingCustomClock = course.hasCustomTime() && course.customPeriodTimes.isNullOrBlank() &&
         !effective.hasCustomTime() && !effective.isHiddenByPeriodAlignment()
+    val displayedPeriodIndices = effective.periods.ifEmpty { course.periods }
     val hidden = effective.arrangementProjection?.hiddenPeriods.orEmpty()
     CourseManagementSettingsSection(title = "上课安排 ${index + 1}") {
         if (hidden.isNotEmpty()) {
@@ -1042,7 +1043,7 @@ private fun CourseArrangementEditorCard(
         CourseManagementArrowRow(
             title = "上课节次",
             value = if (effective.hasCustomTime()) courseTimeLabel(effective, periods)
-            else "第${effective.periods.minOrNull() ?: 1}-${effective.periods.maxOrNull() ?: 1}节",
+            else "第${displayedPeriodIndices.minOrNull() ?: 1}-${displayedPeriodIndices.maxOrNull() ?: 1}节",
             onClick = {
                 val values = (periods.map(PeriodEntity::periodIndex) + course.periods).distinct().sorted().ifEmpty { listOf(1) }
                 val displayedPeriods = if (matchingCustomClock) effective.periods else course.periods
