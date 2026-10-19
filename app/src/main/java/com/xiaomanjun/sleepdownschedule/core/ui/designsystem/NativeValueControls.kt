@@ -25,7 +25,7 @@ internal data class NativeSegmentRequest(
     val modifier: Modifier, val dark: Boolean,
     val height: Dp = 42.dp,
     val enabled: Boolean = true,
-    // Composite navigation owns its shell; this renderer then draws only tabs/indicator.
+    // Composite navigation owns its shell, light and deformation; this draws tabs/indicator.
     val containerSurfaceEnabled: Boolean = true,
     // Navigation must not disable the native rail by switching pages halfway through a drag.
     val commitOnRelease: Boolean = false

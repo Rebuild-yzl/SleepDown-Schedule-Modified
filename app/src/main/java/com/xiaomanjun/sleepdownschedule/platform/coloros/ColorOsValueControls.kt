@@ -215,22 +215,26 @@ internal fun ColorOsSegments(request: NativeSegmentRequest): Boolean {
                 .invoke(view, request.labels.toTypedArray() as Any)
             type.getMethod("setMaterialEffectEnabled", Boolean::class.javaPrimitiveType).invoke(view, true)
             if (!request.containerSurfaceEnabled) {
-                // COUI's canvas mode keeps the native indicator and its spring/light, while
-                // removing the View-wide blur/stroke that would frame the inset tab rail.
+                // The common outer surface owns touch deformation and light. This inset
+                // View only owns selection and the indicator's native spring animation.
                 type.getMethod("setIsDrawMaterialEffect", Boolean::class.javaPrimitiveType).invoke(view, true)
+                type.getMethod("setDragAnimationEnabled", Boolean::class.javaPrimitiveType).invoke(view, false)
+                type.getMethod("setSpotLightEnabled", Boolean::class.javaPrimitiveType).invoke(view, false)
                 val strokeType = source.load("com.coui.appcompat.COUIMaterialStrokeEffect\$StrokeEffectType")
                 type.getMethod("setStrokeEffectType", strokeType, Context::class.java)
                     .invoke(view, strokeType.getField("TYPE_NO_EFFECT").get(null), native.second)
                 val delegate = source.load("${type.name}\$SegmentButtonDrawDelegate")
-                val transparentBackground = arrayOf(Paint().apply { color = android.graphics.Color.TRANSPARENT })
+                // A transparent Paint still makes COUI's drawButtonBackground clip the
+                // canvas to the inset rail. A null entry skips that draw/clip altogether.
+                val noBackground = arrayOfNulls<Paint>(1)
                 type.getMethod("setSegmentButtonDrawDelegate", delegate).invoke(view,
                     source.listener(delegate.name) { name, _ ->
-                        if (name == "getCustomBackgroundPaint") transparentBackground else null
+                        if (name == "getCustomBackgroundPaint") noBackground else null
                     })
             }
             type.getMethod("setSegmentHeight", Float::class.javaPrimitiveType).invoke(view, request.height.value)
             type.getMethod("selectSegmentAt", Int::class.javaPrimitiveType).invoke(view, request.selected.coerceIn(request.labels.indices))
-            source.bindFollowLightIntensity(view)
+            if (request.containerSurfaceEnabled) source.bindFollowLightIntensity(view)
             NativeSegmentBinding(source, native.second, type, view) { latest.value }
         }
     } ?: return false

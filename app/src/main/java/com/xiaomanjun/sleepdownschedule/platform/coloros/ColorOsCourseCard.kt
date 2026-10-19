@@ -126,6 +126,7 @@ internal fun ColorOsCourseCard(request: NativeCourseCardRequest, content: @Compo
 internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, content: @Composable () -> Unit): Boolean {
     val style = when (request.role) {
         com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRole.Dialog -> ColorOsSurfaceStyle.Dialog
+        com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRole.HomeNavigation -> ColorOsSurfaceStyle.Navigation
         com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRole.HomeDock ->
             if (LocalHomeMaterialStyle.current?.weatherMaterial == true) ColorOsSurfaceStyle.NeutralDock else ColorOsSurfaceStyle.Dock
         else -> ColorOsSurfaceStyle.Content
@@ -135,7 +136,7 @@ internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, conte
     return ColorOsMaterialSurface(themedRequest, style, null, content = content)
 }
 
-internal enum class ColorOsSurfaceStyle { Content, CourseCard, Menu, NeutralMenu, Dialog, Dock, NeutralDock }
+internal enum class ColorOsSurfaceStyle { Content, CourseCard, Menu, NeutralMenu, Dialog, Dock, NeutralDock, Navigation }
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -143,7 +144,7 @@ internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, style
     touchSource: NativeMenuTouchSource?,
     menuMotion: com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuMotion? = null,
     content: @Composable () -> Unit): Boolean {
-    val native = rememberNativeContext(request.dark) ?: return false
+    val native = rememberNativeContext(request.dark, retainOnThemeChange = style == ColorOsSurfaceStyle.Navigation) ?: return false
     val source = native.first
     val context = native.second
     val density = LocalDensity.current
@@ -219,7 +220,13 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
     private val defaultLightIntensity = when (style) {
         ColorOsSurfaceStyle.CourseCard -> 1.2f
         ColorOsSurfaceStyle.Menu, ColorOsSurfaceStyle.NeutralMenu -> 1.7f
+        ColorOsSurfaceStyle.Navigation -> 0.75f
         else -> 2f
+    }
+    private val lightPreset = when {
+        isMenu -> "TYPE_TRANSLUCENT_LARGE_1"
+        style == ColorOsSurfaceStyle.Navigation -> "TYPE_CAPSULE_2"
+        else -> CourseLightPreset
     }
     // Reuse the native popup's edge drawable instead of applying the FAB stroke to menus.
     private val menuFrame = if (isMenu) source.load("com.coui.appcompat.poplist.RoundFrameLayout")
@@ -268,7 +275,7 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         foreground = light
         val type = source.load(LightType)
         light.javaClass.getMethod("setSpotLightType", Context::class.java, type)
-            .invoke(light, context, type.getField(if (isMenu) "TYPE_TRANSLUCENT_LARGE_1" else CourseLightPreset).get(null))
+            .invoke(light, context, type.getField(lightPreset).get(null))
         source.setFollowLightIntensity(light, defaultLightIntensity)
         if (style == ColorOsSurfaceStyle.CourseCard) {
             val lightEffect = light.javaClass.getDeclaredField("mEffect").apply { isAccessible = true }.get(light)
@@ -313,7 +320,13 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
             previous.followTouch != value.followTouch ||
             previous.blurRadiusScale != value.blurRadiusScale || previous.tintAlphaScale != value.tintAlphaScale
         request = value
-        if (previous?.followLightIntensityScale != value.followLightIntensityScale)
+        val lightThemeChanged = style == ColorOsSurfaceStyle.Navigation && previous?.dark != value.dark
+        if (lightThemeChanged) {
+            val type = source.load(LightType)
+            light.javaClass.getMethod("setSpotLightType", Context::class.java, type)
+                .invoke(light, context, type.getField(lightPreset).get(null))
+        }
+        if (lightThemeChanged || previous?.followLightIntensityScale != value.followLightIntensityScale)
             source.setFollowLightIntensity(light, defaultLightIntensity * value.followLightIntensityScale)
         tintDensity = density
         tintDirection = direction
