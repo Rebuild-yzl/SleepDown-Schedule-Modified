@@ -7,6 +7,7 @@
 | 当前版本、Beta / 正式版与历史实验线 | [RELEASE_MODEL.md](RELEASE_MODEL.md)、[EXP_BRANCH_AND_RELEASES.md](EXP_BRANCH_AND_RELEASES.md) |
 | 最初十个 Beta 的功能与时间证据 | [EARLY_BETA_HISTORY.md](EARLY_BETA_HISTORY.md) |
 | 每轮开发、PR、收尾与工作树整理 | [DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md) |
+| 当前 PR、Actions 通知与发布回流盘点 | [2026-10-19 仓库整理](reports/2026-10-19-repository-pr-actions-cleanup.md) |
 | 按用户任务查功能与实现入口 | [FEATURE_MAP.md](FEATURE_MAP.md) |
 | 目录、依赖与结构调整 | [PROJECT_STRUCTURE.md](architecture/PROJECT_STRUCTURE.md)、[CODE_ORGANIZATION.md](architecture/CODE_ORGANIZATION.md) |
 | 页面、弹窗、选择器与公共控件 | [SLEEPDOWN_DESIGN_SYSTEM.md](architecture/SLEEPDOWN_DESIGN_SYSTEM.md) |
