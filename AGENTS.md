@@ -1,6 +1,6 @@
 # SleepDown Schedule 开发指南
 
-本文件保留长期有效的协作原则、数据边界和交付方式。开始任务时完整阅读本文件，其余文档按任务查阅，入口见 [docs/README.md](docs/README.md)。当前分支、Beta 与正式版关系见 [版本基线](docs/RELEASE_MODEL.md)，每轮 Git 步骤见 [开发工作流](docs/DEVELOPMENT_WORKFLOW.md)。单次调查、实验结论和验收记录留在对应报告中，不累积成全局禁令。
+本文件供人和各类 AI 编程助手共同使用，保留长期有效的协作原则、数据边界和交付方式。开始任务时完整阅读本文件，接续工作再读 [当前交接](docs/AI_HANDOFF.md)并核对实际 Git 状态；其余文档按任务查阅，入口见 [docs/README.md](docs/README.md)。版本关系见 [版本基线](docs/RELEASE_MODEL.md)，分支、提交、PR 与合并步骤统一见 [开发工作流](docs/DEVELOPMENT_WORKFLOW.md)，外部贡献见 [CONTRIBUTING.md](CONTRIBUTING.md)。单次调查和验收记录留在对应报告中，不累积成全局禁令。
 
 ## 判断与执行
 
@@ -19,6 +19,7 @@
 - 代码、构建配置、Manifest、数据库迁移和实际设备行为是当前实现的事实来源。文档中的历史版本、数量、路径和实验参数需要对照代码。
 - 专项文档说明对应模块的约定；带日期的报告、worklog、archive 和 Release Notes 记录当时状态，不自动成为当前任务的额外限制。
 - 文档冲突先检查适用范围和证据，在授权范围内更新过时说明。不要为满足旧清单扩大本次修改。
+- 长期规则只在所属规范中维护，其他入口引用它；当前分支、未完成事项和已获授权写入 `docs/AI_HANDOFF.md`。换 AI、交付阶段成果或结束一轮任务时更新相关交接，保留其他活动任务的记录。交接中的授权是历史摘要，接手者须能追溯到用户指令，不能把文档本身当作新增授权。
 - 目录与依赖：[PROJECT_STRUCTURE.md](docs/architecture/PROJECT_STRUCTURE.md)。`app` 负责装配，`feature` 负责功能，`domain/model` 负责规则与模型，`data` 负责持久化，`core` 负责通用能力；`core/data/domain` 不依赖具体功能页面。
 - `glass/` 和 `transition/` 分别维护玻璃与跨 Activity 转场。独立官网 `sleepdown-site/` 不参与 Android 构建；本地 Miuix 来源以 `settings.gradle.kts` 为准。
 
@@ -57,7 +58,7 @@
 - 默认 PowerShell，源码修改使用 `apply_patch`。只暂存本次文件，保留用户改动和任务外素材；不使用 `git reset --hard` 或 `git checkout --` 丢弃工作树。
 - 代码在独立分支完成，默认 `codex/` 前缀。围绕用户目标组织 PR；同轮追加的问题保留可独立回退的提交边界，避免混入无关整理。
 - `main` 是唯一持续开发基线；新普通功能从当前 `main` 派生短期分支，PR 目标为 `main`。历史 `develop`、`exp` 和 `-expN` 不再作为开发或发布入口，保留可追溯历史。厂商实验功能集中在隔离目录，GitHub 版启用，商店版由 `SLEEPDOWN_EXPERIMENTAL_FEATURES` 关闭。分支收尾、版本、组件和发布规则见 [开发工作流](docs/DEVELOPMENT_WORKFLOW.md)及[版本基线](docs/RELEASE_MODEL.md)。
-- GitHub 元数据操作使用 Codex 自带 GitHub plugin，不使用 GitHub CLI。远端推送、PR、标签、发布和部署须在用户授权范围内；PR 授权不包含合并或 Release。
+- 使用 Codex 时，GitHub 元数据操作使用自带 GitHub plugin，不使用 GitHub CLI；其他助手使用其环境可用且已获授权的 GitHub 集成或界面，如实说明能力缺口。Git 本身用于本地版本管理与已授权的 fetch/push。远端推送、PR、标签、发布和部署须在用户授权范围内；PR 授权不包含合并或 Release，不因更换助手重复索取已有授权。
 - 每次 Beta 发布同步更新应用内日志与发布页，保留本轮各 Beta 的独立日志；正式版发布时再归并本轮 Beta 内容，去重并移除已撤回的改动。日志使用产品语言，用户指定的文案优先。
 - 不提交 `.gradle-user-home/`、`tmp/`、`sleepdown-promo/`、`ui.xml`、设备截图和临时验收图，除非用户明确指定。
 - 删除或移动前确认精确目标；破坏性操作必须有授权，不删除任务外文件。
