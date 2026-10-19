@@ -197,7 +197,6 @@ fun WeekCourseBlock(
     editingAllowed: Boolean = true,
     /** A cancelled occurrence uses neutral light; clicking still edits its original course. */
     muted: Boolean = false,
-    completed: Boolean = false,
     editWeek: Int = 1,
     allWeekCourses: List<CourseEntity> = emptyList(),
     weekdayCount: Int = 7,
@@ -222,7 +221,7 @@ fun WeekCourseBlock(
     val hasLocation = config.weekCardShowLocation && locationText.isNotBlank()
     val hasTeacher = config.weekCardShowTeacher && !course.teacher.isNullOrBlank()
     val cardTextAlign = config.weekCardTextAlign()
-    val subdued = muted || completed
+    val subdued = muted
     val resolvedCardColor = if (subdued) MutedCourseLightColor else if (courseCardUsesAssignments(config)) courseCardBaseColor(config, course) else cardColor
     val pageForeground = homeForegroundColor(config)
     val coloredText = !subdued && config.courseCardColoredTextEnabled

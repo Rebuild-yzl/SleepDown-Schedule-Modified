@@ -328,7 +328,6 @@ fun PersonalizePanel(
                 )
             }
             PersonalizeSection {
-                PersonalizeGroupTitle("课程卡片", 3, section = true)
                 PersonalizeGroupTitle("尺寸与字体", 3)
                 if (mode == HomeMode.Week) {
                     Text(

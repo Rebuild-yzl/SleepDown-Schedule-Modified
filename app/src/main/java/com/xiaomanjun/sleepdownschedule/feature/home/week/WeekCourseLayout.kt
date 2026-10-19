@@ -203,7 +203,6 @@ private fun WeekDayColumn(
     editMode: Boolean = false,
     editingAllowed: Boolean = true,
     muted: Boolean = false,
-    completedCourses: Set<Pair<Long, Int>> = emptySet(),
     editWeek: Int = 1,
     allWeekCourses: List<CourseEntity> = emptyList(),
     weekdayCount: Int = 7,
@@ -351,7 +350,6 @@ private fun WeekDayColumn(
                     },
                     editingAllowed = editingAllowed,
                     muted = muted,
-                    completed = (segment.course.id to dayIndex) in completedCourses,
                     editMode = editMode,
                     editWeek = editWeek,
                     allWeekCourses = allWeekCourses,
@@ -419,7 +417,6 @@ fun WeekCourseColumnsLayer(
     modifier: Modifier = Modifier,
     courses: List<CourseEntity>,
     referenceCourses: List<CourseEntity> = emptyList(),
-    now: java.time.LocalDateTime = java.time.LocalDateTime.now(),
     onRenderedCardCountChanged: ((Int) -> Unit)? = null,
     showSupplementaryRows: Boolean = false,
     weekdays: List<Int>,
@@ -453,12 +450,6 @@ fun WeekCourseColumnsLayer(
     onCancelWeekEditOverlay: () -> Unit = {},
     onCourseClick: (CourseEntity, Rect?) -> Unit
 ) {
-    val weekStart = scheduleWeekStartDate(config, editWeek, now.toLocalDate())
-    val completedCourses = remember(courses, periods, weekStart, now) {
-        courses.filter { com.xiaomanjun.sleepdownschedule.feature.home.day.hasDayCourseEnded(
-            it, periods, weekStart.plusDays((it.weekday - 1).toLong()), now
-        ) }.mapTo(mutableSetOf()) { it.id to it.weekday }
-    }
     val density = LocalDensity.current
     val flightRegistry = LocalCourseEditorFlightRegistry.current
     val courseCopy = LocalCourseCopy.current
@@ -688,7 +679,6 @@ fun WeekCourseColumnsLayer(
                         editMode = editMode && !adjustedDay,
                         editingAllowed = !adjustedDay,
                         muted = cancelledDay,
-                        completedCourses = completedCourses,
                         editWeek = editWeek,
                         allWeekCourses = allWeekCourses,
                         weekdayCount = weekdays.size,
@@ -746,7 +736,6 @@ fun WeekCourseColumnsLayer(
                                     editMode = editMode && !adjustedDay, editWeek = editWeek,
                                     editingAllowed = !adjustedDay,
                                     muted = cancelledDay,
-                                    completed = (course.id to day) in completedCourses,
                                     allWeekCourses = allWeekCourses, editScrollState = editScrollState,
                                     onEnterEditMode = enterDayEditMode,
                                     onDeleteSingleWeekCourse = onDeleteSingleWeekCourse,

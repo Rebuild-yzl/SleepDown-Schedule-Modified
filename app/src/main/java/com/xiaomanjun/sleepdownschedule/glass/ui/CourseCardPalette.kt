@@ -46,7 +46,7 @@ fun decodeCourseCardPalette(value: String): List<Long> = value
     .toList()
 
 fun courseCardUsesAssignments(config: ScheduleConfigEntity): Boolean =
-    config.courseCardColorMode != CourseCardColorMode.SOLID || !config.hasAnyWallpaper()
+    config.courseCardColorMode != CourseCardColorMode.SOLID
 
 fun courseCardAllowsCustomOverrides(config: ScheduleConfigEntity): Boolean =
     config.courseCardColorMode == CourseCardColorMode.COLORFUL
@@ -56,13 +56,10 @@ fun resolvedCourseCardPalette(
     wallpaperColors: List<Long>
 ): List<Long> = when (config.courseCardColorMode) {
     CourseCardColorMode.SOLID,
-    CourseCardColorMode.GRADIENT -> if (config.hasAnyWallpaper()) {
+    CourseCardColorMode.GRADIENT -> {
         listOf(
             config.cardColorArgb.takeUnless { it == MulticolorCourseCardArgb } ?: 0xFFD6E9FFL
         )
-    } else {
-        // 无壁纸纯色卡片：默认使用多彩预制色而非单一浅蓝
-        DefaultCourseCardPalette
     }
     CourseCardColorMode.COLORFUL -> decodeCourseCardPalette(config.courseCardPalette)
         .ifEmpty {
