@@ -134,6 +134,7 @@ import com.xiaomanjun.sleepdownschedule.ImportDraftSource
 import com.xiaomanjun.sleepdownschedule.QuickSheetSettingsDetailActivity
 import com.xiaomanjun.sleepdownschedule.R
 import com.xiaomanjun.sleepdownschedule.ScheduleConfigEntity
+import com.xiaomanjun.sleepdownschedule.AppState
 import com.xiaomanjun.sleepdownschedule.SettingsDetailActivity
 import com.xiaomanjun.sleepdownschedule.WeekParity
 import com.xiaomanjun.sleepdownschedule.app.config.SleepDownRemoteConfig
@@ -445,6 +446,8 @@ fun CourseScheduleAppUi(
     var quickScheduleDraft by remember { mutableStateOf<QuickScheduleDraft?>(null) }
     var quickScheduleReturnToManager by remember { mutableStateOf(false) }
     var importSubmitting by remember { mutableStateOf(false) }
+    var importSourceState by remember { mutableStateOf<AppState?>(null) }
+    val importHomeReveal = remember { Animatable(1f) }
     var importPreviewMounted by remember { mutableStateOf(false) }
     var importPreviousCourseIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var importExpectedCourseCount by remember { mutableStateOf<Int?>(null) }
@@ -456,7 +459,8 @@ fun CourseScheduleAppUi(
     var detailCaptureCoverBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var detailCaptureRecordCleanFrame by remember { mutableStateOf(false) }
     val detailCaptureMaskActive = remember { AtomicBoolean(false) }
-    val baseVisualState = previewScheduleId?.let(allSchedulesState::forSchedule) ?: state
+    // Saving may activate a new schedule before the import window has finished retracting.
+    val baseVisualState = importSourceState ?: (previewScheduleId?.let(allSchedulesState::forSchedule) ?: state)
     var personalizationDraftConfig by remember { mutableStateOf<ScheduleConfigEntity?>(null) }
     var personalizationPendingCommitConfig by remember { mutableStateOf<ScheduleConfigEntity?>(null) }
     var personalizationSliderPreviewKey by remember { mutableStateOf<String?>(null) }
@@ -923,17 +927,16 @@ fun CourseScheduleAppUi(
     }
     LaunchedEffect(aiFinalImportRequest) {
         aiFinalImportRequest?.let { request ->
+            importSourceState = visualState
             importPreviousCourseIds = state.courses.map { it.id }.toSet()
             importExpectedCourseCount = request.draft.courses.size
             viewModel.importDraft(request.draft, request.createNewSchedule, onFailure = {
+                importSourceState = null
                 importExpectedCourseCount = null
                 importPreviousCourseIds = emptySet()
                 homeDialog = HomeDialog.ConfirmImport(request.draft, returnDialog = null,
                     errorMessage = it.message ?: "课表保存失败，请重试")
             }) { scheduleId ->
-                dismissHomeDialog()
-                screen = Screen.Home
-                homeMode = HomeMode.Week
                 pendingImportedSetupId = scheduleId
             }
             // Claim this one-shot request now so Activity recreation cannot import it twice.
@@ -1828,16 +1831,32 @@ fun CourseScheduleAppUi(
         )
     }
 
+    fun closeHomeMenuDestination() {
+        // The destination owns the return to the real source button.
+        destinationOwnsButtonReturn = true
+        destinationCollapseHandedOff = false
+        homeAnchoredOverlayRequest = null
+        homeMenuDestinationRequest = null
+    }
+
     LaunchedEffect(pendingImportedSetupId) {
         val scheduleId = pendingImportedSetupId ?: return@LaunchedEffect
         // All successful imports (new/overwrite/education Activity) leave the old entry first.
         // The assistant can otherwise keep an overwrite's home data frozen indefinitely.
         dismissHomeDialog()
+        closeHomeMenuDestination()
+        // Keep the source timetable unchanged until both the entry and preview really unmount.
+        snapshotFlow {
+            !importPreviewMounted && renderedHomeDialog == null &&
+                homeMenuDestinationMotionState.phase == HomeAnchoredOverlayPhase.Idle
+        }.first { it }
         homeAssistant.reset()
         previewScheduleId = null
         if (pickerState.overlayVisible) pickerState.reset()
         screen = Screen.Home
         homeMode = HomeMode.Week
+        importHomeReveal.snapTo(0f)
+        importSourceState = null
         snapshotFlow {
             val latest = latestAllSchedulesState.value
             val rendered = latestVisualState.value
@@ -1849,6 +1868,7 @@ fun CourseScheduleAppUi(
                     rendered.courses.none { it.id in importPreviousCourseIds }))
         }.first { it }
         withFrameNanos { }
+        importHomeReveal.animateTo(1f, tween(300, easing = CubicBezierEasing(0.22f, 0.72f, 0.20f, 1f)))
         // Open setup only after the root preview has really gone and live data is ready.
         importSubmitting = false
         importExpectedCourseCount = null
@@ -2914,7 +2934,11 @@ fun CourseScheduleAppUi(
                         message?.let { Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
                     }
                     ContentEntranceContainer(phase = startupPhase, modifier = Modifier.weight(1f)) {
-                        HomeSwitchPane(rootPageMotion, secondary = false, modifier = Modifier.fillMaxSize(),
+                        HomeSwitchPane(rootPageMotion, secondary = false, modifier = Modifier.fillMaxSize()
+                            .graphicsLayer {
+                                alpha = importHomeReveal.value
+                                compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha
+                            },
                             pageClip = HomeSwitchClip.Page, retainContent = true) {
                             rootPageStateHolder.SaveableStateProvider("home") {
                                  if (visualState.loaded) HomeScreen(
@@ -3635,15 +3659,6 @@ fun CourseScheduleAppUi(
         sourceButtonFollowThrough = null
     }
 
-    fun closeHomeMenuDestination() {
-        // The destination owns the legacy liquid return to the real button. Dispose the hidden
-        // first-level menu without replaying its independent Closing or button follow-through.
-        destinationOwnsButtonReturn = true
-        destinationCollapseHandedOff = false
-        homeAnchoredOverlayRequest = null
-        homeMenuDestinationRequest = null
-    }
-
     HomeAnchoredMorphOverlayHost(
         request = if (screen is Screen.Home) homeAnchoredOverlayRequest else null,
         motionState = homeAnchoredMorphState,
@@ -3883,7 +3898,7 @@ fun CourseScheduleAppUi(
         onManualImportParsed = { draft ->
             closeHomeMenuDestination()
             appScope.launch {
-                delay(HomeMenuDestinationCloseDurationMillis.toLong())
+                snapshotFlow { homeMenuDestinationMotionState.phase }.first { it == HomeAnchoredOverlayPhase.Idle }
                 homeDialog = HomeDialog.ConfirmImport(draft, returnDialog = null)
             }
         },
@@ -4132,11 +4147,13 @@ fun CourseScheduleAppUi(
                 onConfirm = { createNew ->
                     if (!importSubmitting) {
                         importSubmitting = true
+                        importSourceState = visualState
                         importPreviousCourseIds = state.courses.map { it.id }.toSet()
                         importExpectedCourseCount = dialog.draft.courses.size
                         homeDialog = dialog.copy(errorMessage = null)
                         viewModel.importDraft(dialog.draft, createNew, onFailure = {
                             importSubmitting = false
+                            importSourceState = null
                             importExpectedCourseCount = null
                             importPreviousCourseIds = emptySet()
                             homeDialog = dialog.copy(errorMessage = it.message ?: "保存失败，请重试")
@@ -4424,7 +4441,14 @@ fun CourseScheduleAppUi(
                         initialText = assistantImportText,
                         onInitialTextConsumed = { assistantImportText = null },
                         onCancel = { dismissHomeDialog() },
-                        onParsed = { homeDialog = HomeDialog.ConfirmImport(it, returnDialog = null) }
+                        onParsed = { draft ->
+                            val closing = renderedHomeDialog
+                            dismissHomeDialog()
+                            appScope.launch {
+                                snapshotFlow { renderedHomeDialog !== closing }.first { it }
+                                if (homeDialog == null) homeDialog = HomeDialog.ConfirmImport(draft, returnDialog = null)
+                            }
+                        }
                     )
                     HomeDialog.EduImport -> Unit
                     is HomeDialog.EditWallpaper -> Unit
