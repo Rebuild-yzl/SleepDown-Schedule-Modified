@@ -871,6 +871,10 @@ private fun EduSchoolSearchDock(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .height(searchDockGradientHeight)
+                .graphicsLayer {
+                    compositingStrategy = CompositingStrategy.ModulateAlpha
+                    alpha = entranceProgress.value.coerceIn(0f, 1f)
+                }
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(

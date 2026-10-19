@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -37,7 +38,7 @@ internal fun ColorOsSchoolSearchField(
     bottomOffset: Dp, entranceProgress: Float,
     largeScreen: Boolean, modifier: Modifier
 ): Boolean {
-    val native = rememberNativeContext(dark) ?: return false
+    val native = rememberNativeContext(dark, retainOnThemeChange = true) ?: return false
     val source = native.first
     val context = native.second
     val callback = rememberUpdatedState(onValueChange)
@@ -100,11 +101,14 @@ internal fun ColorOsSchoolSearchField(
         AndroidView(factory = { search.view }, modifier = Modifier.align(Alignment.BottomCenter)
             .width(width).height(height)
             .offset(y = -bottomOffset + 52.dp * (1f - entranceProgress.coerceIn(0f, 1f)))
-            .graphicsLayer { alpha = entranceProgress.coerceIn(0f, 1f) }, update = {
+            .graphicsLayer {
+                // View-level COUI blur must sample the live underlay throughout the reveal.
+                compositingStrategy = CompositingStrategy.ModulateAlpha
+                alpha = entranceProgress.coerceIn(0f, 1f)
+            }, update = {
                 if (source.updateTheme(context, dark)) it.javaClass.getMethod("refresh").invoke(it)
                 search.setQuery(value)
-                it.javaClass.getMethod("setFunctionalButtonText", String::class.java)
-                    .invoke(it, if (value.isBlank()) "取消" else "搜索")
+                search.setActionLabel(if (value.isBlank()) "取消" else "搜索")
             })
     }
     DisposableEffect(search) { onDispose { search.dispose() } }
@@ -112,6 +116,12 @@ internal fun ColorOsSchoolSearchField(
 }
 
 private class NativeSearch(val view: ViewGroup, val edit: EditText, val listener: Any, val watcher: TextWatcher) {
+    private var actionLabel: String? = null
+    fun setActionLabel(label: String) {
+        if (actionLabel == label) return
+        view.javaClass.getMethod("setFunctionalButtonText", String::class.java).invoke(view, label)
+        actionLabel = label
+    }
     fun open() {
         val type = view.javaClass
         if (type.getMethod("getSearchState").invoke(view) == type.getField("STATE_EDIT").getInt(null)) {
