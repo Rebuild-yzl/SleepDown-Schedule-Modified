@@ -2,11 +2,14 @@ package com.xiaomanjun.sleepdownschedule.feature.agent
 
 import com.xiaomanjun.sleepdownschedule.domain.schedule.captureOriginalPeriodTimes
 import com.xiaomanjun.sleepdownschedule.domain.schedule.parityMatches
+import com.xiaomanjun.sleepdownschedule.domain.schedule.validateResolvedPeriodTimes
 import com.xiaomanjun.sleepdownschedule.feature.importing.ScheduleImportParser
+import com.xiaomanjun.sleepdownschedule.feature.importing.ScheduleConfigPayload
 import com.xiaomanjun.sleepdownschedule.feature.importing.draftToPayload
 import com.xiaomanjun.sleepdownschedule.feature.importing.normalizeAiImportTimes
 import com.xiaomanjun.sleepdownschedule.model.CourseEntity
 import com.xiaomanjun.sleepdownschedule.model.ImportDraft
+import com.xiaomanjun.sleepdownschedule.model.PeriodSchemeTimeEntity
 import com.xiaomanjun.sleepdownschedule.model.WeekParity
 import kotlinx.serialization.json.*
 import java.time.LocalDate
@@ -108,6 +111,10 @@ class AgentImportWorkspace internal constructor(
             document = patchElement(document, parts, op, operation["value"] ?: JsonNull)
         }
         val root = document.jsonObject
+        val scheduleConfig = Json.decodeFromJsonElement<ScheduleConfigPayload>(root.getValue("scheduleConfig"))
+        validateResolvedPeriodTimes(scheduleConfig.periods.map {
+            PeriodSchemeTimeEntity(0, it.index, it.startTime, it.endTime)
+        })?.let { throw IllegalArgumentException(it) }
         val previousById = draft.courses.associateBy { it.id }
         val rawCourses = root.getValue("courses").jsonArray.map { it.jsonObject }
         val sourceCourses = rawCourses.map { raw -> raw["_courseId"]?.jsonPrimitive?.longOrNull?.let(previousById::get) }
