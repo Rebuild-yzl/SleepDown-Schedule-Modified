@@ -204,7 +204,7 @@ private class NativeSwitchBinding(source: ColorOsNativeUi.Source, context: Conte
 @Composable
 internal fun ColorOsSegments(request: NativeSegmentRequest): Boolean {
     if (request.labels.isEmpty()) return false
-    val native = rememberNativeContext(request.dark) ?: return false
+    val native = rememberNativeContext(request.dark, retainOnThemeChange = true) ?: return false
     val latest = rememberUpdatedState(request)
     val binding = remember(native, request.labels, request.height, request.containerSurfaceEnabled) {
         ColorOsNativeUi.prepare("create native segmented control") {
@@ -231,7 +231,7 @@ internal fun ColorOsSegments(request: NativeSegmentRequest): Boolean {
             type.getMethod("setSegmentHeight", Float::class.javaPrimitiveType).invoke(view, request.height.value)
             type.getMethod("selectSegmentAt", Int::class.javaPrimitiveType).invoke(view, request.selected.coerceIn(request.labels.indices))
             source.bindFollowLightIntensity(view)
-            NativeSegmentBinding(source, type, view) { latest.value }
+            NativeSegmentBinding(source, native.second, type, view) { latest.value }
         }
     } ?: return false
     key(binding.host) { AndroidView(factory = { binding.host }, modifier = request.modifier.height(request.height),
@@ -242,6 +242,7 @@ internal fun ColorOsSegments(request: NativeSegmentRequest): Boolean {
 
 private class NativeSegmentBinding(
     source: ColorOsNativeUi.Source,
+    private val context: Context,
     type: Class<*>,
     val view: View,
     private val request: () -> NativeSegmentRequest
@@ -250,6 +251,10 @@ private class NativeSegmentBinding(
     private val select = type.getMethod("selectSegmentAt", Int::class.javaPrimitiveType)
     private val listenerType = source.load("${type.name}\$OnSegmentSelectedListener")
     private val setListener = type.getMethod("setOnSegmentSelectedListener", listenerType)
+    private val updateTheme = { dark: Boolean -> source.updateTheme(context, dark) }
+    private val refresh = type.getMethod("refresh")
+    private val strokeType = source.load("com.coui.appcompat.COUIMaterialStrokeEffect\$StrokeEffectType")
+    private val setStroke = type.getMethod("setStrokeEffectType", strokeType, Context::class.java)
     private var touching = false
     private var pending: Int? = null
     private val listener = source.listener(listenerType.name) { name, args ->
@@ -287,6 +292,9 @@ private class NativeSegmentBinding(
             }
             return handled
         }
+
+        override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean =
+            if (!request().enabled) true else super.dispatchKeyEvent(event)
     }
 
     init {
@@ -297,12 +305,24 @@ private class NativeSegmentBinding(
 
     fun synchronize() {
         val current = request()
+        if (updateTheme(current.dark)) {
+            refresh.invoke(view)
+            if (!current.containerSurfaceEnabled)
+                setStroke.invoke(view, strokeType.getField("TYPE_NO_EFFECT").get(null), context)
+        }
         if (!current.enabled && touching) {
             touching = false
             pending = null
             view.parent?.requestDisallowInterceptTouchEvent(false)
         }
-        view.isEnabled = current.enabled
+        if (current.commitOnRelease) {
+            // Navigation locks must not call COUI.setEnabled(false): it cancels the indicator
+            // spring immediately after UP. The host gates touch, keyboard and accessibility.
+            host.importantForAccessibility = if (current.enabled) View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                else View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            host.descendantFocusability = if (current.enabled) ViewGroup.FOCUS_AFTER_DESCENDANTS
+                else ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        } else if (view.isEnabled != current.enabled) view.isEnabled = current.enabled
         // Compose still has the previously committed page while the native indicator moves.
         if (touching) return
         val selected = current.selected.coerceIn(current.labels.indices)
