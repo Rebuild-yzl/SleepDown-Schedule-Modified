@@ -94,6 +94,8 @@ Slider 的值范围与预览/提交协议独立于厂商：拖动开始打开预
 
 横屏顶部导航的 Segment 保留主题 Context 与 View，设置/课表页的明暗变化通过原地 `refresh` 更新外观，再恢复无外框协议。抬手提交的导航由宿主锁定触摸、键盘和无障碍输入，不通过禁用原生 View 打断指示器弹簧；其他分段控件继续使用正常 disabled 语义。
 
+折叠后的顶部导航由 `HomeNavigation` 公共材质宿主包住整个胶囊，外壳、标签及左侧按钮共用原生 deformation / rubber collector；跟手光使用 `TYPE_CAPSULE_2` 和原生强度的 0.75 倍，绘制在标签与选中条下面。内轨关闭自身的容器形变和跟手光，保留滑选、触觉和指示器弹簧。背景 delegate 返回含 null 的非空 Paint 数组，跳过内轨背景绘制；透明 Paint 仍会触发 COUI 的 `clipPath`，不能用于避免这层裁剪。外壳只在完整胶囊轮廓裁剪，并在明暗变化时保留 View 与触摸动画绑定。
+
 教务搜索框的入场透明度使用 ModulateAlpha，保留 View 级模糊对窗口前序内容的采样，底部渐变与控件共用入场进度。原生功能按钮文字只在值或外观确需变化时更新，避免逐帧重组重复调用 setter。
 
 加号菜单通过完整 `COUITouchListView` 和 `DefaultAdapter` 处理条目点击、取消及触觉，嵌入页面的外壳使用 `ColorOsMaterialSurface` 的 View 级材质。原宿主仍维护位置、尺寸、源按钮交接和开合动画。同一个原生背景 View 贯穿展开、稳定和收回，不在动画端点替换表面；透明度采用 ModulateAlpha，避免把模糊隔离到空离屏层。原生列表启用时不再叠加 Compose 整面板按压形变。
