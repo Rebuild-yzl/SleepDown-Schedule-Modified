@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -50,6 +51,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -479,10 +481,20 @@ internal fun SleepDownFloatingSheet(
             Column(contentModifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     startAction()
-                    Text(title, Modifier.weight(1f).padding(horizontal = 8.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp, lineHeight = 24.sp),
-                        color = foreground)
+                    BoxWithConstraints(Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                        val density = LocalDensity.current
+                        val measurer = rememberTextMeasurer()
+                        val titleStyle = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp, lineHeight = 24.sp)
+                        val naturalWidth = remember(title, titleStyle, measurer) {
+                            measurer.measure(title, style = titleStyle, softWrap = false, maxLines = 1).size.width
+                        }
+                        val widthPx = with(density) { maxWidth.toPx() }
+                        val fit = if (naturalWidth > 0) ((widthPx - 1f) / naturalWidth).coerceIn(0.01f, 1f) else 1f
+                        Text(title, Modifier.fillMaxWidth(),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            style = titleStyle, fontSize = 20.sp * fit,
+                            maxLines = 1, softWrap = false, color = foreground)
+                    }
                     endAction()
                 }
                 Box(Modifier.weight(1f, fill = false)) { content() }
