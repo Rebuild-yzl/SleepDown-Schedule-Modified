@@ -4,7 +4,7 @@
 
 ## 修改依据与实现
 
-- 系统 `COUISegmentButtonLayout.dispatchTouchEvent` 执行原生选中条拖动逻辑后，将事件接收交给 View；程序化创建的容器没有启用 clickable，不能稳定接住完整手势。`NativeSegmentBinding` 显式启用 clickable，并在手势期间请求父级不拦截。
+- 首轮从部分 smali 判断程序化创建的容器未启用 clickable，增加该标志并用容器 OnTouchListener 跟踪手势。用户随后确认仍不能拖动；完整组件审计发现内部 TextView 子项本身可点击，容器监听并不能接收子项处理的事件，该判断不足以解释或解决问题。修正依据与后续产物见[COUI HD 与分发审计](2026-10-19-coui-hd-dispatch-audit.md)。本报告 APK 为该失败尝试的历史记录，不作为滑选已修复的证据。
 - 原生 MOVE 会实时改变选中项，旧回调立即导航，而 `HomeSidebar.navigationEnabled` 在页面切换动画时关闭，导致后续拖动被禁用；Compose 仍持有旧页码时还会将选中条拉回。横屏导航新增 `commitOnRelease=true`：保留原生拖动、弹簧、跟手光和触觉，抬手后提交最终页码；取消则还原，禁用/销毁释放手势。其他分段控件默认仍即时提交，键盘等无触摸选择保持即时回调。外部选中同步暂时解绑 listener，避免程序回写被当成用户选择。
 - 原按钮宽 36dp，触控扩展会进入第一项；液态玻璃选中条按压后也会越过其布局边界。切换按钮改为独立的后绘制层、48dp 点击区域，并在 native/Kyant 两条路线中预留相同的按钮空间与间距。Kyant 原 leadingContent 只保留空白，按钮不再嵌入选中条所在的输入树。
 - `PersonalizePanel` 的“首页壁纸”和大分区标题统一改为 `titleMedium`，与小分组同字号，一级保留 SemiBold、二级保留 Medium；沿用上一轮已收紧的间距。
