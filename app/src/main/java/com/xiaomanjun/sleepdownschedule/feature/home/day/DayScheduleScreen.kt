@@ -134,7 +134,8 @@ internal fun DayScheduleScreen(
     onAgentDismissed: () -> Unit,
     onCourseClick: (CourseEntity, Int, Rect?) -> Unit,
     onAddCourse: (CourseEntity) -> Unit,
-    onAgentAction: AgentActionHandler
+    onAgentAction: AgentActionHandler,
+    onAgentImportFile: ((android.net.Uri) -> Unit)? = null
 ) {
     val centerPage = 10_000
     val anchorDate = remember { displayDate }
@@ -315,7 +316,8 @@ internal fun DayScheduleScreen(
                         backgroundMotionState = dayAgentBackgroundMotionState,
                         onPrepareOpen = onAgentPrepareOpen,
                         onAgentDismissed = onAgentDismissed,
-                        onAgentAction = onAgentAction
+                        onAgentAction = onAgentAction,
+                        onImportFile = onAgentImportFile
                     )
                     }
                 }

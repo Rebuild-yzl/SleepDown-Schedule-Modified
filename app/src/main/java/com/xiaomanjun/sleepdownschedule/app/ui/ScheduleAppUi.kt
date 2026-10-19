@@ -2992,6 +2992,10 @@ fun CourseScheduleAppUi(
                                     onCourseClick = homeCourseClick,
                                     onAddCourse = viewModel::addCourse,
                                     onAgentAction = handleHomeAgentAction,
+                                    onAgentImportFile = { uri ->
+                                        assistantImportUri = uri
+                                        homeDialog = HomeDialog.ImportSchedule
+                                    },
                                     onUpdateCourseSingleWeek = viewModel::updateCourseSingleWeek,
                                     conflictFocusCourseId = pendingConflictCourseId
                                         ?.takeIf { homeDisplayWeek in pendingConflictWeeks },

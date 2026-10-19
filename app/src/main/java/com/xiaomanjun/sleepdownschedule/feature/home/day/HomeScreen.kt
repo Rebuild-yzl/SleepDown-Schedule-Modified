@@ -87,6 +87,7 @@ internal fun HomeScreen(
     onCourseClick: (CourseEntity, Int, Rect?) -> Unit,
     onAddCourse: (CourseEntity) -> Unit = {},
     onAgentAction: AgentActionHandler = { _, _ -> },
+    onAgentImportFile: ((android.net.Uri) -> Unit)? = null,
     onUpdateCourseSingleWeek: (CourseEntity, CourseEntity, Int) -> Unit = { _, _, _ -> },
     conflictFocusCourseId: Long? = null,
     conflictFocusCourseKey: String? = null,
@@ -201,7 +202,8 @@ internal fun HomeScreen(
                         onAgentDismissed = onAgentDismissed,
                         onCourseClick = onCourseClick,
                         onAddCourse = onAddCourse,
-                        onAgentAction = onAgentAction
+                        onAgentAction = onAgentAction,
+                        onAgentImportFile = onAgentImportFile
                     )
                 }
                 HomeMode.Week -> key(state.config.id) {
