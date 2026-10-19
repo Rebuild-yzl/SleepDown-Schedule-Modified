@@ -910,7 +910,7 @@ class ScheduleRepository(private val database: AppDatabase) {
         return database.withTransaction {
             val globalConfig = configDao.getConfig() ?: defaultConfig(activeScheduleId())
             val id = profileDao.upsertProfile(ScheduleProfileEntity(name = name, isActive = false)).toInt()
-            val config = defaultConfig(id).copy(autoCurrentWeek = true).withGlobalSettingsFrom(globalConfig)
+            val config = normalizeConfigForSchedule(defaultConfig(id).withGlobalSettingsFrom(globalConfig), id)
             configDao.upsertConfig(config)
             if (publicSchemeId != null) {
                 val selected = periodSchemeDao.getScheme(publicSchemeId) ?: error("作息方案不存在")
@@ -1026,7 +1026,8 @@ class ScheduleRepository(private val database: AppDatabase) {
         if (scheme != null) {
             val times = periodSchemeDao.getTimes(scheme.id)
             require(times.isNotEmpty()) { "公共作息时间缺失，请从备份恢复" }
-            val projected = com.xiaomanjun.sleepdownschedule.domain.schedule.schemeConfig(requireNotNull(config), scheme)
+            val projected = normalizeConfigForSchedule(
+                com.xiaomanjun.sleepdownschedule.domain.schedule.schemeConfig(requireNotNull(config), scheme), scheduleId)
             if (projected != config) configDao.upsertConfig(projected)
             val periods = times.map { PeriodEntity(it.periodIndex, it.startTime, it.endTime, scheduleId) }
             if (configDao.getPeriods(scheduleId) != periods) projectPeriods(scheduleId, times)
@@ -1050,6 +1051,9 @@ class ScheduleRepository(private val database: AppDatabase) {
     private fun normalizeConfigForSchedule(config: ScheduleConfigEntity, scheduleId: Int): ScheduleConfigEntity {
         return config.copy(
             id = scheduleId,
+            // Keep the legacy field readable in Room/backups, but all live schedules use dates.
+            // Missing opening dates retain their stored week until the user supplies the date.
+            autoCurrentWeek = true,
             scheduleAdjustmentsJson = com.xiaomanjun.sleepdownschedule.domain.schedule.encodeScheduleAdjustments(
                 com.xiaomanjun.sleepdownschedule.domain.schedule.decodeScheduleAdjustments(config.scheduleAdjustmentsJson)
             ),

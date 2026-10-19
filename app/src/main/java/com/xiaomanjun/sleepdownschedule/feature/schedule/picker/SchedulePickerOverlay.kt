@@ -100,6 +100,7 @@ import com.xiaomanjun.sleepdownschedule.core.ui.interaction.deviceScreenCornerRa
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsGroup
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsPickerValueRow
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsTextFieldRow
+import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsValueRow
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsToggleRow
 import com.xiaomanjun.sleepdownschedule.feature.schedule.manager.*
 import com.xiaomanjun.sleepdownschedule.feature.settings.*
@@ -296,7 +297,7 @@ private fun QuickScheduleSettingsSheetSession(
         val total = totalWeeksText.toIntOrNull()?.coerceIn(1, 60) ?: raw.totalWeeks
         val manual = currentWeekText.toIntOrNull()?.coerceIn(1, total) ?: raw.currentWeek.coerceIn(1, total)
         val current = resolveScheduleCurrentWeek(config, total, manual, raw.termStartDate, raw.autoCurrentWeek)
-        val value = raw.copy(totalWeeks = total, currentWeek = current)
+        val value = raw.copy(totalWeeks = total, currentWeek = current, autoCurrentWeek = true)
         saving = true
         onSave(value) {
             saving = false
@@ -382,7 +383,7 @@ private fun QuickScheduleSettingsSheetSession(
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
                     )
                     SettingsTextFieldRow(
-                        title = "当前周",
+                        title = "当前周（自动）",
                         compact = LocalNativeDialogSurface.current,
                         value = currentWeekText,
                         onValueChange = { input ->
@@ -394,34 +395,17 @@ private fun QuickScheduleSettingsSheetSession(
                             }
                         },
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
-                        enabled = !value.autoCurrentWeek
+                        enabled = false
                     )
-                    SettingsToggleRow(
-                        title = "自动计算当前周",
-                        compact = LocalNativeDialogSurface.current,
-                        subtitle = "学期状态：${scheduleTermStatusDescription(
+                    SettingsValueRow(
+                        "学期状态", scheduleTermStatusDescription(
                             config.copy(
                                 totalWeeks = value.totalWeeks,
                                 currentWeek = value.currentWeek,
-                                autoCurrentWeek = value.autoCurrentWeek,
+                                autoCurrentWeek = true,
                                 termStartDate = value.termStartDate.ifBlank { null }
                             ), LocalDate.now()
-                        )}",
-                        checked = value.autoCurrentWeek,
-                        backdrop = backdrop,
-                        onCheckedChange = { enabled ->
-                            latestDraft()?.let { latest ->
-                                val nextWeek = resolveScheduleCurrentWeek(
-                                    config,
-                                    latest.totalWeeks,
-                                    latest.currentWeek,
-                                    latest.termStartDate,
-                                    enabled || latest.autoCurrentWeek
-                                )
-                                currentWeekText = nextWeek.toString()
-                                commitDraft(latest.copy(autoCurrentWeek = enabled, currentWeek = nextWeek))
-                            }
-                        }
+                        )
                     )
                     SettingsToggleRow(
                         title = "隐藏空周末",

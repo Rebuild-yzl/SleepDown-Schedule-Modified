@@ -102,7 +102,7 @@ fun ScheduleConfigScreen(
     var notificationMode by remember { mutableStateOf(state.config.notificationMode) }
     var liveUpdateChipTextMode by remember { mutableStateOf(state.config.liveUpdateChipTextMode) }
     var liveUpdateActionsEnabled by remember { mutableStateOf(state.config.liveUpdateActionsEnabled) }
-    var autoCurrentWeek by remember { mutableStateOf(state.config.autoCurrentWeek) }
+    val autoCurrentWeek = true
     var hideEmptyWeekends by remember { mutableStateOf(state.config.hideEmptyWeekends) }
     var showNonCurrentWeekCourses by remember { mutableStateOf(state.config.showNonCurrentWeekCourses) }
     var scheduleAdjustmentsJson by remember { mutableStateOf(state.config.scheduleAdjustmentsJson) }
@@ -152,7 +152,6 @@ fun ScheduleConfigScreen(
         notificationMode = source.config.notificationMode
         liveUpdateChipTextMode = source.config.liveUpdateChipTextMode
         liveUpdateActionsEnabled = source.config.liveUpdateActionsEnabled
-        autoCurrentWeek = source.config.autoCurrentWeek
         hideEmptyWeekends = source.config.hideEmptyWeekends
         showNonCurrentWeekCourses = source.config.showNonCurrentWeekCourses
         scheduleAdjustmentsJson = source.config.scheduleAdjustmentsJson
@@ -296,15 +295,11 @@ fun ScheduleConfigScreen(
         val breakDuration = breakDurationMinutes.toIntOrNull()
         try {
             require(total != null && total in 1..60) { "总周数必须在 1 到 60 之间" }
-            require(current != null && current in 1..total) { "当前周必须在 1 到总周数之间" }
+            require(current != null && current >= 1) { "当前周数据无效，请重新打开课表设置" }
             require(lead != null && lead in 0..180) { "提醒分钟必须在 0 到 180 之间" }
             require(classDuration != null && classDuration in 1..300) { "单节课分钟数必须在 1 到 300 之间" }
             require(breakDuration != null && breakDuration in 0..300) { "课间分钟数必须在 0 到 300 之间" }
-            if (autoCurrentWeek) {
-                require(termStartDate.isNotBlank()) { "开启自动计算当前周时必须填写学期开始日期" }
-                val date = parseScheduleDate(termStartDate)
-                require(date != null) { "学期开始日期必须是 yyyy-MM-dd 格式" }
-            } else if (termStartDate.isNotBlank()) {
+            if (termStartDate.isNotBlank()) {
                 require(parseScheduleDate(termStartDate) != null) { "学期开始日期必须是 yyyy-MM-dd 格式" }
             }
             val nextPeriods = periods
@@ -331,7 +326,7 @@ fun ScheduleConfigScreen(
             // Keep the stored manual week as a fallback. The visible automatic week
             // is derived from the date at render time and must not turn an upcoming
             // term into a persisted "week 1" merely because settings were saved.
-            val storedCurrentWeek = current
+            val storedCurrentWeek = current.coerceAtMost(total)
             error = null
             val nextConfig = state.config.copy(
                 totalWeeks = total,
@@ -594,7 +589,6 @@ fun ScheduleConfigScreen(
         liveUpdateActionsEnabled = liveUpdateActionsEnabled,
         onLiveUpdateActionsEnabledChange = { liveUpdateActionsEnabled = it },
         autoCurrentWeek = autoCurrentWeek,
-        onAutoCurrentWeekChange = { autoCurrentWeek = it },
         hideEmptyWeekends = hideEmptyWeekends,
         showNonCurrentWeekCourses = showNonCurrentWeekCourses,
         onHideEmptyWeekendsChange = { hideEmptyWeekends = it },

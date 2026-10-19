@@ -27,9 +27,7 @@ object AgentSettingRegistry {
     val definitions = listOf(
         AgentSettingDefinition("SCHEDULE_NAME", "当前课表名称", "1到30个字符", "SCHEDULE_MANAGER"),
         AgentSettingDefinition("TOTAL_WEEKS", "学期总周数", "1..60整数", "SCHEDULE"),
-        AgentSettingDefinition("CURRENT_WEEK", "当前周", "1..总周数整数", "SCHEDULE"),
         AgentSettingDefinition("TERM_START_DATE", "学期开始日期", "yyyy-MM-dd", "SCHEDULE"),
-        AgentSettingDefinition("AUTO_CURRENT_WEEK", "按开学日期自动计算当前周", "true/false", "SCHEDULE"),
         AgentSettingDefinition("HIDE_EMPTY_WEEKENDS", "隐藏没有课程的周末", "true/false", "SCHEDULE"),
         AgentSettingDefinition("CLASS_DURATION_MINUTES", "单节课时长", "1..300整数分钟", "SCHEDULE"),
         AgentSettingDefinition("BREAK_DURATION_MINUTES", "默认课间时长", "0..300整数分钟", "SCHEDULE"),
@@ -143,7 +141,7 @@ object AgentSettingRegistry {
     ): Map<String, String> = linkedMapOf(
         "SCHEDULE_NAME" to scheduleName.orEmpty(),
         "TOTAL_WEEKS" to config.totalWeeks.toString(),
-        "CURRENT_WEEK" to config.currentWeek.toString(),
+        "CURRENT_WEEK" to effectiveCurrentWeek(config).toString(),
         "TERM_START_DATE" to config.termStartDate.orEmpty(),
         "AUTO_CURRENT_WEEK" to config.autoCurrentWeek.toString(),
         "TERM_STATE" to derivedScheduleTermState(config, date).name,
@@ -290,9 +288,9 @@ object AgentSettingRegistry {
 
     fun apply(config: ScheduleConfigEntity, key: String?, value: String?): ScheduleConfigEntity? = when (key) {
         "TOTAL_WEEKS" -> value?.toIntOrNull()?.let { total -> config.copy(totalWeeks = total, currentWeek = config.currentWeek.coerceAtMost(total)) }
-        "CURRENT_WEEK" -> value?.toIntOrNull()?.takeIf { it <= config.totalWeeks }?.let { config.copy(currentWeek = it, autoCurrentWeek = false) }
-        "TERM_START_DATE" -> value?.let { config.copy(termStartDate = it) }
-        "AUTO_CURRENT_WEEK" -> value.agentBoolean()?.let { config.copy(autoCurrentWeek = it) }
+        // Current teaching week is derived; old pending plans cannot switch back to manual mode.
+        "CURRENT_WEEK", "AUTO_CURRENT_WEEK" -> null
+        "TERM_START_DATE" -> value?.let { config.copy(termStartDate = it, autoCurrentWeek = true) }
         "HIDE_EMPTY_WEEKENDS" -> value.agentBoolean()?.let { config.copy(hideEmptyWeekends = it) }
         "CLASS_DURATION_MINUTES" -> value?.toIntOrNull()?.let { config.copy(classDurationMinutes = it) }
         "BREAK_DURATION_MINUTES" -> value?.toIntOrNull()?.let { config.copy(breakDurationMinutes = it) }

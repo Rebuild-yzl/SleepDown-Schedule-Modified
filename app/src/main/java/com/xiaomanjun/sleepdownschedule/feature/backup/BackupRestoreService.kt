@@ -400,6 +400,7 @@ class BackupRestoreService(
                 .forEach { if (it.isFile) it.delete() }
         }
         guarded("课程提醒刷新失败") {
+            ScheduleRepository(database).ensureDefaults()
             val snapshot = ScheduleRepository(database).activeSnapshot()
             NotificationScheduler.refreshToday(
                 appContext,
