@@ -7,8 +7,8 @@
 | 项目 | 当前事实 | 核对入口 |
 | --- | --- | --- |
 | 持续开发入口 | `main`，快照为 `a320f6a8`，实际版本 `1.2.7_beta5` / 34 | 上游 main 与该提交的 `app/build.gradle.kts` |
-| 最新正式版 | `v1.2.7`，源码 `cfe8776f`，已发布但尚未回流 main；main 是其祖先，落后 64 个提交 | 发布标签、提交关系与正式版发布记录 |
-| Android 主应用 | `com.xiaomanjun.sleepdownschedule`，正式版为 `versionName=1.2.7`，`versionCode=35` | `app/build.gradle.kts` |
+| 最新正式版 | `v1.2.7-r1`（`1.2.7` 的修复版本，正式发布，非预发布）；上一正式版 `v1.2.7` 源码 `cfe8776f`，尚未回流 main，main 是其祖先 | 发布标签、提交关系与正式版发布记录 |
+| Android 主应用 | `com.xiaomanjun.sleepdownschedule`，正式版为 `versionName=1.2.7-r1`，`versionCode=35` | `app/build.gradle.kts` |
 | 发行渠道 | `github` 与 `store` 两种 flavor；厂商实验入口由 `SLEEPDOWN_EXPERIMENTAL_FEATURES` 按渠道控制 | `app/build.gradle.kts`、`app/src/github/`、`app/src/store/` |
 | 课程组件 | 独立包 `com.suda.yzune.wakeupschedule`；构建版本 `6.0.19` / `259` | `coloros-wakeup-proxy/build.gradle.kts` |
 | 历史实验线 | `exp` 与 `v1.2.6-exp*` 保留作为已发布历史，停止作为后续功能基线 | Git 历史与旧 Release |
@@ -26,7 +26,7 @@
 
 | 类型 | 命名和标签 | 代码来源 | 更新日志与发布页 |
 | --- | --- | --- | --- |
-| 正式版 | `MAJOR.MINOR.PATCH` / `vMAJOR.MINOR.PATCH`，如 `1.2.7` / `v1.2.7` | 默认来自已进入 main 的验证提交；历史未回流例外需单独记录，不能据此宣称 main 已更新 | 将本轮有效 Beta 内容归并为一篇正式日志，去重并移除已撤回项目；非预发布 |
+| 正式版 | `MAJOR.MINOR.PATCH` / `vMAJOR.MINOR.PATCH`，如 `1.2.7` / `v1.2.7`；修复版本为 `MAJOR.MINOR.PATCH-rN` / `vMAJOR.MINOR.PATCH-rN`，如 `1.2.7-r1` | 默认来自已进入 main 的验证提交；历史未回流例外需单独记录，不能据此宣称 main 已更新 | 将本轮有效 Beta 内容归并为一篇正式日志，去重并移除已撤回项目；非预发布。修复版本只写本次修复内容 |
 | 普通 Beta | 每轮按下一正式版号命名为 `N.N.N_betaN` / `vN.N.N_betaN` | 同一 `main` 基线的发布候选 | 每个 Beta 保留独立仓库说明和预发布附件，不改写旧标签；正式版应用内只显示归并后的正式日志 |
 | 历史 `exp` | `1.2.6-expN` / `v1.2.6-expN` | 当时的 `exp` 分支 | 只作为历史预发布保留，不再用于新的普通功能、当前更新通道或下一版号 |
 | 厂商实验功能 | 无独立版本后缀 | 当前 `main` 的隔离实现 | 随对应正式版或 Beta 交付，在说明中标明实验状态与设备条件 |
@@ -38,6 +38,8 @@
 2026-10-10 的首份 Beta5 发布包已按用户要求撤回；周视图“默认”布局入口恢复后，修复包完成构建及覆盖安装，并以新标签 `v1.2.7_beta5-r1` 在 GitHub 与 Gitee 重发为预发布。撤回前 Beta5 用户需手动重新下载覆盖安装；详见[发布与核验记录](2026-10-10-beta5-1.2.7-release.md)。
 
 2026-10-15 正式版 `v1.2.7` 已在 GitHub 与 Gitee 发布，`prerelease=false`，GitHub `latest` 随之由 `v1.2.6` 更新为 `v1.2.7`。发布对象为此前已构建、签名核验的产物，源码提交为 `cfe8776f`，未合并入 `main`；详见[正式版发布记录](2026-10-15-stable-1.2.7-release.md)。
+
+2026-10-19 发布 `v1.2.7-r1`，是 `1.2.7` 的**修复版本，属于正式发布而非预发布**（`prerelease=false`），同样使用 `versionCode=35`，`1.2.7` 用户可直接覆盖升级。该修订沿用既有 `-r1` 后缀约定（对比 `v1.2.7_beta5-r1`），但不再带 Beta 段，因此不会被更新比较逻辑判为预发布；源码为本轮已构建并签名核验的提交，未合并入 `main`。详见[发布与核验记录](2026-10-19-stable-1.2.7-r1-release.md)。
 
 ## 一轮发布怎样收口
 
