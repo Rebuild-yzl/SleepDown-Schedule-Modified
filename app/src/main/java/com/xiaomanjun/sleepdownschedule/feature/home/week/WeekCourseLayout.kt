@@ -373,7 +373,7 @@ private fun WeekDayColumn(
                 )
                 timeLabels?.let { labels ->
                     val labelColor = glassForegroundColor(config)
-                    if (labels.showStart) HomeReadableText(
+                    if (labels.showStart) WeekCourseTimeLabel(
                                 text = segment.course.customStartTime.orEmpty(),
                                 modifier = Modifier
                                     .align(Alignment.TopCenter)
@@ -382,10 +382,8 @@ private fun WeekDayColumn(
                                 color = labelColor,
                                 fontSize = 8.sp,
                                 lineHeight = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
                     )
-                    if (labels.showEnd) HomeReadableText(
+                    if (labels.showEnd) WeekCourseTimeLabel(
                                 text = segment.course.customEndTime.orEmpty(),
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
@@ -394,17 +392,13 @@ private fun WeekDayColumn(
                                 color = labelColor,
                                 fontSize = 8.sp,
                                 lineHeight = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
                     )
-                    if (labels.showRangeBelow) HomeReadableText(
+                    if (labels.showRangeBelow) WeekCourseTimeLabel(
                         text = "${segment.course.customStartTime.orEmpty()}–${segment.course.customEndTime.orEmpty()}",
                         modifier = Modifier.align(Alignment.BottomCenter).offset(y = 10.dp).zIndex(12f),
                         color = labelColor,
                         fontSize = 7.sp,
                         lineHeight = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
                     )
                 }
             }
@@ -723,7 +717,7 @@ fun WeekCourseColumnsLayer(
                                     ),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text(course.customStartTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
+                                WeekCourseTimeLabel(course.customStartTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
                                     color = glassForegroundColor(config), modifier = Modifier.height(12.dp))
                                 WeekCourseBlock(
                                     course = course, periods = periods, height = 64.dp,
@@ -741,7 +735,7 @@ fun WeekCourseColumnsLayer(
                                     onDeleteSingleWeekCourse = onDeleteSingleWeekCourse,
                                     onCourseClick = onCourseClick
                                 )
-                                Text(course.customEndTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
+                                WeekCourseTimeLabel(course.customEndTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
                                     color = glassForegroundColor(config), modifier = Modifier.height(12.dp))
                             }
                         }
@@ -753,13 +747,13 @@ fun WeekCourseColumnsLayer(
                                     .weekPageTail(tailKey, tailCardOrder[tailKey], tailColumnOrder[day])
                                     .homeSwitchGroup(tailCardOrder[tailKey]),
                                     horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(course.customStartTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
+                                    WeekCourseTimeLabel(course.customStartTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
                                         color = glassForegroundColor(config), modifier = Modifier.height(12.dp))
                                     CourseGlassCard(backdrop, config, Modifier.fillMaxWidth().height(64.dp),
                                         course = course, muted = true) {
                                         WeekCourseOverlayCardContent(course, config, muted = true)
                                     }
-                                    Text(course.customEndTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
+                                    WeekCourseTimeLabel(course.customEndTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
                                         color = glassForegroundColor(config), modifier = Modifier.height(12.dp))
                                 }
                             }

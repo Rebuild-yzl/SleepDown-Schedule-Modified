@@ -26,6 +26,30 @@ class CoursePeriodAlignmentTest {
     private fun time(course: CourseEntity, targets: List<PeriodEntity>) = projectCourseArrangement(course,
         config.copy(periodAlignmentMode = PeriodAlignmentMode.TIME), targets)
 
+    @Test fun reopeningStoredMixedClocksUsesTheCurrentGridWithoutRewritingSources() {
+        val grid = listOf(PeriodEntity(1, "08:30", "09:10"), PeriodEntity(2, "09:15", "09:55"),
+            PeriodEntity(3, "10:10", "10:50"), PeriodEntity(4, "10:55", "11:35"),
+            PeriodEntity(5, "19:40", "20:20"), PeriodEntity(6, "20:20", "21:00"))
+        // Older imports can have exact clocks on every row and no original-time snapshot.
+        val ordinary = course(listOf(1, 2), "08:30", "09:55").copy(originalPeriodTimes = null)
+        val shifted = course(listOf(3, 4), "10:30", "11:55").copy(id = 8, originalPeriodTimes = null)
+        val continuous = course(listOf(6), "19:40", "21:00").copy(id = 9, originalPeriodTimes = null)
+        val stored = listOf(ordinary, shifted, continuous)
+        PeriodAlignmentMode.entries.forEach { mode ->
+            val reopened = AppState(courses = stored, allCourses = stored, periods = grid,
+                config = config.copy(periodAlignmentMode = mode)).withEffectiveCourseArrangements()
+            assertFalse(reopened.courses[0].hasCustomTime())
+            assertTrue(reopened.courses[1].hasCustomTime())
+            assertEquals("10:30 - 11:55", courseTimeLabel(reopened.courses[1], grid))
+            assertFalse(reopened.courses[2].hasCustomTime())
+            assertEquals(listOf(5, 6), reopened.courses[2].periods)
+            assertEquals(stored, reopened.courses.map { it.arrangementForWrite() })
+            assertEquals(reopened.courses, reopened.allCourses)
+        }
+        assertEquals(listOf(1, 2), matchingPeriodIndicesForTimeRange(LocalTime.parse("08:30"), LocalTime.parse("09:55"), grid))
+        assertTrue(matchingPeriodIndicesForTimeRange(LocalTime.parse("10:30"), LocalTime.parse("11:55"), grid).isEmpty())
+    }
+
     @Test fun indexUsesCompleteTargetBellsAndPreservesTheSource() {
         val source = course()
         val target = listOf(PeriodEntity(3, "13:00", "14:00"))

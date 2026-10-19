@@ -68,6 +68,7 @@ import com.xiaomanjun.sleepdownschedule.glass.ui.appUsesDarkTheme
 import java.time.LocalTime
 import com.xiaomanjun.sleepdownschedule.domain.schedule.CoursePeriodTime
 import com.xiaomanjun.sleepdownschedule.domain.schedule.parseCoursePeriodTimes
+import com.xiaomanjun.sleepdownschedule.domain.schedule.matchingPeriodIndicesForTimeRange
 import kotlin.math.max
 import kotlinx.coroutines.flow.map
 import top.yukonga.miuix.kmp.basic.BasicComponent as MiuixBasicComponent
@@ -105,6 +106,7 @@ internal sealed interface CourseEditorPickerRequest {
         val regularEndTime: String?,
         val periodIndices: List<Int>,
         val customPeriodTimes: String?,
+        val customTimeMatchesPeriods: Boolean = false,
         val onConfirmPeriods: (Int, Int) -> Unit,
         val onConfirmCustomTime: (String, String) -> Unit,
         val onConfirmLessonTimes: (List<CoursePeriodTime>) -> Unit
@@ -202,11 +204,22 @@ internal fun DialogPeriodSelector(
             null
         }
     }
+    // Imported exact clocks remain the saved source. Use the same display classification
+    // as the timetable for every provider, including rows saved before this upgrade.
+    val matchingIndices = remember(customRange, customPeriodTimes, periods, safeValues) {
+        customRange?.takeIf { customPeriodTimes.isNullOrBlank() }?.let { (from, to) ->
+            matchingPeriodIndicesForTimeRange(from, to, periods).takeIf { indices ->
+                indices.isNotEmpty() && indices.all { it in safeValues }
+            }
+        }.orEmpty()
+    }
+    val displayStartIndex = matchingIndices.firstOrNull()?.let(safeValues::indexOf) ?: startIndex
+    val displayEndIndex = matchingIndices.lastOrNull()?.let(safeValues::indexOf) ?: endIndex
     CourseEditorPickerValue(
         title = title,
-        value = customRange?.let { (customStart, customEnd) -> "$customStart - $customEnd" }
+        value = customRange?.takeIf { matchingIndices.isEmpty() }?.let { (customStart, customEnd) -> "$customStart - $customEnd" }
             ?: if (start !in safeValues || end !in safeValues) "请选择时间"
-            else "${label(safeValues[startIndex])} - ${label(safeValues[endIndex])}",
+            else "${label(safeValues[displayStartIndex])} - ${label(safeValues[displayEndIndex])}",
         backdrop = backdrop,
         config = config,
         onClick = {
@@ -214,15 +227,16 @@ internal fun DialogPeriodSelector(
                 CourseEditorPickerRequest.Period(
                     title = "选择节次",
                     labels = safeValues.map(label),
-                    startIndex = startIndex,
-                    endIndex = endIndex,
+                    startIndex = displayStartIndex,
+                    endIndex = displayEndIndex,
                     endIndexUpperBound = safeValues.lastIndex,
                     customStartTime = customRange?.first?.toString(),
                     customEndTime = customRange?.second?.toString(),
-                    regularStartTime = periods.firstOrNull { it.periodIndex == safeValues[startIndex] }?.startTime,
-                    regularEndTime = periods.firstOrNull { it.periodIndex == safeValues[endIndex] }?.endTime,
+                    regularStartTime = periods.firstOrNull { it.periodIndex == safeValues[displayStartIndex] }?.startTime,
+                    regularEndTime = periods.firstOrNull { it.periodIndex == safeValues[displayEndIndex] }?.endTime,
                     periodIndices = selectedPeriodIndices.distinct().sorted(),
                     customPeriodTimes = customPeriodTimes,
+                    customTimeMatchesPeriods = matchingIndices.isNotEmpty(),
                     onConfirmPeriods = { selectedStart, selectedEnd ->
                         onRangeSelected(safeValues[selectedStart], safeValues[selectedEnd])
                     },
@@ -447,6 +461,7 @@ internal fun CourseEditorPickerOverlay(
         mutableStateOf(when {
             !periodRequest?.customPeriodTimes.isNullOrBlank() &&
                 parseCoursePeriodTimes(periodRequest.customPeriodTimes).map { it.index } == periodRequest.periodIndices -> CourseEditorTimeMode.Lessons
+            periodRequest?.customTimeMatchesPeriods == true -> CourseEditorTimeMode.Periods
             periodRequest?.customStartTime != null && periodRequest.customEndTime != null -> CourseEditorTimeMode.Range
             else -> CourseEditorTimeMode.Periods
         })
@@ -674,9 +689,15 @@ internal fun CourseEditorPickerOverlay(
                                     timeError = "结束时间必须晚于开始时间"
                                     return@QuickSheetLiquidAction
                                 }
-                                request.onConfirmCustomTime(start.toString(), end.toString())
+                                if (start != initialCustomStart || end != initialCustomEnd || request.customStartTime == null || !request.customPeriodTimes.isNullOrBlank()) {
+                                    request.onConfirmCustomTime(start.toString(), end.toString())
+                                }
                             } else {
-                                request.onConfirmPeriods(startIndex, endIndex)
+                                // Merely opening/confirming a matching imported clock must not
+                                // erase its original campus/building time or source numbering.
+                                if (!request.customTimeMatchesPeriods || startIndex != request.startIndex || endIndex != request.endIndex) {
+                                    request.onConfirmPeriods(startIndex, endIndex)
+                                }
                             }
                         }
                     }

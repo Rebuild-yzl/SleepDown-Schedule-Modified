@@ -154,6 +154,12 @@ fun projectCourseArrangement(course: CourseEntity, config: ScheduleConfigEntity,
 }
 
 /** Match complete consecutive lessons only; partial overlaps and ambiguous grids stay exact. */
+fun matchingPeriodIndicesForTimeRange(start: LocalTime, end: LocalTime,
+    periods: List<PeriodEntity>): List<Int> = matchingPeriodSpan(start, end,
+    periods.sortedBy { it.periodIndex }.map {
+        CoursePeriodTime(it.periodIndex, LocalTime.parse(it.startTime), LocalTime.parse(it.endTime))
+    }.filter { it.end > it.start }).map { it.index }
+
 private fun matchingPeriodSpan(start: LocalTime, end: LocalTime,
     targets: List<CoursePeriodTime>): List<CoursePeriodTime> {
     val touched = targets.withIndex().filter { it.value.start < end && it.value.end > start }
