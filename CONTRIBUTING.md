@@ -55,7 +55,8 @@ CI 先作为可见的检查结果运行。只有维护者确认检查稳定、Fo
 - 保留数据库、备份、导入、Widget 和通知的兼容；数据变更需说明迁移与回归验证。
 - 不提交密钥、签名文件、个人数据库、设备日志、构建产物或缓存。`SleepDown-Server/` 是私有后端，不属于公开贡献范围。
 - 保留第三方代码来源和许可证，依赖补丁见 [patches/README.md](patches/README.md)。
-- PR 工作流检查 diff 和禁止提交的路径，Android 相关改动编译 Kotlin；文档改动跳过 Android 构建。该检查不替代模块测试和设备验收。
+- Draft PR 暂缓自动 CI，转为 Ready for review 时自动开始检查；就绪 PR 后续推送、重开也会检查，避免每轮草稿迭代反复构建并发送失败通知。
+- 就绪 PR 的工作流检查 diff 和禁止提交的路径，Android 相关改动编译 Kotlin；文档改动跳过 Android 构建。该检查不替代模块测试和设备验收。
 - 首次 Fork 贡献可能需要维护者在 GitHub 批准运行工作流。使用 `pull_request` 和只读权限，不向贡献者代码提供仓库密钥。
 
 维护者的提交、分支收尾与发布流程见 [开发工作流](docs/DEVELOPMENT_WORKFLOW.md)。
