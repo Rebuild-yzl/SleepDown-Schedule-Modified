@@ -1,5 +1,7 @@
 package com.xiaomanjun.sleepdownschedule.feature.course.management
 
+import com.xiaomanjun.sleepdownschedule.domain.schedule.encodeCoursePeriodTimes
+
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import androidx.activity.ComponentActivity
@@ -467,7 +469,7 @@ internal fun HomeMenuActivitySourceFallback(
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        listOf("日视图 / 周视图", "添加单节课", "课程管理", "手动导入课表", "教务系统导入", "课表设置")
+        listOf("日视图 / 周视图", "添加单节课", "课程管理", "口令/文件导入", "教务系统导入", "课表设置", "多课表管理")
             .forEachIndexed { index, label ->
                 Row(
                     Modifier.fillMaxWidth().height(42.dp),
@@ -1006,6 +1008,9 @@ private fun CourseArrangementEditorCard(
     onOpenPicker: (CourseEditorPickerRequest) -> Unit
 ) {
     val effective = projectCourseArrangement(captureOriginalPeriodTimes(course, periods), config, periods)
+    val matchingCustomClock = course.hasCustomTime() && course.customPeriodTimes.isNullOrBlank() &&
+        !effective.hasCustomTime() && !effective.isHiddenByPeriodAlignment()
+    val displayedPeriodIndices = effective.periods.ifEmpty { course.periods }
     val hidden = effective.arrangementProjection?.hiddenPeriods.orEmpty()
     CourseManagementSettingsSection(title = "上课安排 ${index + 1}") {
         if (hidden.isNotEmpty()) {
@@ -1037,12 +1042,13 @@ private fun CourseArrangementEditorCard(
         )
         CourseManagementArrowRow(
             title = "上课节次",
-            value = if (course.hasCustomTime()) courseTimeLabel(effective, periods)
-            else "第${course.periods.minOrNull() ?: 1}-${course.periods.maxOrNull() ?: 1}节",
+            value = if (effective.hasCustomTime()) courseTimeLabel(effective, periods)
+            else "第${displayedPeriodIndices.minOrNull() ?: 1}-${displayedPeriodIndices.maxOrNull() ?: 1}节",
             onClick = {
                 val values = (periods.map(PeriodEntity::periodIndex) + course.periods).distinct().sorted().ifEmpty { listOf(1) }
-                val startIndex = values.indexOf(course.periods.minOrNull()).coerceAtLeast(0)
-                val endIndex = values.indexOf(course.periods.maxOrNull()).coerceAtLeast(startIndex)
+                val displayedPeriods = if (matchingCustomClock) effective.periods else course.periods
+                val startIndex = values.indexOf(displayedPeriods.minOrNull()).coerceAtLeast(0)
+                val endIndex = values.indexOf(displayedPeriods.maxOrNull()).coerceAtLeast(startIndex)
                 onOpenPicker(
                     CourseEditorPickerRequest.Period(
                         title = "选择节次",
@@ -1054,6 +1060,9 @@ private fun CourseArrangementEditorCard(
                         customEndTime = course.customEndTime,
                         regularStartTime = periods.firstOrNull { it.periodIndex == values[startIndex] }?.startTime,
                         regularEndTime = periods.firstOrNull { it.periodIndex == values[endIndex] }?.endTime,
+                        periodIndices = course.periods.distinct().sorted(),
+                        customPeriodTimes = course.customPeriodTimes,
+                        customTimeMatchesPeriods = matchingCustomClock,
                         onConfirmPeriods = { start, end ->
                             onCourseChange(
                                 course.copy(
@@ -1064,6 +1073,15 @@ private fun CourseArrangementEditorCard(
                                     customPeriodTimes = null
                                 )
                             )
+                        },
+                        onConfirmLessonTimes = { times ->
+                            onCourseChange(course.copy(
+                                periods = times.map { it.index },
+                                originalPeriodTimes = null,
+                                customStartTime = times.first().start.toString(),
+                                customEndTime = times.last().end.toString(),
+                                customPeriodTimes = encodeCoursePeriodTimes(times)
+                            ))
                         },
                         onConfirmCustomTime = { startText, endText ->
                             val start = LocalTime.parse(startText)

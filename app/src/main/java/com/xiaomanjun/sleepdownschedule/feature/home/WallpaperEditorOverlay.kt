@@ -52,6 +52,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
@@ -83,11 +84,12 @@ internal fun WallpaperEditorOverlay(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val windowSize = LocalWindowInfo.current.containerSize
     val scope = rememberCoroutineScope()
     val progress = remember { Animatable(0f) }
     var bitmap by remember(uri) { mutableStateOf<Bitmap?>(null) }
     var sourceSize by remember(uri) { mutableStateOf<WallpaperSourceSize?>(null) }
-    var orientation by remember { mutableStateOf(WallpaperPreviewOrientation.Portrait) }
+    var orientation by remember(uri) { mutableStateOf(wallpaperOrientation(windowSize.width, windowSize.height)) }
     var portraitCrop by remember(uri) { mutableStateOf(WallpaperCropState()) }
     var landscapeCrop by remember(uri) { mutableStateOf(WallpaperCropState()) }
     var applying by remember { mutableStateOf(false) }
@@ -163,7 +165,7 @@ internal fun WallpaperEditorOverlay(
                 onClick = {}
             )
     ) {
-        val aspect = remember(context, orientation) { calculateWallpaperPreviewAspect(context, orientation) }
+        val aspect = calculateWallpaperPreviewAspect(windowSize.width, windowSize.height, orientation)
         val availableHeight = (maxHeight - 250.dp).coerceAtLeast(280.dp)
         val desiredWidth = if (adaptiveMetrics.isLargeScreen) {
             minOf(

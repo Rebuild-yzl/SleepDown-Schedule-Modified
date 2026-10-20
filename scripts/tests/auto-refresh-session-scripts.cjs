@@ -39,6 +39,41 @@ assert.deepEqual(capture('CQU', { cqu_edu_ACCESS_TOKEN: 'fixture-cqu-session', u
     { 'local:cqu_edu_ACCESS_TOKEN': 'fixture-cqu-session' });
 console.log('PASS: JWT fallback, HUAT window token, CQU storage allowlist');
 
+const restoreTemplate = sessionSource.match(/internal fun storageRestoreScript[\s\S]*?= """([\s\S]*?)"""\.trimIndent/)[1];
+const restoreScript = restoreTemplate
+    .replace('${JSONObject.quote(origin)}', JSON.stringify('https://school.example'))
+    .replace('${JSONObject.quote("__" + bridgeName)}', JSON.stringify('__restoreFixture'))
+    .replace('${JSONObject.quote(bridgeName)}', JSON.stringify('restoreFixture'))
+    .replace('$valuesJson', JSON.stringify({ 'local:token': 'A' }))
+    .replace('${windowName?.let(JSONObject::quote) ?: "null"}', 'null');
+function writableStorage(initial = {}) {
+    const values = { ...initial };
+    return { getItem: key => values[key] ?? null, setItem: (key, value) => { values[key] = value; } };
+}
+function restoreEnvironment(origin = 'https://school.example', initial = {}) {
+    const localStorage = writableStorage(initial);
+    const sessionStorage = writableStorage();
+    const window = { restoreFixture: { postMessage() {} }, name: '' };
+    window.top = window;
+    return { window, location: { origin }, localStorage, sessionStorage };
+}
+const empty = restoreEnvironment();
+vm.runInNewContext(restoreScript, empty);
+assert.equal(empty.localStorage.getItem('token'), 'A');
+empty.localStorage.setItem('token', 'B');
+vm.runInNewContext(restoreScript, empty); // same-origin navigation before native removal
+assert.equal(empty.localStorage.getItem('token'), 'B');
+const current = restoreEnvironment('https://school.example', { token: 'B' });
+vm.runInNewContext(restoreScript, current);
+assert.equal(current.localStorage.getItem('token'), 'B');
+const otherOrigin = restoreEnvironment('https://other.example');
+vm.runInNewContext(restoreScript, otherOrigin);
+assert.equal(otherOrigin.localStorage.getItem('token'), null);
+const iframe = restoreEnvironment(); iframe.window.top = {};
+vm.runInNewContext(restoreScript, iframe);
+assert.equal(iframe.localStorage.getItem('token'), null);
+console.log('PASS: one-shot restore, live token preserved, cross-origin and iframe isolated');
+
 async function verifySwuProtocol(loggedIn) {
     const source = fs.readFileSync(path.join(root, 'app/src/main/assets/shiguang_warehouse-main/resources/SWU/swu.js'), 'utf8');
     const staged = [];

@@ -4,6 +4,7 @@ import java.io.BufferedReader
 import java.net.HttpURLConnection
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -45,7 +46,9 @@ internal fun BufferedReader.readChatGptResponse(
         ?: throw AiServiceResponseException(
             if (start.startsWith("<")) "ChatGPT 返回了网页而非 AI 响应，请检查网络或代理后重试。"
             else "ChatGPT 返回的内容无法识别，请稍后重试。", "")
-    if (root["error"] != null) throw AiServiceResponseException(chatGptInferenceError(0, body), "")
+    if (root["error"]?.let { it != JsonNull } == true) {
+        throw AiServiceResponseException(chatGptInferenceError(0, body), "")
+    }
     // A full response is independently terminal. Do not invent a response.completed SSE event.
     if ((root["status"] as? JsonPrimitive)?.contentOrNull != "completed" ||
         (root["output"] !is JsonArray && root["output_text"] !is JsonPrimitive)) {

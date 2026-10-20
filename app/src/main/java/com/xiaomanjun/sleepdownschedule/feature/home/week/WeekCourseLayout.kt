@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.kyant.backdrop.Backdrop
 import com.kyant.shapes.RoundedRectangle
-import com.xiaomanjun.sleepdownschedule.BuildConfig
 import com.xiaomanjun.sleepdownschedule.CourseEntity
 import com.xiaomanjun.sleepdownschedule.PeriodEntity
 import com.xiaomanjun.sleepdownschedule.ScheduleConfigEntity
@@ -79,7 +78,6 @@ import com.xiaomanjun.sleepdownschedule.glass.CourseGlassRestoreGroup
 import com.xiaomanjun.sleepdownschedule.glass.LocalCourseGlassOcclusionPhase
 import com.xiaomanjun.sleepdownschedule.glass.LocalCourseGlassRestorePlan
 import com.xiaomanjun.sleepdownschedule.glass.LocalCourseGlassRestoreRegistry
-import com.xiaomanjun.sleepdownschedule.glass.adaptiveCourseGlassSampleScale
 import com.xiaomanjun.sleepdownschedule.glass.courseGlassRestoreGroupKey
 import com.xiaomanjun.sleepdownschedule.glass.ui.CourseGlassCard
 import com.xiaomanjun.sleepdownschedule.glass.ui.MutedCourseLightColor
@@ -217,7 +215,6 @@ private fun WeekDayColumn(
     onDeleteSingleWeekCourse: (CourseEntity) -> Unit = {},
     onCourseClick: (CourseEntity, Rect?) -> Unit,
     onDragStateChanged: (dayIndex: Int?, courseId: Long?) -> Unit = { _, _ -> },
-    composedCourseCardCount: Int = courses.size,
     occlusionMaterialMounted: Boolean = true,
     draggingCourseId: Long? = null,
     activeOverlayCourseId: Long? = null,
@@ -232,10 +229,6 @@ private fun WeekDayColumn(
     val density = LocalDensity.current
     val periodIndexes = remember(periods) { periods.map { it.periodIndex } }
     val courseGlassRestorePlan = LocalCourseGlassRestorePlan.current
-    val courseBackdropSampleScale = adaptiveCourseGlassSampleScale(
-        composedCardCount = composedCourseCardCount,
-        enabled = !editMode && BuildConfig.SLEEPDOWN_LARGE_GLASS_EXPERIMENT
-    )
     val visibleCardBounds = remember(renderedSegments, periods, cardHeight) {
         renderedSegments.map { it.segment.course.id to weekCardVerticalBounds(it.segment, periods, cardHeight) }
     }
@@ -376,12 +369,11 @@ private fun WeekDayColumn(
                     onFinishResizeOverlay = onFinishResizeOverlay,
                     onCancelWeekEditOverlay = onCancelWeekEditOverlay,
                     occlusionMaterialMounted = occlusionMaterialMounted &&
-                        courseGlassRestorePlan.mountsGroup(courseGlassRestoreGroupKey(editWeek, listOf(glassCandidateId))),
-                    backdropSampleScale = courseBackdropSampleScale
+                        courseGlassRestorePlan.mountsGroup(courseGlassRestoreGroupKey(editWeek, listOf(glassCandidateId)))
                 )
                 timeLabels?.let { labels ->
                     val labelColor = glassForegroundColor(config)
-                    if (labels.showStart) HomeReadableText(
+                    if (labels.showStart) WeekCourseTimeLabel(
                                 text = segment.course.customStartTime.orEmpty(),
                                 modifier = Modifier
                                     .align(Alignment.TopCenter)
@@ -390,10 +382,8 @@ private fun WeekDayColumn(
                                 color = labelColor,
                                 fontSize = 8.sp,
                                 lineHeight = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
                     )
-                    if (labels.showEnd) HomeReadableText(
+                    if (labels.showEnd) WeekCourseTimeLabel(
                                 text = segment.course.customEndTime.orEmpty(),
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
@@ -402,17 +392,13 @@ private fun WeekDayColumn(
                                 color = labelColor,
                                 fontSize = 8.sp,
                                 lineHeight = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
                     )
-                    if (labels.showRangeBelow) HomeReadableText(
+                    if (labels.showRangeBelow) WeekCourseTimeLabel(
                         text = "${segment.course.customStartTime.orEmpty()}–${segment.course.customEndTime.orEmpty()}",
                         modifier = Modifier.align(Alignment.BottomCenter).offset(y = 10.dp).zIndex(12f),
                         color = labelColor,
                         fontSize = 7.sp,
                         lineHeight = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
                     )
                 }
             }
@@ -702,7 +688,6 @@ fun WeekCourseColumnsLayer(
                             draggingDayIndex = dayIndex
                             draggingCourseId = courseId
                         },
-                        composedCourseCardCount = courses.size,
                         occlusionMaterialMounted = true,
                         draggingCourseId = draggingCourseId,
                         activeOverlayCourseId = activeOverlayCourseId,
@@ -732,7 +717,7 @@ fun WeekCourseColumnsLayer(
                                     ),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text(course.customStartTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
+                                WeekCourseTimeLabel(course.customStartTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
                                     color = glassForegroundColor(config), modifier = Modifier.height(12.dp))
                                 WeekCourseBlock(
                                     course = course, periods = periods, height = 64.dp,
@@ -750,7 +735,7 @@ fun WeekCourseColumnsLayer(
                                     onDeleteSingleWeekCourse = onDeleteSingleWeekCourse,
                                     onCourseClick = onCourseClick
                                 )
-                                Text(course.customEndTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
+                                WeekCourseTimeLabel(course.customEndTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
                                     color = glassForegroundColor(config), modifier = Modifier.height(12.dp))
                             }
                         }
@@ -762,13 +747,13 @@ fun WeekCourseColumnsLayer(
                                     .weekPageTail(tailKey, tailCardOrder[tailKey], tailColumnOrder[day])
                                     .homeSwitchGroup(tailCardOrder[tailKey]),
                                     horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(course.customStartTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
+                                    WeekCourseTimeLabel(course.customStartTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
                                         color = glassForegroundColor(config), modifier = Modifier.height(12.dp))
                                     CourseGlassCard(backdrop, config, Modifier.fillMaxWidth().height(64.dp),
                                         course = course, muted = true) {
                                         WeekCourseOverlayCardContent(course, config, muted = true)
                                     }
-                                    Text(course.customEndTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
+                                    WeekCourseTimeLabel(course.customEndTime.orEmpty(), fontSize = 8.sp, lineHeight = 10.sp,
                                         color = glassForegroundColor(config), modifier = Modifier.height(12.dp))
                                 }
                             }

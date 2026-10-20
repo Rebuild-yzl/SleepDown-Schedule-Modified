@@ -12,6 +12,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
@@ -30,6 +32,11 @@ internal fun SleepDownFloatingAddButton(
     enabled: Boolean = true,
     sharedInteractiveHighlight: InteractiveHighlight? = null
 ) {
+    val haptic = LocalHapticFeedback.current
+    val click = {
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        onClick()
+    }
     val content: @Composable () -> Unit = {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.Add, contentDescription, Modifier.size(24.dp), tint = Color.White)
@@ -37,7 +44,7 @@ internal fun SleepDownFloatingAddButton(
     }
     if (backdrop != null) {
         LiquidButton(
-            onClick = onClick,
+            onClick = click,
             backdrop = backdrop,
             modifier = modifier.size(54.dp),
             isInteractive = enabled,
@@ -55,7 +62,7 @@ internal fun SleepDownFloatingAddButton(
         ) { content() }
     } else {
         Surface(
-            onClick = onClick,
+            onClick = click,
             enabled = enabled,
             modifier = modifier.size(54.dp),
             shape = Capsule(),

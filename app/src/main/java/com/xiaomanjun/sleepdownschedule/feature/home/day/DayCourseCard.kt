@@ -40,6 +40,8 @@ import com.xiaomanjun.sleepdownschedule.core.performance.LocalStartupPhase
 import com.xiaomanjun.sleepdownschedule.core.performance.StartupPhase
 import com.xiaomanjun.sleepdownschedule.core.ui.chrome.LocalEditingCourseId
 import com.xiaomanjun.sleepdownschedule.core.ui.chrome.LocalSharedTransitionScope
+import com.xiaomanjun.sleepdownschedule.core.ui.scaffold.settingsVisualConfig
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.sleepDownPanelForegroundColor
 import com.xiaomanjun.sleepdownschedule.core.ui.text.CourseCardText
 import com.xiaomanjun.sleepdownschedule.core.ui.text.courseTextColorForPage
 import com.xiaomanjun.sleepdownschedule.courseTimeLabel
@@ -76,7 +78,7 @@ internal fun homeCourseTextColor(
 ): ComposeColor {
     if (muted || !config.courseCardColoredTextEnabled) return pageForeground
     val seed = courseCardBaseColor(config, course)
-    val hasWallpaper = !config.wallpaperUri.isNullOrBlank()
+    val hasWallpaper = config.hasAnyWallpaper()
     return remember(seed, hasWallpaper, pageForeground) {
         courseTextColorForPage(
             seed = seed,
@@ -99,7 +101,6 @@ fun DayTimelineCourse(course: CourseEntity, currentWeek: Int, periods: List<Peri
             course = course,
             modifier = Modifier.wrapContentWidth(),
             shape = Capsule(),
-            cacheSharedSamples = false,
             expandedOutlineLight = true,
             muted = subdued
         ) {
@@ -161,10 +162,10 @@ internal fun DayCourseCardTextContent(
             )
         }
         if (!course.location.isNullOrBlank()) {
-            CourseCardText("地点：" + course.location, style = bodyStyle, color = renderedTextColor.copy(alpha = 0.86f), coloredText = coloredText, fontWeight = coloredWeight)
+            CourseCardText("地点：" + course.location, style = bodyStyle, color = renderedTextColor.copy(alpha = 0.86f), coloredText = coloredText, fontWeight = if (coloredText) FontWeight.SemiBold else FontWeight.Normal)
         }
         if (!course.teacher.isNullOrBlank()) {
-            CourseCardText("教师：" + course.teacher, style = bodyStyle, color = renderedTextColor.copy(alpha = 0.86f), coloredText = coloredText, fontWeight = coloredWeight)
+            CourseCardText("教师：" + course.teacher, style = bodyStyle, color = renderedTextColor.copy(alpha = 0.86f), coloredText = coloredText, fontWeight = if (coloredText) FontWeight.SemiBold else FontWeight.Normal)
         }
         if (showWeeks) {
             CourseCardText(
@@ -246,7 +247,6 @@ fun CourseCard(course: CourseEntity, periods: List<PeriodEntity>, showTime: Bool
             // Lazy rows are detached/reused while scrolling and paging. Share the wallpaper
             // blur, but record each visible row's current sample on draw instead of retaining
             // its position-dependent display list across those lifecycle transitions.
-            cacheSharedSamples = false,
             expandedOutlineLight = true,
             muted = muted,
             onClick = if (onClick != null) ({
@@ -288,27 +288,30 @@ fun ImportPreviewCourseCard(
     val effective = remember(course, periods, config.periodAlignmentMode) {
         projectCourseArrangement(captureOriginalPeriodTimes(course, periods), config, periods)
     }
-    val cardColor = courseCardBaseColor(config, course).copy(alpha = config.cardAlpha.coerceIn(0f, 1f))
-    val textColor = readableOn(cardColor)
+    // Preview lives on the settings page, without the timetable's wallpaper. Resolve one
+    // page ink, just like the live cards; individual seed colors must not invert labels.
+    val visualConfig = settingsVisualConfig(config)
+    val textColor = homeCourseTextColor(visualConfig, course, sleepDownPanelForegroundColor(visualConfig), false)
+    val coloredText = visualConfig.courseCardColoredTextEnabled
     CourseGlassCard(
         backdrop = null,
-        config = config,
+        config = visualConfig,
         course = course,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedRectangle(16.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(course.name, style = MaterialTheme.typography.titleMedium, color = textColor)
-            Text(
+            CourseCardText(course.name, style = MaterialTheme.typography.titleMedium, color = textColor, coloredText = coloredText)
+            CourseCardText(
                 text = "周${weekdayLabel(course.weekday)} · " +
                     if (effective.isHiddenByPeriodAlignment()) "暂不显示 · 原始第 ${course.periods.joinToString("、")} 节"
                     else courseHomeTimeDetail(effective, periods),
-                color = textColor.copy(alpha = 0.86f)
+                color = textColor, coloredText = coloredText
             )
-            if (!course.location.isNullOrBlank()) Text("地点：" + course.location, color = textColor.copy(alpha = 0.86f))
-            if (!course.teacher.isNullOrBlank()) Text("教师：" + course.teacher, color = textColor.copy(alpha = 0.86f))
-            Text("周次：" + course.weeks.joinToString(",") + " · " + parityLabel(course.weekParity), color = textColor.copy(alpha = 0.86f))
-            if (!course.note.isNullOrBlank()) Text("备注：" + course.note, color = textColor.copy(alpha = 0.86f))
+            if (!course.location.isNullOrBlank()) CourseCardText("地点：" + course.location, color = textColor, coloredText = coloredText)
+            if (!course.teacher.isNullOrBlank()) CourseCardText("教师：" + course.teacher, color = textColor, coloredText = coloredText)
+            CourseCardText("周次：" + course.weeks.joinToString(",") + " · " + parityLabel(course.weekParity), color = textColor, coloredText = coloredText)
+            if (!course.note.isNullOrBlank()) CourseCardText("备注：" + course.note, color = textColor, coloredText = coloredText)
         }
     }
 }

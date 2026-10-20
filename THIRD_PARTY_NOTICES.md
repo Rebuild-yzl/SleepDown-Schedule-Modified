@@ -25,6 +25,14 @@ commit `f2c4ab6def84b5be8a5969ce6e46dcabb2a1cac4`. SleepDown implements its own 
 brightness floor and saturation adjustment, combined with local sampled soft shadows;
 the source files and notification implementation were not copied.
 
+The 2026-10-18 course-glass rendering review uses NexioSchedule commit
+`99f14cbcadd6d2e6cbfba4e73c2d001f83673264` as a behavioral reference. Its root
+license is AGPL-3.0; no separate license for the customized backdrop module was
+found at that commit. This round independently modifies the existing Kyant-based
+SleepDown implementation (shared filter/published nodes, lazy sampling and draw
+clipping); it does not copy those Nexio customizations under an Apache label.
+The unchanged rounded-rect shader source is also present in Apache-2.0 Kyant 2.0.0.
+
 ## RikkaApps/Shizuku-API
 
 The GitHub distribution uses [Shizuku-API](https://github.com/RikkaApps/Shizuku-API)

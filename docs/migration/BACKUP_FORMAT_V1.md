@@ -198,6 +198,8 @@ data.json 是独立于 Room Entity 的长期 DTO。枚举保存为协议字符�
 `config` 必须覆盖当前 `ScheduleConfigEntity` 的全部用户字段：
 
 - `totalWeeks`、`currentWeek`、`notificationLeadMinutes`、`termStartDate`、`autoCurrentWeek`、`termState`；
+
+  `autoCurrentWeek` 继续读写以兼容旧文件；当前产品始终开启日期推算，旧记录或恢复完成后的配置由 Repository 初始化为开启。`currentWeek` 保留为缺少开学日期时的周次依据；不为升级猜测开学日期，也不删除备份字段。
 - `notificationsEnabled`、`notificationMode`；
 - `wallpaperAssetId`（不再保存 `wallpaperUri`）、`wallpaperBlur`、`wallpaperBrightness`；
 - portrait/landscape 的 centerX、centerY、scale，以及 `wallpaperSourceWidth/Height`；

@@ -11,6 +11,8 @@ import androidx.core.graphics.createBitmap
 import androidx.core.graphics.scale
 import androidx.core.net.toUri
 import android.graphics.BitmapFactory
+import android.graphics.ColorSpace
+import android.graphics.ImageDecoder
 import android.graphics.Canvas
 import android.net.Uri
 import android.os.Build
@@ -224,7 +226,7 @@ private fun managedWallpaperFileName(value: String): String? {
 internal fun resolveManagedWallpaperFile(filesDir: File, value: String): File? {
     val uri = runCatching { URI(value) }.getOrNull() ?: return null
     if (uri.scheme != "file") return null
-    val original = uri.path?.let(::File) ?: return null
+    val original = runCatching { File(uri) }.getOrNull() ?: uri.path?.let(::File) ?: return null
     if (original.isFile) return original
     val name = managedWallpaperFileName(value) ?: return original
     return File(File(filesDir, WallpaperDirectoryName), name).takeIf(File::isFile) ?: original
@@ -274,14 +276,29 @@ fun loadWallpaperSource(
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
         return LoadedWallpaperSource(bitmap = null, sourceSize = null)
     }
-    val sourceSize = WallpaperSourceSize(bounds.outWidth, bounds.outHeight)
+    val orientation = readWallpaperImageOrientation { openWallpaperInputStream(context, uri) }
+    val sourceSize = orientation.sourceSize(bounds.outWidth, bounds.outHeight)
     val sampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, maxDimension)
     val options = BitmapFactory.Options().apply {
         inSampleSize = sampleSize
         inPreferredConfig = Bitmap.Config.ARGB_8888
     }
     val bitmap = runCatching {
-        openWallpaperInputStream(context, uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val source = if (uri.scheme == "file") {
+                ImageDecoder.createSource(requireNotNull(resolveManagedWallpaperFile(context.filesDir, uri.toString())))
+            } else ImageDecoder.createSource(context.contentResolver, uri)
+            // ImageDecoder applies EXIF orientation itself. Keep the sampled bitmap readable
+            // by palette extraction and regional contrast sampling, and never rotate it again.
+            ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                decoder.setTargetSampleSize(sampleSize)
+                decoder.setTargetColorSpace(ColorSpace.get(ColorSpace.Named.SRGB))
+            }
+        } else {
+            openWallpaperInputStream(context, uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+                ?.let(orientation::applyTo)
+        }
     }.getOrNull()
     return LoadedWallpaperSource(bitmap = bitmap, sourceSize = sourceSize)
 }
@@ -416,7 +433,8 @@ fun readWallpaperSourceSize(context: Context, uri: Uri): WallpaperSourceSize? {
         openWallpaperInputStream(context, uri)?.use { BitmapFactory.decodeStream(it, null, options) }
     }
     return if (options.outWidth > 0 && options.outHeight > 0) {
-        WallpaperSourceSize(options.outWidth, options.outHeight)
+        readWallpaperImageOrientation { openWallpaperInputStream(context, uri) }
+            .sourceSize(options.outWidth, options.outHeight)
     } else {
         null
     }

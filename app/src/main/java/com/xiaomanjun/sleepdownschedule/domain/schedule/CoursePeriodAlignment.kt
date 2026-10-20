@@ -94,6 +94,12 @@ fun projectCourseArrangement(course: CourseEntity, config: ScheduleConfigEntity,
     val hidden = mutableSetOf<Int>()
 
     fun exact(index: Int, start: LocalTime, end: LocalTime) {
+        val matching = matchingPeriodSpan(start, end, targets)
+        if (matching.isNotEmpty()) {
+            anchors.addAll(matching.map { it.index })
+            aligned.addAll(matching.map { AlignedCourseTime(it, false) })
+            return
+        }
         val positions = courseAnchorPeriodsForTimeRange(start, end, targetPeriods)
         anchors.addAll(positions)
         aligned += AlignedCourseTime(CoursePeriodTime(positions.firstOrNull() ?: index, start, end), true)
@@ -134,9 +140,35 @@ fun projectCourseArrangement(course: CourseEntity, config: ScheduleConfigEntity,
             }
         }
     }
+    // A matching exact clock is ordinary in this scheme, but its saved source must survive
+    // metadata edits, exports and switching to a different timetable.
+    val ordinaryClock = aligned.isNotEmpty() && aligned.none { it.exact } && hidden.isEmpty()
     val projection = EffectiveCourseArrangement(source, anchors.sorted(),
-        aligned.distinct().sortedBy { it.time.start }, hidden.sorted(), config.periodAlignmentMode)
-    return source.copy(periods = projection.periods, arrangementProjection = projection)
+        aligned.distinct().sortedBy { it.time.start }, hidden.sorted(), config.periodAlignmentMode,
+        displayStart = source.customStartTime.takeUnless { ordinaryClock },
+        displayEnd = source.customEndTime.takeUnless { ordinaryClock },
+        displayPeriodTimes = source.customPeriodTimes.takeUnless { ordinaryClock })
+    return source.copy(periods = projection.periods, customStartTime = projection.displayStart,
+        customEndTime = projection.displayEnd, customPeriodTimes = projection.displayPeriodTimes,
+        arrangementProjection = projection)
+}
+
+/** Match complete consecutive lessons only; partial overlaps and ambiguous grids stay exact. */
+fun matchingPeriodIndicesForTimeRange(start: LocalTime, end: LocalTime,
+    periods: List<PeriodEntity>): List<Int> = matchingPeriodSpan(start, end,
+    periods.sortedBy { it.periodIndex }.map {
+        CoursePeriodTime(it.periodIndex, LocalTime.parse(it.startTime), LocalTime.parse(it.endTime))
+    }.filter { it.end > it.start }).map { it.index }
+
+private fun matchingPeriodSpan(start: LocalTime, end: LocalTime,
+    targets: List<CoursePeriodTime>): List<CoursePeriodTime> {
+    val touched = targets.withIndex().filter { it.value.start < end && it.value.end > start }
+    if (touched.isEmpty() || touched.first().value.start != start || touched.last().value.end != end)
+        return emptyList()
+    if (touched.zipWithNext().any { (a, b) ->
+            b.index != a.index + 1 || a.value.end > b.value.start
+        }) return emptyList()
+    return touched.map { it.value }
 }
 
 fun projectCourseArrangements(courses: List<CourseEntity>, config: ScheduleConfigEntity,

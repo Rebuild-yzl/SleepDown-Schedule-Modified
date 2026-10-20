@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.GraphicsLayerScope
@@ -41,9 +42,18 @@ class LayerBackdrop internal constructor(
 
     internal var layerCoordinates: LayoutCoordinates? by mutableStateOf(null)
 
+    internal var contentVersion: Int by mutableIntStateOf(0)
+
     private var inverseLayerScope: InverseLayerScope? = null
 
     override fun DrawScope.drawBackdrop(
+        density: Density,
+        coordinates: LayoutCoordinates?,
+        layerBlock: (GraphicsLayerScope.() -> Unit)?
+    ) = drawLayerAtSource(graphicsLayer, density, coordinates, layerBlock)
+
+    internal fun DrawScope.drawLayerAtSource(
+        layer: GraphicsLayer,
         density: Density,
         coordinates: LayoutCoordinates?,
         layerBlock: (GraphicsLayerScope.() -> Unit)?
@@ -63,7 +73,7 @@ class LayerBackdrop internal constructor(
                 }
             translate(-offset.x, -offset.y)
         }) {
-            drawLayer(graphicsLayer)
+            drawLayer(layer)
         }
     }
 

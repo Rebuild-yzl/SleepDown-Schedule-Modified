@@ -34,7 +34,8 @@ fun TodayAgentHost(
     backgroundMotionState: DayAgentBackgroundMotionState,
     onPrepareOpen: suspend () -> Unit = {},
     onAgentDismissed: () -> Unit = {},
-    onAgentAction: AgentActionHandler = { _, _ -> }
+    onAgentAction: AgentActionHandler = { _, _ -> },
+    onImportFile: ((android.net.Uri) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -119,7 +120,8 @@ fun TodayAgentHost(
             backgroundMotionState = backgroundMotionState,
             onPrepareOpen = onPrepareOpen,
             onAgentDismissed = onAgentDismissed,
-            onAgentAction = onAgentAction
+            onAgentAction = onAgentAction,
+            onImportFile = onImportFile
         )
     }
 }

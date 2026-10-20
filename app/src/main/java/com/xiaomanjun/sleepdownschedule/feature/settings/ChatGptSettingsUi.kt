@@ -125,6 +125,17 @@ internal fun ChatGptSettingsPanel(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                    if (account != null && !auth.isSigningIn) {
+                        DialogLiquidButton(
+                            label = "使用其他账号", backdrop = backdrop,
+                            modifier = Modifier.fillMaxWidth(), enabled = !signingOut,
+                            onClick = {
+                                actionMessage = null
+                                onBeforeLogin()
+                                ChatGptAuthManager.startLogin(context, addAccount = true, requestConsent = true)
+                            }
+                        )
+                    }
                     (actionMessage ?: auth.errorMessage)?.let {
                         Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                     }

@@ -57,20 +57,19 @@ private fun courseHue(seed: Color): Float {
     }
 }
 
-/** Keep the course hue vivid while lifting colored lettering over wallpaper glass. */
+/** Wallpaper lettering keeps the course hue and follows the page's foreground polarity. */
 internal fun courseTextColorForPage(seed: Color, hasWallpaper: Boolean, lightText: Boolean): Color {
     val value = maxOf(seed.red, seed.green, seed.blue)
     val chroma = value - minOf(seed.red, seed.green, seed.blue)
     val saturation = if (value > 0f) chroma / value else 0f
-    // Resolve a luminous version of the same hue first, including on flat cards. Returning
-    // the seed on a flat card painted the glyph and its background with identical ink.
-    // Lift value AND reduce saturation: every channel becomes lighter than the original.
-    return Color.hsv(
-        hue = courseHue(seed),
-        saturation = saturation * if (hasWallpaper) {
-            if (lightText) 0.62f else 0.68f
-        } else 0.46f,
-        value = 1f
+    val hue = courseHue(seed)
+    if (!hasWallpaper) return Color.hsv(hue, saturation * 0.46f, 1f)
+    val vivid = Color.hsv(hue, (saturation * 2f).coerceAtMost(1f),
+        if (lightText) value else 0.38f)
+    return if (!lightText) vivid else Color(
+        vivid.red + (1f - vivid.red) * 0.4f,
+        vivid.green + (1f - vivid.green) * 0.4f,
+        vivid.blue + (1f - vivid.blue) * 0.4f
     )
 }
 

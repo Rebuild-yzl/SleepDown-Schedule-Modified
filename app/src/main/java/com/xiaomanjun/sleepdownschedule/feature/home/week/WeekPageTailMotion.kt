@@ -109,8 +109,9 @@ internal class WeekTailTimeline(initialPosition: Float) {
 }
 
 @Stable
-internal class WeekPageTailMotion(val pager: PagerState, samplingEnabled: Boolean = true) {
+internal class WeekPageTailMotion(val pager: PagerState, samplingEnabled: Boolean = true, tailEnabled: Boolean = true) {
     var materialSamplingEnabled by mutableStateOf(samplingEnabled)
+    var tailEnabled by mutableStateOf(tailEnabled)
     private val initial = pager.currentPage + pager.currentPageOffsetFraction
     private val timeline = WeekTailTimeline(initial)
     private var positions by mutableStateOf(List(WeekTailGroups) { initial })
@@ -123,7 +124,7 @@ internal class WeekPageTailMotion(val pager: PagerState, samplingEnabled: Boolea
     private var rootWidth = 1f
     private var rootHeight = 1f
     val position: Float get() = pager.currentPage + pager.currentPageOffsetFraction
-    val moving: Boolean get() = pager.isScrollInProgress || following
+    val moving: Boolean get() = pager.isScrollInProgress || (tailEnabled && following)
     val sampleKey: Any by derivedStateOf {
         Pair(Triple(position, positions, anchor), settledSampleRevision)
     }
@@ -145,7 +146,7 @@ internal class WeekPageTailMotion(val pager: PagerState, samplingEnabled: Boolea
     }
     suspend fun awaitSettled() {
         snapshotFlow {
-            !pager.isScrollInProgress && positions.all { abs(it - position) < 0.00001f }
+            !pager.isScrollInProgress && (!tailEnabled || positions.all { abs(it - position) < 0.00001f })
         }.first { it }
     }
     fun groupForRootPosition(
@@ -160,7 +161,8 @@ internal class WeekPageTailMotion(val pager: PagerState, samplingEnabled: Boolea
     }
     fun offset(group: Int): Float = if (group == anchor) 0f else position - positions[group.coerceIn(0, WeekTailGroups - 1)]
     fun pageVisible(page: Int): Boolean =
-        weekPageIntersectsTail(page, position, positions)
+        if (tailEnabled) weekPageIntersectsTail(page, position, positions)
+        else page > position - 1f && page < position + 1f
 
     suspend fun follow(scale: () -> Float) = coroutineScope {
         val changes = Channel<Unit>(Channel.CONFLATED)
@@ -198,10 +200,12 @@ internal class WeekPageTailMotion(val pager: PagerState, samplingEnabled: Boolea
 }
 
 @Composable
-internal fun rememberWeekPageTailMotion(pager: PagerState, samplingEnabled: Boolean = true): WeekPageTailMotion {
-    val motion = remember(pager) { WeekPageTailMotion(pager, samplingEnabled) }
-    SideEffect { motion.materialSamplingEnabled = samplingEnabled }
-    LaunchedEffect(motion) {
+internal fun rememberWeekPageTailMotion(pager: PagerState, samplingEnabled: Boolean = true, tailEnabled: Boolean = true): WeekPageTailMotion {
+    val motion = remember(pager) { WeekPageTailMotion(pager, samplingEnabled, tailEnabled) }
+    SideEffect { motion.materialSamplingEnabled = samplingEnabled; motion.tailEnabled = tailEnabled }
+    LaunchedEffect(motion, tailEnabled) {
+        motion.snapTo(motion.position)
+        if (!tailEnabled) return@LaunchedEffect
         val scale = coroutineContext[MotionDurationScale]
         motion.follow { scale?.scaleFactor ?: 1f }
     }
@@ -235,6 +239,7 @@ internal fun Modifier.weekPageTail(
     columnOrderFraction: Float? = null
 ): Modifier {
     val motion = LocalWeekPageTail.current ?: return this
+    if (!motion.tailEnabled) return this
     val pageSlot = LocalWeekPageSlot.current
     // Pager slots can reuse the same composition position for another course while moving.
     // The new card must measure its own group instead of inheriting the old card's row.

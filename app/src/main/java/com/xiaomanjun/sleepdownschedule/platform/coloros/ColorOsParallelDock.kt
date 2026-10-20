@@ -165,7 +165,7 @@ internal fun ColorOsParallelHomeDock(
 ): Boolean {
     val style = LocalHomeMaterialStyle.current
     val effectiveDark = style?.dark ?: dark
-    val native = rememberNativeContext(effectiveDark) ?: return false
+    val native = rememberNativeContext(effectiveDark, retainOnThemeChange = true) ?: return false
     val source = native.first
     val context = native.second
     val host = LocalContext.current
@@ -207,7 +207,8 @@ internal fun ColorOsParallelHomeDock(
             val show = type.getMethod("showExpansionView", Boolean::class.javaPrimitiveType)
             val hide = type.getMethod("hideExpansionView", Boolean::class.javaPrimitiveType)
             val expanded = selectedIndex < 2
-            if (expanded) show.invoke(dock.view, false)
+            // Appearance changes can recreate the bar while Settings is already selected.
+            (if (expanded) show else hide).invoke(dock.view, false)
             NativeParallelDock(frame, dock, fab, show, hide, type.getMethod("unbindExpansionView"), expanded)
         }
     } ?: return false

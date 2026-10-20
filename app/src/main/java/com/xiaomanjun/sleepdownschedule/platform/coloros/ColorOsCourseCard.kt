@@ -126,6 +126,7 @@ internal fun ColorOsCourseCard(request: NativeCourseCardRequest, content: @Compo
 internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, content: @Composable () -> Unit): Boolean {
     val style = when (request.role) {
         com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRole.Dialog -> ColorOsSurfaceStyle.Dialog
+        com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRole.HomeNavigation -> ColorOsSurfaceStyle.Navigation
         com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRole.HomeDock ->
             if (LocalHomeMaterialStyle.current?.weatherMaterial == true) ColorOsSurfaceStyle.NeutralDock else ColorOsSurfaceStyle.Dock
         else -> ColorOsSurfaceStyle.Content
@@ -135,7 +136,7 @@ internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, conte
     return ColorOsMaterialSurface(themedRequest, style, null, content = content)
 }
 
-internal enum class ColorOsSurfaceStyle { Content, CourseCard, Menu, NeutralMenu, Dialog, Dock, NeutralDock }
+internal enum class ColorOsSurfaceStyle { Content, CourseCard, Menu, NeutralMenu, Dialog, Dock, NeutralDock, Navigation }
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -143,7 +144,7 @@ internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, style
     touchSource: NativeMenuTouchSource?,
     menuMotion: com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuMotion? = null,
     content: @Composable () -> Unit): Boolean {
-    val native = rememberNativeContext(request.dark) ?: return false
+    val native = rememberNativeContext(request.dark, retainOnThemeChange = style == ColorOsSurfaceStyle.Navigation) ?: return false
     val source = native.first
     val context = native.second
     val density = LocalDensity.current
@@ -152,8 +153,12 @@ internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, style
         ColorOsNativeUi.prepare("create a material surface") { NativeMaterialSurface(context, source, style) }
     } ?: return false
     val latest = rememberUpdatedState(request)
-    DisposableEffect(surface, menuMotion) {
-        val binding = menuMotion?.let {
+    val ownedMotion = remember(request.elasticTouchFeedback) {
+        if (request.elasticTouchFeedback) com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMenuMotion() else null
+    }
+    val motion = menuMotion ?: ownedMotion
+    DisposableEffect(surface, motion) {
+        val binding = motion?.let {
             ColorOsNativeUi.prepare("bind native menu deformation") { ColorOsMenuMotionBinding(source, surface, it) }
         }
         onDispose { binding?.dispose() }
@@ -163,7 +168,11 @@ internal fun ColorOsMaterialSurface(request: NativeMaterialSurfaceRequest, style
         val value = latest.value
         shape = value.shapeProvider?.invoke() ?: value.shape
         clip = true
-    }.then(if (touchSource == null) Modifier.motionEventSpy { surface.followTouch(it) } else Modifier)
+        if (menuMotion == null) ownedMotion?.applyTo(this)
+    }.then(if (touchSource == null) Modifier.motionEventSpy {
+        surface.followTouch(it)
+        if (menuMotion == null) ownedMotion?.onTouch?.invoke(it)
+    } else Modifier)
         .then(if (request.onClick != null) Modifier.clickable(interaction, indication = null,
             role = Role.Button, onClick = request.onClick) else Modifier)) {
         if (request.renderSurface) key(surface) { AndroidView(factory = { surface }, modifier = Modifier.matchParentSize()
@@ -208,11 +217,23 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
     private val manager = managerType.getField("INSTANCE").get(null)
     private val light = source.load(LightDrawable).getConstructor().newInstance() as Drawable
     private val isMenu = style == ColorOsSurfaceStyle.Menu || style == ColorOsSurfaceStyle.NeutralMenu
+    private val defaultLightIntensity = when (style) {
+        ColorOsSurfaceStyle.CourseCard -> 1.2f
+        ColorOsSurfaceStyle.Menu, ColorOsSurfaceStyle.NeutralMenu -> 1.7f
+        ColorOsSurfaceStyle.Navigation -> 0.75f
+        else -> 2f
+    }
+    private val lightPreset = when {
+        isMenu -> "TYPE_TRANSLUCENT_LARGE_1"
+        style == ColorOsSurfaceStyle.Navigation -> "TYPE_CAPSULE_2"
+        else -> CourseLightPreset
+    }
     // Reuse the native popup's edge drawable instead of applying the FAB stroke to menus.
     private val menuFrame = if (isMenu) source.load("com.coui.appcompat.poplist.RoundFrameLayout")
         .getConstructor(Context::class.java).newInstance(context) as View else null
     private var menuEdge: Drawable? = null
     private var courseRadiusRatio = 0f
+    private var appliedLightRadius = 0f
     private val lightTouch: Method = light.javaClass.getMethod("onTouchEvent", MotionEvent::class.java)
     private val location = IntArray(2)
     private val tintDrawScope = CanvasDrawScope()
@@ -254,12 +275,8 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         foreground = light
         val type = source.load(LightType)
         light.javaClass.getMethod("setSpotLightType", Context::class.java, type)
-            .invoke(light, context, type.getField(if (isMenu) "TYPE_TRANSLUCENT_LARGE_1" else CourseLightPreset).get(null))
-        source.setFollowLightIntensity(light, when (style) {
-            ColorOsSurfaceStyle.CourseCard -> 1.2f
-            ColorOsSurfaceStyle.Menu, ColorOsSurfaceStyle.NeutralMenu -> 1.7f
-            else -> 2f
-        })
+            .invoke(light, context, type.getField(lightPreset).get(null))
+        source.setFollowLightIntensity(light, defaultLightIntensity)
         if (style == ColorOsSurfaceStyle.CourseCard) {
             val lightEffect = light.javaClass.getDeclaredField("mEffect").apply { isAccessible = true }.get(light)
             val type = lightEffect.javaClass
@@ -274,6 +291,7 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
         surfaceShape = shape
         tintDensity = density
         tintDirection = direction
+        updateFollowLightRadius()
         invalidateOutline()
         if (isAttachedToWindow) updateMaterialCorners()
     }
@@ -302,8 +320,17 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
             previous.followTouch != value.followTouch ||
             previous.blurRadiusScale != value.blurRadiusScale || previous.tintAlphaScale != value.tintAlphaScale
         request = value
+        val lightThemeChanged = style == ColorOsSurfaceStyle.Navigation && previous?.dark != value.dark
+        if (lightThemeChanged) {
+            val type = source.load(LightType)
+            light.javaClass.getMethod("setSpotLightType", Context::class.java, type)
+                .invoke(light, context, type.getField(lightPreset).get(null))
+        }
+        if (lightThemeChanged || previous?.followLightIntensityScale != value.followLightIntensityScale)
+            source.setFollowLightIntensity(light, defaultLightIntensity * value.followLightIntensityScale)
         tintDensity = density
         tintDirection = direction
+        updateFollowLightRadius()
         // Tint/content updates only need a redraw. Reinstalling COUI effects for every slider
         // sample resets the native light/material animation even though its parameters match.
         if (isAttachedToWindow && materialChanged) applyMaterial() else invalidate()
@@ -323,12 +350,19 @@ private class NativeMaterialSurface(context: Context, private val source: ColorO
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        if (style == ColorOsSurfaceStyle.CourseCard && w > 0 && h > 0) {
-            val radius = kotlin.math.hypot(w.toFloat(), h.toFloat())
+        updateFollowLightRadius()
+        if (isAttachedToWindow) applyMaterial()
+    }
+
+    private fun updateFollowLightRadius() {
+        if (style == ColorOsSurfaceStyle.CourseCard && width > 0 && height > 0) {
+            val radius = request?.followLightRadius?.let { with(tintDensity) { it.toPx() } }
+                ?: kotlin.math.hypot(width.toFloat(), height.toFloat())
+            if (radius == appliedLightRadius) return
             light.javaClass.getMethod("setRadiusRange", Float::class.javaPrimitiveType, Float::class.javaPrimitiveType)
                 .invoke(light, radius * courseRadiusRatio, radius)
+            appliedLightRadius = radius
         }
-        if (isAttachedToWindow) applyMaterial()
     }
 
     override fun draw(canvas: Canvas) {

@@ -54,7 +54,6 @@ internal fun WeekEditOverlayHost(
     overlayAlpha: Float,
     liftProgress: Float,
     rotation: Float,
-    pointerPosition: Offset,
     gestureActive: Boolean,
     gridOffsetY: Float,
     gridScrollCompensationY: Float,
@@ -80,33 +79,9 @@ internal fun WeekEditOverlayHost(
         progress = cornerProgress
     )
     val cardShape = remember(cardCorner) { RoundedRectangle(cardCorner) }
-    val highlightScope = rememberCoroutineScope()
-    val glowRadiusPx = with(density) { (widthDp * 1.9f).coerceIn(84.dp, 140.dp).toPx() }
-    val dragHighlight = remember(highlightScope, glowRadiusPx) {
-        InteractiveHighlight(
-            animationScope = highlightScope,
-            radius = { glowRadiusPx },
-            ambientAlpha = 0f,
-            spotAlpha = 0.115f,
-            fallbackAlpha = 0.075f
-        )
-    }
-    val localPointer = Offset(pointerPosition.x - host.left, pointerPosition.y - host.top)
-    LaunchedEffect(localPointer, gestureActive) {
-        dragHighlight.updateExternal(localPointer, gestureActive, followPointerExactly = true)
-    }
     val left = req.sourceBounds.left - host.left + offsetX
     val top = req.sourceBounds.top - host.top + offsetY
     val cardGlowRadiusPx = with(density) { (widthDp * 1.65f).coerceIn(72.dp, 120.dp).toPx() }
-    val cardHighlight = remember(highlightScope, cardGlowRadiusPx) {
-        InteractiveHighlight(
-            animationScope = highlightScope,
-            radius = { cardGlowRadiusPx },
-            ambientAlpha = 0f,
-            spotAlpha = 0.068f,
-            fallbackAlpha = 0.046f
-        )
-    }
     val liftPx = with(density) { 8.dp.toPx() }
     val touchTransformOrigin = remember(req.initialPointerPosition, req.sourceBounds) {
         TransformOrigin(
@@ -125,12 +100,6 @@ internal fun WeekEditOverlayHost(
         y = top + heightPx / 2f - liftPx * liftProgress
     )
     val cardGlowPressed = gestureActive || liftProgress > 0.01f
-    LaunchedEffect(cardGlowPressed) {
-        cardHighlight.updateExternal(
-            Offset(cardGlowRadiusPx, cardGlowRadiusPx),
-            cardGlowPressed
-        )
-    }
     val cardGlowDiameterDp = with(density) { (cardGlowRadiusPx * 2f).toDp() }
     val target = when (req.mode) {
         WeekEditOverlayMode.Move -> weekCourseEditTarget(
@@ -153,7 +122,8 @@ internal fun WeekEditOverlayHost(
         WeekEditOverlayMode.Resize -> req.course.copy(periods = target.periods)
     }
     val conflict = !target.valid ||
-        hasWeekCourseEditConflict(req.course, previewCourse, req.weekCourses, req.editWeek)
+        hasWeekCourseEditConflict(if (req.destinationWeek != req.editWeek) req.course.copy(id = -1) else req.course,
+            previewCourse, req.weekCourses, req.destinationWeek)
     val previewLeft = req.sourceBounds.left - host.left + (target.weekday - req.dayIndex) * req.gridColumnWidthPx
     val previewTop = req.sourceBounds.top - host.top - gridScrollCompensationY +
         ((target.periods.firstOrNull() ?: req.periodIndex) - req.periodIndex) * req.periodRowHeightPx
@@ -178,9 +148,11 @@ internal fun WeekEditOverlayHost(
         modifier = Modifier
             .fillMaxSize()
             .zIndex(90f)
-            .then(dragHighlight.modifier)
     ) {
-        Box(
+        WeekEditCardGlow(
+            config = config,
+            pressed = cardGlowPressed, radiusPx = cardGlowRadiusPx,
+            spotAlpha = 0.068f, fallbackAlpha = 0.046f,
             modifier = Modifier
                 .offset {
                     IntOffset(
@@ -190,7 +162,6 @@ internal fun WeekEditOverlayHost(
                 }
                 .size(cardGlowDiameterDp)
                 .graphicsLayer { alpha = overlayAlpha }
-                .then(cardHighlight.modifier)
         )
         Box(
             modifier = Modifier
@@ -233,6 +204,7 @@ internal fun WeekEditOverlayHost(
                 course = req.course,
                 modifier = Modifier.fillMaxSize(),
                 shape = cardShape,
+                followTouch = false,
                 onClick = null
             ) {
                 WeekCourseOverlayCardContent(req.course, config)
@@ -263,4 +235,22 @@ internal fun WeekCourseOverlayCardContent(
         WeekCourseCardTextContent(course, config, maxWidth, maxHeight, maxWidth, muted,
             adaptiveContrast = false)
     }
+}
+
+@Composable
+private fun WeekEditCardGlow(config: ScheduleConfigEntity, pressed: Boolean,
+    radiusPx: Float, spotAlpha: Float, fallbackAlpha: Float, modifier: Modifier) {
+    // The halo belongs to the lifted card; touch coordinates only drive the editing gesture.
+    val position = Offset(radiusPx, radiusPx)
+    val native = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeFollowLightRenderer.current
+    if (native?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeFollowLightRequest(
+            modifier, com.xiaomanjun.sleepdownschedule.glass.ui.appUsesDarkTheme(config),
+            position, pressed, radiusPx)) == true) return
+    val scope = rememberCoroutineScope()
+    val highlight = remember(scope, radiusPx, spotAlpha, fallbackAlpha) {
+        InteractiveHighlight(scope, radius = { radiusPx }, ambientAlpha = 0f,
+            spotAlpha = spotAlpha, fallbackAlpha = fallbackAlpha)
+    }
+    LaunchedEffect(position, pressed) { highlight.updateExternal(position, pressed, followPointerExactly = true) }
+    Box(modifier.then(highlight.modifier))
 }

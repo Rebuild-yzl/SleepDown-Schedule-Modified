@@ -182,7 +182,7 @@ internal fun ColorOsMenuList(request: NativeMenuListRequest): Boolean {
 internal fun ColorOsMenuRow(request: NativeMenuRowRequest): Boolean {
     val native = rememberNativeContext(request.dark) ?: return false
     val host = LocalContext.current
-    val binding = remember(native, host, request.item, request.first, request.last, request.dark) {
+    val binding = remember(native, host, request.item, request.first, request.last, request.dark, request.contentVisible) {
         ColorOsNativeUi.prepare("create native popup menu item") {
             val source = native.first
             val context = native.second
@@ -195,6 +195,9 @@ internal fun ColorOsMenuRow(request: NativeMenuRowRequest): Boolean {
                 override fun dispatchTouchEvent(event: MotionEvent): Boolean = false
             }.apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS }
             val row = adapter.getView(0, null, container)
+            if (!request.contentVisible && row is android.view.ViewGroup) {
+                for (index in 0 until row.childCount) row.getChildAt(index).alpha = 0f
+            }
             val edge = context.resources.getDimensionPixelSize(source.resource("coui_popup_list_padding_vertical", "dimen"))
             val trimTop = if (request.first) 0 else edge
             val trimBottom = if (request.last) 0 else edge

@@ -373,7 +373,7 @@ object AiImportSettingsStore {
         )
         return if (AiProviderPresets.isChatGptId(profile.id)) {
             AiProviderPresets.normalizeChatGptProfile(profile)
-        } else profile
+        } else AiProviderPresets.normalizeDeepSeekProfile(profile)
     }
 
     private fun AiProviderProfile.toBackupProvider(): BackupAiProvider = BackupAiProvider(
@@ -399,16 +399,13 @@ object AiImportSettingsStore {
     )
 
     private fun BackupAiProvider.fromBackupProvider(context: Context): AiProviderProfile {
-        require(id.matches(Regex("[A-Za-z0-9:_-]{1,128}"))) { "AI provider ID 非法" }
         val preset = (selectableProfiles(context) + AiProviderPresets.all + AiProviderPresets.openAI).firstOrNull { it.id == id }
             ?: AiProviderPresets.customProfile(id, displayName)
         val providerType = runCatching { AiProviderType.valueOf(this.providerType) }
             .getOrElse { throw IllegalArgumentException("未知 AI providerType: ${this.providerType}") }
         val authType = runCatching { AiAuthType.valueOf(this.authType) }
             .getOrElse { throw IllegalArgumentException("未知 AI authType: ${this.authType}") }
-        require(authType != AiAuthType.ChatGptOAuth || AiProviderPresets.isChatGptId(id)) {
-            "ChatGPT 登录不能用于自定义接口"
-        }
+        AiProviderPresets.validateRestoredProviderIdentity(id, authType)
         val endpointStyle = runCatching { AiEndpointStyle.valueOf(this.endpointStyle) }
             .getOrElse { throw IllegalArgumentException("未知 AI endpointStyle: ${this.endpointStyle}") }
         val structuredOutputMode = runCatching { StructuredOutputMode.valueOf(this.structuredOutputMode) }
@@ -446,7 +443,7 @@ object AiImportSettingsStore {
             AiProviderPresets.normalizeChatGptProfile(profile).copy(availableModels = emptyList())
         } else if (id == AiProviderPresets.openAI.id) {
             profile.copy(displayName = AiProviderPresets.openAI.displayName)
-        } else profile
+        } else AiProviderPresets.normalizeDeepSeekProfile(profile)
     }
 
     private fun readCustomProviders(prefs: android.content.SharedPreferences): List<AiCustomProviderEntry> {
@@ -545,7 +542,7 @@ object AiImportSettingsStore {
                 remove(KeyEncryptedApiKey)
             }
         }
-        return AiImportSettings(profile, apiKey)
+        return AiImportSettings(AiProviderPresets.normalizeDeepSeekProfile(profile), apiKey)
     }
 
     fun loadProvider(context: Context, providerId: String): AiImportSettings {
@@ -665,20 +662,13 @@ object AiImportSettingsStore {
             }
         }
         val apiKey = prefs.getString(apiKeyKey(profile.id), null)?.let { decrypt(context, it) }.orEmpty()
-        return AiImportSettings(profile, apiKey)
+        return AiImportSettings(AiProviderPresets.normalizeDeepSeekProfile(profile), apiKey)
     }
 
     private fun chatGptSettings(context: Context, profile: AiProviderProfile): AiImportSettings {
         val models = ChatGptAuthManager.cachedModels(context)
-        val selectedModel = models.firstOrNull { it.slug == profile.defaultModel }
         return AiImportSettings(
-            AiProviderPresets.normalizeChatGptProfile(profile).copy(
-                availableModels = models.map { it.slug },
-                supportsVision = selectedModel?.supportsImages == true,
-                capabilities = AiProviderPresets.chatGpt.capabilities.copy(
-                    supportsImageInput = selectedModel?.supportsImages == true
-                )
-            ),
+            com.xiaomanjun.sleepdownschedule.feature.importing.chatgpt.resolveChatGptModelProfile(profile, models),
             apiKey = ""
         )
     }

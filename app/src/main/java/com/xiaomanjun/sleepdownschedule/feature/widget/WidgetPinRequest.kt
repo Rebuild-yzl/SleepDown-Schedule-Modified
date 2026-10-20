@@ -25,7 +25,7 @@ internal fun requestWidgetPin(context: Context, provider: ComponentName, preview
                 Intent(context, WidgetPinnedReceiver::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             if (manager.requestPinAppWidget(provider, preview, callback)) {
-                null // The launcher is handling its confirmation; do not imply a missing permission.
+                "已向桌面发送添加请求，请在桌面确认；未出现提示时可查看手动添加方法"
             } else "桌面未接受添加请求，请长按桌面空白处添加 SleepDown 小组件"
         }
     } catch (_: SecurityException) {
@@ -33,7 +33,7 @@ internal fun requestWidgetPin(context: Context, provider: ComponentName, preview
     } catch (_: IllegalStateException) {
         "请保持此页面在前台，然后重试添加小组件"
     }
-    if (message != null) Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
 }
 
 class WidgetPinnedReceiver : BroadcastReceiver() {

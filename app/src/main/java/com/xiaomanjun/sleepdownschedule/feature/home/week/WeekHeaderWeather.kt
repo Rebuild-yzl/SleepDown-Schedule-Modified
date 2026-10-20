@@ -122,6 +122,8 @@ internal fun WeekHeaderWeather(color: Color) {
                 }
             }
         }
-        HomeReadableText("${current.temperature}°", color = color, style = MaterialTheme.typography.labelMedium.copy(fontSize = 14.sp), maxLines = 1)
+        HomeReadableText("${current.temperature}°", color = color,
+            style = MaterialTheme.typography.labelMedium.copy(fontSize = 14.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), maxLines = 1)
     }
 }

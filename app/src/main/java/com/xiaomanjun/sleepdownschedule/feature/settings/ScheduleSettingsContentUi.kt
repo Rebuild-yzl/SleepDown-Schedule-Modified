@@ -96,7 +96,6 @@ fun ScheduleSettingsContent(
     liveUpdateActionsEnabled: Boolean,
     onLiveUpdateActionsEnabledChange: (Boolean) -> Unit,
     autoCurrentWeek: Boolean,
-    onAutoCurrentWeekChange: (Boolean) -> Unit,
     hideEmptyWeekends: Boolean,
     showNonCurrentWeekCourses: Boolean,
     onHideEmptyWeekendsChange: (Boolean) -> Unit,
@@ -125,7 +124,8 @@ fun ScheduleSettingsContent(
     onScheduleAdjustmentsChange: (String) -> Unit = {},
     onOpenPeriodSchemes: () -> Unit = {},
     periodSchemeLibrary: List<SavedPeriodScheme> = emptyList(),
-    onSelectPeriodScheme: (SavedPeriodScheme) -> Unit = {}
+    onSelectPeriodScheme: (SavedPeriodScheme) -> Unit = {},
+    periodEditorExit: PeriodEditorExitCoordinator? = null
 ) {
     val appContext = LocalContext.current
     val experimentalNotifications = rememberExperimentalNotificationUiState(notificationMode)
@@ -147,7 +147,6 @@ fun ScheduleSettingsContent(
             currentWeek = currentWeek,
             onCurrentWeekChange = onCurrentWeekChange,
             autoCurrentWeek = autoCurrentWeek,
-            onAutoCurrentWeekChange = onAutoCurrentWeekChange,
             hideEmptyWeekends = hideEmptyWeekends,
             showNonCurrentWeekCourses = showNonCurrentWeekCourses,
             onHideEmptyWeekendsChange = onHideEmptyWeekendsChange,
@@ -176,7 +175,8 @@ fun ScheduleSettingsContent(
             onScheduleAdjustmentsChange = onScheduleAdjustmentsChange,
             onOpenPeriodSchemes = onOpenPeriodSchemes,
             periodSchemeLibrary = periodSchemeLibrary,
-            onSelectPeriodScheme = onSelectPeriodScheme
+            onSelectPeriodScheme = onSelectPeriodScheme,
+            periodEditorExit = periodEditorExit
         )
         return
     }
@@ -196,9 +196,7 @@ fun ScheduleSettingsContent(
                     SettingsGroup(backdrop = backdrop, config = state.config, modifier = Modifier.fillMaxWidth()) {
                         SettingsTextFieldRow("总周数", totalWeeks, { onTotalWeeksChange(it.filter(Char::isDigit)) }, KeyboardType.Number)
                         SettingsDivider()
-                        SettingsTextFieldRow("当前周", currentWeek, { onCurrentWeekChange(it.filter(Char::isDigit)) }, KeyboardType.Number, enabled = !autoCurrentWeek)
-                        SettingsDivider()
-                        SettingsToggleRow("自动计算当前周", "", autoCurrentWeek, backdrop, onCheckedChange = onAutoCurrentWeekChange)
+                        SettingsTextFieldRow("当前周（自动）", currentWeek, {}, KeyboardType.Number, enabled = false)
                         SettingsDivider()
                         SettingsDatePickerRow("学期开始日期", termStartDate, onTermStartDateChange, backdrop, state.config)
                     }
@@ -467,7 +465,6 @@ fun ScheduleSettingsContentFixed(
     currentWeek: String,
     onCurrentWeekChange: (String) -> Unit,
     autoCurrentWeek: Boolean,
-    onAutoCurrentWeekChange: (Boolean) -> Unit,
     hideEmptyWeekends: Boolean,
     showNonCurrentWeekCourses: Boolean,
     onHideEmptyWeekendsChange: (Boolean) -> Unit,
@@ -496,7 +493,8 @@ fun ScheduleSettingsContentFixed(
     onScheduleAdjustmentsChange: (String) -> Unit = {},
     onOpenPeriodSchemes: () -> Unit = {},
     periodSchemeLibrary: List<SavedPeriodScheme> = emptyList(),
-    onSelectPeriodScheme: (SavedPeriodScheme) -> Unit = {}
+    onSelectPeriodScheme: (SavedPeriodScheme) -> Unit = {},
+    periodEditorExit: PeriodEditorExitCoordinator? = null
 ) {
 
     val draftConfig = state.config.copy(
@@ -515,9 +513,7 @@ fun ScheduleSettingsContentFixed(
             SettingsGroup(backdrop = backdrop, config = state.config, modifier = Modifier.fillMaxWidth()) {
                 SettingsTextFieldRow("总周数", totalWeeks, { onTotalWeeksChange(it.filter(Char::isDigit)) }, KeyboardType.Number)
                 SettingsDivider()
-                SettingsTextFieldRow("当前周", currentWeek, { onCurrentWeekChange(it.filter(Char::isDigit)) }, KeyboardType.Number, enabled = !autoCurrentWeek)
-                SettingsDivider()
-                SettingsToggleRow("自动计算当前周", "", autoCurrentWeek, backdrop, onCheckedChange = onAutoCurrentWeekChange)
+                SettingsTextFieldRow("当前周（自动）", currentWeek, {}, KeyboardType.Number, enabled = false)
                 SettingsDivider()
                 SettingsToggleRow("隐藏空周末", "", hideEmptyWeekends, backdrop, onCheckedChange = onHideEmptyWeekendsChange)
                 SettingsDivider()
@@ -566,7 +562,8 @@ fun ScheduleSettingsContentFixed(
         PeriodSchemeEditor(
             state, backdrop, draftConfig, schemeDraft,
             onSchemeDraftChange, onPeriodCountsChange, topPadding,
-            leadingContent = termSettings
+            leadingContent = termSettings,
+            exitCoordinator = periodEditorExit
         )
     } else {
         LazyColumn(

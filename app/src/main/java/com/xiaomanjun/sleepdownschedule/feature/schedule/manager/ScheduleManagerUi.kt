@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownDesignTokens
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -505,7 +506,7 @@ fun ScheduleManagerScreen(
                 surfaceColor = Color.Black.copy(alpha = 0.30f),
                 contentPadding = PaddingValues(horizontal = 24.dp)
             ) {
-                Text("自定义", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("课表设置", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             }
             LiquidButton(
                 onClick = onCreate,
@@ -713,7 +714,7 @@ fun ScheduleCarouselCard(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(if (dark) Color(0xFF09090B) else Color(0xFFEDEEF3))
+                    .background(if (dark) Color(0xFF09090B) else SleepDownDesignTokens.LightPageBackground)
             )
         }
         if (overlayAlpha > 0.01f) {

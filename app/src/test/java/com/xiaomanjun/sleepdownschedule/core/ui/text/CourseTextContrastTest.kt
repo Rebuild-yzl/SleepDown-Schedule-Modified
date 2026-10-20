@@ -8,15 +8,15 @@ import org.junit.Test
 class CourseTextContrastTest {
     private val blue = Color(0xFF64B5F6)
 
-    @Test fun wallpaperLetteringKeepsCourseHueInsteadOfTurningIntoDarkInk() {
+    @Test fun wallpaperLetteringKeepsCourseHueAndFollowsTheBackgroundPolarity() {
         val brightPage = courseTextColorForPage(blue, hasWallpaper = true, lightText = false)
         val darkPage = courseTextColorForPage(blue, hasWallpaper = true, lightText = true)
-        assertTrue(brightPage.luminance() > 0.3f)
+        assertTrue(brightPage.luminance() < 0.15f)
         assertTrue(darkPage.luminance() > 0.3f)
         assertTrue(darkPage.blue > darkPage.red)
         assertTrue(brightPage.blue > brightPage.red)
-        assertTrue(darkPage.luminance() > blue.luminance())
-        assertTrue(brightPage.luminance() > blue.luminance())
+        assertTrue((darkPage.luminance() + 0.05f) / (0.02f + 0.05f) >= 4.5f)
+        assertTrue((0.75f + 0.05f) / (brightPage.luminance() + 0.05f) >= 4.5f)
         assertEquals((blue.green - blue.red) / (blue.blue - blue.red),
             (darkPage.green - darkPage.red) / (darkPage.blue - darkPage.red), 0.01f) // 8-bit sRGB rounding
         val pink = courseTextColorForPage(Color(0xFFF48FB1), hasWallpaper = true, lightText = true)
@@ -34,7 +34,7 @@ class CourseTextContrastTest {
     }
 
     @Test fun shadowPolarityFollowsTheColoredGlyphAndProtectsLowContrastRegions() {
-        val lightBlue = courseTextColorForPage(blue, hasWallpaper = true, lightText = false)
+        val lightBlue = courseTextColorForPage(blue, hasWallpaper = true, lightText = true)
         assertTrue(courseTextNeedsDarkShadow(lightBlue))
         assertFalse(courseTextNeedsDarkShadow(Color(0xFF001199)))
         assertTrue(courseTextNeedsDarkShadow(Color(0xFF888888))) // luminance below 0.5

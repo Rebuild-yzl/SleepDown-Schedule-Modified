@@ -1,4 +1,5 @@
 package com.xiaomanjun.sleepdownschedule.data.repository
+import com.xiaomanjun.sleepdownschedule.domain.schedule.withCompatiblePeriodGrid
 
 import androidx.room.withTransaction
 import com.xiaomanjun.sleepdownschedule.*
@@ -482,6 +483,9 @@ class ScheduleRepository(private val database: AppDatabase) {
             require(targetWeek in current.weeks && parityMatches(current.weekParity, targetWeek)) {
                 "所选周次没有这条课程，请重新打开"
             }
+            val destinationWeek = edited.weeks.distinct().singleOrNull() ?: targetWeek
+            val config = configDao.getConfig(scheduleId) ?: error("课表已不存在")
+            require(destinationWeek in 1..config.totalWeeks) { "目标周次超出学期范围" }
             val remainingWeeks = current.weeks.filter { it != targetWeek }
             if (remainingWeeks.isEmpty()) {
                 courseDao.deleteCourse(current.id)
@@ -489,10 +493,10 @@ class ScheduleRepository(private val database: AppDatabase) {
                 courseDao.updateCourse(current.copy(weeks = remainingWeeks))
             }
             val singleWeekCourse = normalizeCoursesForSchedule(
-                listOf(edited.copy(id = 0, weeks = listOf(targetWeek), weekParity = WeekParity.ALL)), scheduleId
+                listOf(edited.copy(id = 0, weeks = listOf(destinationWeek), weekParity = WeekParity.ALL)), scheduleId
             ).single()
             courseDao.getCourses(scheduleId)
-                .filter { it.id != current.id && it.weeks.distinct() == listOf(targetWeek) && it.hasSameOccurrenceSlot(singleWeekCourse) }
+                .filter { destinationWeek == targetWeek && it.id != current.id && it.weeks.distinct() == listOf(targetWeek) && it.hasSameOccurrenceSlot(singleWeekCourse) }
                 .forEach { courseDao.deleteCourse(it.id) }
             courseDao.insertCourse(singleWeekCourse)
             mergeCompatibleCourseFragments(scheduleId)
@@ -722,6 +726,7 @@ class ScheduleRepository(private val database: AppDatabase) {
     }
 
     suspend fun importDraft(draft: ImportDraft, createNewSchedule: Boolean = false): Int {
+        val compatible = draft.withCompatiblePeriodGrid()
         return database.withTransaction {
             val oldActiveId = activeScheduleId()
             val globalConfig = configDao.getConfig(oldActiveId) ?: defaultConfig(oldActiveId)
@@ -732,15 +737,15 @@ class ScheduleRepository(private val database: AppDatabase) {
             } else {
                 oldActiveId
             }
-            val importedPeriods = normalizePeriodsForSchedule(draft.periods, scheduleId)
+            val importedPeriods = normalizePeriodsForSchedule(compatible.periods, scheduleId)
             val importedConfig = configWithCountsFromPeriods(
-                draft.config.withImportedCourseCardDefaults().withGlobalSettingsFrom(globalConfig), importedPeriods)
+                compatible.config.withImportedCourseCardDefaults().withGlobalSettingsFrom(globalConfig), importedPeriods)
             configDao.upsertConfig(normalizeConfigForSchedule(importedConfig, scheduleId))
             configDao.deletePeriods(scheduleId)
             configDao.upsertPeriods(importedPeriods)
             replaceSchemesWithPeriods(scheduleId, importedConfig, importedPeriods, "导入作息", reuseIdentical = true)
             courseDao.deleteBySchedule(scheduleId)
-            val importedCourses = normalizeImportedCoursesForSchedule(draft.courses, scheduleId)
+            val importedCourses = normalizeImportedCoursesForSchedule(compatible.courses, scheduleId)
             projectCourseArrangements(importedCourses, importedConfig, importedPeriods)
             courseDao.insertCourses(importedCourses)
             scheduleId
@@ -765,6 +770,36 @@ class ScheduleRepository(private val database: AppDatabase) {
             projectCourseArrangements(importedCourses, refreshed.config, currentPeriods)
             courseDao.insertCourses(importedCourses)
         }
+    }
+
+    /** Review is guarded in the same transaction as the write; unchanged rows keep their IDs. */
+    internal suspend fun applyReviewedRefresh(
+        scheduleId: Int,
+        before: List<com.xiaomanjun.sleepdownschedule.domain.schedule.RefreshCourse>,
+        timingKey: String,
+        selected: List<com.xiaomanjun.sleepdownschedule.domain.schedule.RefreshCourse>,
+        term: com.xiaomanjun.sleepdownschedule.domain.schedule.RefreshTerm?
+    ) = database.withTransaction {
+        require(profileDao.getProfiles().any { it.id == scheduleId }) { "自动刷新绑定的课表已不存在" }
+        val config = requireNotNull(configDao.getConfig(scheduleId)) { "课表配置已不存在" }
+        val periods = configDao.getPeriods(scheduleId)
+        val current = courseDao.getCourses(scheduleId)
+        if (current.map(com.xiaomanjun.sleepdownschedule.domain.schedule.RefreshCourse::from).sortedBy { it.id } !=
+            before.sortedBy { it.id } ||
+            com.xiaomanjun.sleepdownschedule.domain.schedule.refreshTimingKey(config, periods) != timingKey) {
+            throw com.xiaomanjun.sleepdownschedule.domain.schedule.ScheduleRefreshStaleException()
+        }
+        val knownIds = current.map { it.id }.toSet()
+        require(selected.all { it.id == 0L || it.id in knownIds }) { "课表差异选择已失效" }
+        val updatedConfig = if (term == null) config else config.copy(totalWeeks = term.totalWeeks,
+            currentWeek = config.currentWeek.coerceIn(1, term.totalWeeks), termStartDate = term.startDate)
+        val rows = selected.map { it.entity(scheduleId) }
+        projectCourseArrangements(rows, updatedConfig, periods)
+        val retainedIds = rows.map { it.id }.toSet()
+        current.filterNot { it.id in retainedIds }.forEach { courseDao.deleteCourse(it.id) }
+        val previous = current.associateBy { it.id }
+        courseDao.insertCourses(rows.filter { it.id == 0L || it != previous[it.id] })
+        if (updatedConfig != config) configDao.upsertConfig(updatedConfig)
     }
 
     suspend fun saveConfig(config: ScheduleConfigEntity, periods: List<PeriodEntity>) {
@@ -875,7 +910,7 @@ class ScheduleRepository(private val database: AppDatabase) {
         return database.withTransaction {
             val globalConfig = configDao.getConfig() ?: defaultConfig(activeScheduleId())
             val id = profileDao.upsertProfile(ScheduleProfileEntity(name = name, isActive = false)).toInt()
-            val config = defaultConfig(id).copy(autoCurrentWeek = true).withGlobalSettingsFrom(globalConfig)
+            val config = normalizeConfigForSchedule(defaultConfig(id).withGlobalSettingsFrom(globalConfig), id)
             configDao.upsertConfig(config)
             if (publicSchemeId != null) {
                 val selected = periodSchemeDao.getScheme(publicSchemeId) ?: error("作息方案不存在")
@@ -991,7 +1026,8 @@ class ScheduleRepository(private val database: AppDatabase) {
         if (scheme != null) {
             val times = periodSchemeDao.getTimes(scheme.id)
             require(times.isNotEmpty()) { "公共作息时间缺失，请从备份恢复" }
-            val projected = com.xiaomanjun.sleepdownschedule.domain.schedule.schemeConfig(requireNotNull(config), scheme)
+            val projected = normalizeConfigForSchedule(
+                com.xiaomanjun.sleepdownschedule.domain.schedule.schemeConfig(requireNotNull(config), scheme), scheduleId)
             if (projected != config) configDao.upsertConfig(projected)
             val periods = times.map { PeriodEntity(it.periodIndex, it.startTime, it.endTime, scheduleId) }
             if (configDao.getPeriods(scheduleId) != periods) projectPeriods(scheduleId, times)
@@ -1015,6 +1051,9 @@ class ScheduleRepository(private val database: AppDatabase) {
     private fun normalizeConfigForSchedule(config: ScheduleConfigEntity, scheduleId: Int): ScheduleConfigEntity {
         return config.copy(
             id = scheduleId,
+            // Keep the legacy field readable in Room/backups, but all live schedules use dates.
+            // Missing opening dates retain their stored week until the user supplies the date.
+            autoCurrentWeek = true,
             scheduleAdjustmentsJson = com.xiaomanjun.sleepdownschedule.domain.schedule.encodeScheduleAdjustments(
                 com.xiaomanjun.sleepdownschedule.domain.schedule.decodeScheduleAdjustments(config.scheduleAdjustmentsJson)
             ),

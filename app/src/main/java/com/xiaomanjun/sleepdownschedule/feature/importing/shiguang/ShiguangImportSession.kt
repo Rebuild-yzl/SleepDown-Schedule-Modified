@@ -117,9 +117,11 @@ internal class ShiguangImportSession {
             json
         )
         require(parsed.isNotEmpty()) { "时间段数据为空" }
-        val sorted = parsed.sortedBy(ShiguangTimeSlotPayload::number)
+        val sorted = parsed.distinct()
+            .sortedBy(ShiguangTimeSlotPayload::number)
+        require(sorted.map { it.number }.distinct().size == sorted.size) { "同一节次存在不同时间，无法确定课程的真实作息" }
         sorted.forEachIndexed { index, slot ->
-            require(slot.number == index + 1) { "时间段编号必须从 1 连续递增" }
+            require(slot.number > 0) { "时间段编号必须大于 0" }
             val start = parseTime(slot.startTime, "第 ${slot.number} 节 startTime")
             val end = parseTime(slot.endTime, "第 ${slot.number} 节 endTime")
             require(start < end) { "第 ${slot.number} 节结束时间必须晚于开始时间" }
@@ -130,9 +132,13 @@ internal class ShiguangImportSession {
                 val normalized = mergeWakeUpTimeSlots(sorted)
                 timeSlots = normalized.slots
                 sectionMapping = normalized.sectionMapping
-            } else if (allowImportedBellTimes && sorted.zipWithNext().any { (previous, next) ->
+                originalConflictingSlots = sorted.takeIf { source -> source.any { slot ->
+                    val target = normalized.slots[normalized.sectionMapping.getValue(slot.number) - 1]
+                    slot.number != target.number || slot.startTime != target.startTime || slot.endTime != target.endTime
+                } }
+            } else if (allowImportedBellTimes && (sorted.map { it.number } != (1..sorted.size).toList() || sorted.zipWithNext().any { (previous, next) ->
                 parseTime(next.startTime, "startTime") < parseTime(previous.endTime, "endTime")
-            }) {
+            })) {
                 // The shared grid is only a display reference. Each course keeps its source
                 // period numbers and exact clocks, including periods absent from this grid.
                 originalConflictingSlots = sorted
@@ -214,9 +220,10 @@ internal class ShiguangImportSession {
             } ?: basePeriods
             require(mappedPeriods.isNotEmpty()) { "目标课表没有可用于预览的节次" }
             val periodIndexSet = mappedPeriods.mapTo(hashSetOf(), PeriodEntity::periodIndex)
+            val sourceSlots = originalConflictingSlots?.associateBy { it.number }
             val mappedCourses = courses.mapIndexed { index, course ->
                 val periods = course.sectionRangeOrNull()?.map { originalSection ->
-                    if (sectionMapping == null) originalSection
+                    if (sectionMapping == null || sourceSlots != null) originalSection
                     else requireNotNull(sectionMapping[originalSection]) {
                         "第 ${index + 1} 门课程引用了不存在的节次"
                     }
@@ -227,14 +234,22 @@ internal class ShiguangImportSession {
                 if (!course.hasExactTime()) {
                     require(periods.isNotEmpty()) { "第 ${index + 1} 门课程缺少节次范围" }
                 }
-                val sourceSlots = originalConflictingSlots?.associateBy { it.number }
-                require(periods.all { it in (sourceSlots?.keys ?: periodIndexSet) }) {
+                val sourceTimes = sourceSlots?.takeIf { course.sectionRangeOrNull() != null }
+                    ?.let { slots -> periods.mapNotNull(slots::get) }
+                if (sourceTimes != null && !course.hasExactTime()) {
+                    // WakeUp may hide unused intermediate nodes. Keep known endpoint clocks;
+                    // no missing lesson or break time is invented inside that range.
+                    val knownSlots = requireNotNull(sourceSlots)
+                    require(periods.first() in knownSlots && periods.last() in knownSlots) {
+                        "第 ${index + 1} 门课程缺少起止节次的真实时间，请补充时间后再导入"
+                    }
+                } else if (sourceTimes == null) require(periods.all { it in periodIndexSet } || course.hasExactTime()) {
                     "第 ${index + 1} 门课程引用了不存在的节次"
                 }
-                val sourceTimes = sourceSlots?.let { slots -> periods.map { slots.getValue(it) } }
                 val originalClock = sourceTimes?.joinToString(";") { "${it.number},${it.startTime}-${it.endTime}" }
                 val exactPeriodClock = originalClock?.takeIf {
-                    sourceTimes.zipWithNext().all { (a, b) -> LocalTime.parse(b.startTime) >= LocalTime.parse(a.endTime) }
+                    sourceTimes != null && sourceTimes.size == periods.size &&
+                        sourceTimes.zipWithNext().all { (a, b) -> LocalTime.parse(b.startTime) >= LocalTime.parse(a.endTime) }
                 }
                 val clock = if (sourceTimes != null && !course.hasExactTime()) normalizeCourseClock(
                     sourceTimes.minOf { LocalTime.parse(it.startTime) }.toString(),

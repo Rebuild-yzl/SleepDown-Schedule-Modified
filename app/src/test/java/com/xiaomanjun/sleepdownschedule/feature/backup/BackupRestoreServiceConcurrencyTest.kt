@@ -10,6 +10,7 @@ import com.xiaomanjun.sleepdownschedule.PeriodEntity
 import com.xiaomanjun.sleepdownschedule.ScheduleProfileEntity
 import com.xiaomanjun.sleepdownschedule.data.local.createAppDatabase
 import com.xiaomanjun.sleepdownschedule.defaultConfig
+import com.xiaomanjun.sleepdownschedule.feature.importing.AiProviderPresets
 import java.io.File
 import java.nio.file.Files
 import java.util.UUID
@@ -69,6 +70,44 @@ class BackupRestoreServiceConcurrencyTest {
         database.close()
         context.deleteDatabase(databaseName)
         filesRoot.deleteRecursively()
+    }
+
+    @Test
+    fun invalidProviderAuthIsRejectedBeforeStagingAndDoesNotBlockTheNextRestore() = runBlocking {
+        val preset = AiProviderPresets.chatGpt
+        val invalidProvider = BackupAiProvider(
+            id = "custom:invalid", displayName = "Invalid OAuth provider",
+            providerType = preset.providerType.name, baseUrl = preset.baseUrl,
+            model = preset.defaultModel, authType = preset.authType.name,
+            supportsImageInput = preset.capabilities.supportsImageInput,
+            supportsPdfFileInput = preset.capabilities.supportsPdfFileInput,
+            supportsJsonSchema = preset.capabilities.supportsJsonSchema,
+            supportsJsonMode = preset.capabilities.supportsJsonMode,
+            supportsFileUpload = preset.supportsFileUpload,
+            supportsResponses = preset.capabilities.supportsResponses,
+            supportsVision = preset.supportsVision, supportsPdfDirect = preset.supportsPdfDirect,
+            endpointStyle = preset.endpointStyle.name, structuredOutputMode = preset.structuredOutputMode.name,
+            inputMode = preset.inputMode.name, reasoningEffort = preset.reasoningEffort.name
+        )
+        val invalid = archive.copy(preferences = archive.preferences.copy(aiImport = BackupAiImportPreferences(
+            selectedProviderId = invalidProvider.id, providers = listOf(invalidProvider)
+        )))
+        newService().readTargetSnapshot()
+        val before = database.configDao().getAllConfigs()
+        val reached = mutableListOf<BackupRestoreFaultPoint>()
+        val error = runCatching {
+            newService().restore(invalid, "invalid-provider", replaceConfirmed = true,
+                failureInjector = BackupRestoreFailureInjector { reached += it })
+        }.exceptionOrNull()
+        assertTrue(error is IllegalArgumentException)
+        assertTrue(reached.isEmpty())
+        assertEquals(before, database.configDao().getAllConfigs())
+        assertEquals(null, journal("invalid-provider").readMarker())
+        val result = newService().restore(archive, "valid-after-rejection", replaceConfirmed = true)
+        // This test Application omits widget cleanup; the valid restore must still commit its data.
+        assertTrue("Valid restore failed after rejection: $result",
+            result.state >= BackupRestoreState.PREFS_COMMITTED)
+        assertCommittedWallpaperExists()
     }
 
     @Test

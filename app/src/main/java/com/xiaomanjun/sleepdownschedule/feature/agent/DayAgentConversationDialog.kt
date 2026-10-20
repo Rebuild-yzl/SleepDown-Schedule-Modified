@@ -42,8 +42,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -57,6 +55,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import com.xiaomanjun.sleepdownschedule.core.ui.layout.rememberFloatingInputInsets
+import com.xiaomanjun.sleepdownschedule.core.ui.layout.floatingInputPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -213,17 +213,17 @@ internal fun DayAgentConversationDialog(
     DisposableEffect(hostWindow, homePresentation) {
         val previousSoftInputMode = hostWindow?.attributes?.softInputMode
         hostWindow?.let(::keepHostBehindAgentIme)
-        // MainActivity normally fits system bars. A full-window material cannot paint the
-        // navigation area until its actual window also lays out edge-to-edge. Keep this for
-        // the whole home conversation so compact/fullscreen transitions share one viewport.
-        if (homePresentation && hostWindow != null) {
+        // Both entry points share MainActivity. Insets must reach Compose throughout the IME
+        // animation, including the day-card conversation. Fitted decor can defer the bottom
+        // inset until the final layout, leaving the composer behind the rising keyboard.
+        if (hostWindow != null) {
             androidx.core.view.WindowCompat.setDecorFitsSystemWindows(hostWindow, false)
         }
         onDispose {
             if (previousSoftInputMode != null) {
                 hostWindow.setSoftInputMode(previousSoftInputMode)
             }
-            if (homePresentation && hostWindow != null) {
+            if (hostWindow != null) {
                 androidx.core.view.WindowCompat.setDecorFitsSystemWindows(hostWindow, true)
             }
         }
@@ -375,6 +375,7 @@ internal fun DayAgentConversationDialog(
         if (anchoredTabletConversation) 4.dp.toPx() else sourceCornerRadius.toPx()
     }
     val targetRadiusPx = with(density) { if (anchoredTabletConversation) 28.dp.toPx() else 32.dp.toPx() }
+    val inputInsets = rememberFloatingInputInsets()
     val imeBottomPx = WindowInsets.ime.getBottom(density)
     val deviceCornerPx = deviceScreenCornerRadiusPx()
     val compactHomeInput = homePresentation && !homeFullScreen
@@ -392,7 +393,7 @@ internal fun DayAgentConversationDialog(
     // Lift the input into the camera cap instead of reserving a separate status-bar row.
     val homeInputTop = homeTop + 8.dp
     val homeCapsuleHeight = homeInputHeight + 16.dp
-    val homeAvailableBottom = windowHeight - maxOf(adaptiveMetrics.safeBottom, with(density) { imeBottomPx.toDp() }) - 8.dp
+    val homeAvailableBottom = windowHeight - inputInsets.bottom - 8.dp
     val homeTopBarHeight = SleepDownDesignTokens.SecondaryPage.CompactTopBarHeight
     val homeWindowButtonSize = SleepDownDesignTokens.SecondaryPage.BackButtonSize
     val homeHandleHeight = 32.dp
@@ -468,7 +469,7 @@ internal fun DayAgentConversationDialog(
     fun homeComposerTopPx(): Float = with(density) {
         val p = fullMotion.drop.value.coerceIn(0f, 1f)
         val compactY = homeInputTop.toPx()
-        val fullY = homeAvailableBottom.toPx() - homeInputHeight.toPx()
+        val fullY = windowHeight.toPx() - inputInsets.bottomPx - 8.dp.toPx() - homeInputHeight.toPx()
         compactY + (fullY - compactY) * p
     }
     fun conversationGeometry(): Rect {
@@ -745,11 +746,7 @@ internal fun DayAgentConversationDialog(
               else if (homePresentation && homeFullScreen) homeFullScreen = false
               else dismissAnimated()
           }
-          top.yukonga.miuix.kmp.basic.Scaffold(
-              modifier = Modifier.fillMaxSize(),
-              containerColor = Color.Transparent,
-              contentWindowInsets = WindowInsets(0, 0, 0, 0)
-          ) {
+          Box(Modifier.fillMaxSize().then(inputInsets.viewportModifier)) {
               Box(
                   Modifier
                       .fillMaxSize()
@@ -767,6 +764,7 @@ internal fun DayAgentConversationDialog(
                 TopAssistantSurface(
                     backdrop, state.config, androidx.compose.ui.graphics.RectangleShape,
                     nativeMaterial = true,
+                    nativeFollowLightIntensityScale = if (homeResponseVisible && !homeFullScreen) 0.45f else 1f,
                     modifier = Modifier.matchParentSize(),
                     morphAllocation = homeSurfaceAllocation.takeUnless { homeFullScreenSettled },
                     shapeProvider = if (homeFullScreenSettled) null else ::homeShellShape,
@@ -817,6 +815,7 @@ internal fun DayAgentConversationDialog(
                 GlassSurface(
                     nativeMaterial = true,
                     nativeDockMaterial = true,
+                    nativeFollowLightIntensityScale = 0.45f,
                     backdrop = backdrop,
                     config = state.config,
                     modifier = Modifier.matchParentSize(),
@@ -907,7 +906,7 @@ internal fun DayAgentConversationDialog(
                              top = if (homePresentation && homeFullScreen) adaptiveMetrics.safeTop + homeTopBarHeight
                                  else if (!homePresentation) 34.dp else 0.dp,
                              bottom = if (homePresentation && homeFullScreen)
-                                 maxOf(adaptiveMetrics.safeBottom, with(density) { imeBottomPx.toDp() }) +
+                                 inputInsets.bottom +
                                      homeInputHeight + 24.dp
                                  else if (anchoredTabletConversation) 58.dp
                                  else if (compactHomeInput) 4.dp else 16.dp
@@ -1276,7 +1275,7 @@ internal fun DayAgentConversationDialog(
                       modifier = if (homePresentation) Modifier.align(Alignment.BottomCenter) else Modifier,
                       tintColor = if (homePresentation) Color.Black else sourceForeground,
                       height = if (homePresentation)
-                          maxOf(adaptiveMetrics.safeBottom, with(density) { imeBottomPx.toDp() }) +
+                          inputInsets.bottom +
                               homeInputHeight + 72.dp else 52.dp,
                       blurRadius = 9.dp,
                       tintIntensity = 0f,
@@ -1305,79 +1304,6 @@ internal fun DayAgentConversationDialog(
                   }
               }
 
-              AnimatedVisibility(
-                  visible = attachmentMenuExpanded && (attachmentUploadEnabled || onImportFile != null),
-                  modifier = (if (homePresentation) {
-                      Modifier.layout { measurable, constraints ->
-                          val child = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
-                          val x = ((windowWidth - homeComposerWidth).toPx() / 2f).roundToInt()
-                          val y = (if (homeFullScreen) homeComposerTopPx() - child.height - 10.dp.toPx()
-                              else homeComposerTopPx() + homeInputHeight.toPx() + 10.dp.toPx())
-                              .coerceIn(adaptiveMetrics.safeTop.toPx(), (homeAvailableBottom.toPx() - child.height)
-                                  .coerceAtLeast(adaptiveMetrics.safeTop.toPx())).roundToInt()
-                          layout(child.width, child.height) { child.place(x, y) }
-                      }
-                  } else Modifier
-                      .align(Alignment.BottomStart)
-                      .imePadding()
-                      .navigationBarsPadding()
-                      .padding(
-                          start = if (anchoredTabletConversation) {
-                              with(density) { targetLeftPx.toDp() } + 14.dp
-                          } else 14.dp,
-                          bottom = 78.dp
-                      ))
-                      .graphicsLayer {
-                          val p = expansion.value
-                          alpha = ((p - 0.12f) / 0.58f).coerceIn(0f, 1f)
-                          translationY = 18.dp.toPx() * (1f - p)
-                      },
-                 enter = fadeIn(
-                     animationSpec = tween(durationMillis = 80)
-                 ) + scaleIn(
-                     initialScale = 0.62f,
-                     transformOrigin = TransformOrigin(0.12f, 1f),
-                     animationSpec = topAssistantBezierSpec(0.62f, 1f, vertical = false)
-                 ) + slideInVertically(
-                     initialOffsetY = { height -> height / 3 },
-                     animationSpec = tween(460, easing = TopAssistantOpenEasing)
-                 ),
-                 exit = fadeOut(
-                     animationSpec = tween(durationMillis = 105)
-                 ) + scaleOut(
-                     targetScale = 0.76f,
-                     transformOrigin = TransformOrigin(0.12f, 1f),
-                     animationSpec = tween(durationMillis = 150)
-                 ) + slideOutVertically(
-                     targetOffsetY = { height -> height / 4 },
-                     animationSpec = tween(durationMillis = 150)
-                 )
-             ) {
-                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                     if (attachmentUploadEnabled) {
-                 AgentAttachmentLiquidButton(
-                     backdrop = agentInputBackdrop,
-                     config = state.config,
-                     foreground = foreground,
-                     darkSurface = homePresentation,
-                     modifier = Modifier.width(184.dp),
-                     onClick = {
-                         attachmentMenuExpanded = false
-                         imagePicker.launch("image/*")
-                     }
-                 )
-                     }
-                     if (onImportFile != null) AgentAttachmentLiquidButton(
-                         backdrop = agentInputBackdrop, config = state.config, foreground = foreground,
-                         darkSurface = homePresentation,
-                         modifier = Modifier.width(184.dp), label = "导入课表文件",
-                         onClick = {
-                             attachmentMenuExpanded = false
-                             importFilePicker.launch(arrayOf("*/*"))
-                         }
-                     )
-                 }
-             }
 
               val composerVisible by remember(homePresentation, homeResponseVisible, homeFullScreen) { derivedStateOf {
                   !homePresentation || !homeResponseVisible || homeFullScreen ||
@@ -1423,8 +1349,7 @@ internal fun DayAgentConversationDialog(
                                 Modifier.fillMaxWidth()
                             }
                         )
-                        .imePadding()
-                        .navigationBarsPadding()
+                        .floatingInputPadding(inputInsets)
                         .padding(
                             horizontal = if (anchoredTabletConversation) 0.dp else 14.dp,
                             vertical = 10.dp
@@ -1495,26 +1420,15 @@ internal fun DayAgentConversationDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                              if (!compactHomeInput && (attachmentUploadEnabled || onImportFile != null)) {
-                                 Box(
-                                     modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null,
-                                            onClick = {
-                                                attachmentMenuExpanded = !attachmentMenuExpanded
-                                            }
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                 ) {
-                                     Icon(
-                                         painter = painterResource(R.drawable.ic_add_course),
-                                         contentDescription = "添加附件",
-                                         tint = foreground,
-                                         modifier = Modifier.size(24.dp)
+                                     AgentAttachmentPopup(
+                                         show = attachmentMenuExpanded,
+                                         imagesEnabled = attachmentUploadEnabled, filesEnabled = onImportFile != null,
+                                         config = state.config, backdrop = agentInputBackdrop, foreground = foreground,
+                                         onDismiss = { attachmentMenuExpanded = false },
+                                         onToggle = { attachmentMenuExpanded = !attachmentMenuExpanded },
+                                         onImage = { imagePicker.launch("image/*") },
+                                         onFile = { importFilePicker.launch(arrayOf("*/*")) }
                                      )
-                                 }
                              }
                             if (compactHomeInput && homeResponseVisible) Text(
                                 homeSubmittedText,

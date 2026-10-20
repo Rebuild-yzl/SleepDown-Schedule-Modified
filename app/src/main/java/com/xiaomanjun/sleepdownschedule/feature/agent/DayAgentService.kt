@@ -462,12 +462,33 @@ class DayAgentService(
         val memoryToolAvailable = memoryEnabled && taskBoundary == null && DayAgentPreferences.shouldOfferMemoryUpdate(context, facts.date)
         val availableCachedFacts = if (importWorkspace == null) SharedAgentToolFacts.read(facts, System.currentTimeMillis()) else emptyMap()
         val cachedFacts = agentPreloadedFacts(availableCachedFacts)
+        val telemetry = DayAgentTurnTelemetry(settings.profile.id)
+        val actionAuthorization = AgentActionAuthorization(question) {
+            onStatus(AgentRunStatus(AgentRunStatusIcon.THINKING, "核对操作意图"))
+            telemetry.requestStarted()
+            val input = AgentActionAuthorization.input(question, history)
+            if (AiProviderPresets.shouldUseResponses(settings.profile)) {
+                OpenAiResponsesAgentRunner(interaction).readOnlyAnswer(
+                    settings, AgentActionAuthorization.Instructions, input
+                ).also { telemetry.recordUsage(it.usage) }.content
+            } else {
+                val response = chatTransport.post(settings, chatTransport.agentBody(
+                    settings, listOf(agentTextMessage("system", AgentActionAuthorization.Instructions),
+                        agentTextMessage("user", input)), stream = false, includeTools = false
+                ))
+                telemetry.recordUsage(parseAgentTokenUsage(response))
+                parseFullChatContent(response)
+            }
+        }
         fun validateAnswer(answer: String): String? = if (importWorkspace != null) {
             importWorkspace.validateAnswer(answer) ?: answerConstraint(answer)
-        } else agentAnswerValidationFeedback(answer, facts) ?: answerConstraint(answer)
+        } else actionAuthorization.validateAnswer(answer) ?: agentAnswerValidationFeedback(answer, facts) ?: answerConstraint(answer)
         fun executeTurnTool(call: AgentToolCall): AgentToolResult {
             onCommitted()
             if (importWorkspace != null) return importWorkspace.execute(call)
+            if (call.name == AgentToolName.GET_ACTION_GUIDE || call.name == AgentToolName.PROPOSE_ACTIONS) {
+                actionAuthorization.feedback()?.let { return AgentToolResult(call.id, call.name, false, it) }
+            }
             return (if (call.name == AgentToolName.UPDATE_MEMORY && !memoryToolAvailable) {
                 AgentToolResult(call.id, call.name, false, "当前工作区不允许修改助手记忆，请继续课表任务。")
             } else availableCachedFacts[call.cacheKey()]?.copy(callId = call.id)
@@ -539,7 +560,6 @@ class DayAgentService(
             }
             add(agentUserMessage(question, imageAttachment))
         }
-        val telemetry = DayAgentTurnTelemetry(settings.profile.id)
         try {
             if (AiProviderPresets.shouldUseResponses(settings.profile)) {
                 return@withContext OpenAiResponsesAgentRunner(interaction, onReasoning).chat(

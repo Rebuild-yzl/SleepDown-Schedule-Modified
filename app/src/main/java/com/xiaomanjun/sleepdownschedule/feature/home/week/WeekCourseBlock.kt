@@ -148,6 +148,7 @@ internal fun WeekResizeCornerHandle(
         contentAlignment = Alignment.BottomEnd
     ) {
         GlassSurface(
+            nativeMaterial = true,
             backdrop = backdrop,
             config = config,
             modifier = Modifier.size(badgeSize),
@@ -213,18 +214,18 @@ fun WeekCourseBlock(
     onFinishMoveOverlay: (Velocity) -> Unit = {},
     onFinishResizeOverlay: (Velocity) -> Unit = {},
     onCancelWeekEditOverlay: () -> Unit = {},
-    occlusionMaterialMounted: Boolean = true,
-    backdropSampleScale: Float = 1f
+    occlusionMaterialMounted: Boolean = true
 ) {
     val personalizationPreview = LocalPersonalizationPreview.current
     val locationText = course.location.orEmpty()
     val hasLocation = config.weekCardShowLocation && locationText.isNotBlank()
     val hasTeacher = config.weekCardShowTeacher && !course.teacher.isNullOrBlank()
     val cardTextAlign = config.weekCardTextAlign()
-    val resolvedCardColor = if (muted) MutedCourseLightColor else if (courseCardUsesAssignments(config)) courseCardBaseColor(config, course) else cardColor
+    val subdued = muted
+    val resolvedCardColor = if (subdued) MutedCourseLightColor else if (courseCardUsesAssignments(config)) courseCardBaseColor(config, course) else cardColor
     val pageForeground = homeForegroundColor(config)
-    val coloredText = !muted && config.courseCardColoredTextEnabled
-    val courseTextColor = homeCourseTextColor(config, course, pageForeground, muted)
+    val coloredText = !subdued && config.courseCardColoredTextEnabled
+    val courseTextColor = homeCourseTextColor(config, course, pageForeground, subdued)
     val density = LocalDensity.current
     val tailDirection = if (weekMotionOutgoing) -weekMotionDirection else weekMotionDirection
     val startupPhase = LocalStartupPhase.current
@@ -335,9 +336,6 @@ fun WeekCourseBlock(
             ?: config.weekCardCornerProgress
     )
     val cardShape = remember(cardCorner) { RoundedRectangle(cardCorner) }
-    val sampledCardShape = remember(cardCorner, backdropSampleScale) {
-        RoundedRectangle(cardCorner * backdropSampleScale.coerceIn(0.5f, 1f))
-    }
     val resizeStartIndex = periodIndexes.indexOf(periodIndex).coerceAtLeast(0)
     val resizeMaxSpan = (periodIndexes.size - resizeStartIndex).coerceAtLeast(1)
     val baseHeightPx = with(density) { height.toPx() }
@@ -489,7 +487,10 @@ fun WeekCourseBlock(
             } finally {
                 if (dragging) {
                     bodyDragging = false
-                    if (released) {
+                    if (weekEditMotionState?.rootOwnsMoveGesture == true) {
+                        // The stable week root continues receiving this pointer after paging
+                        // disposes the original card. It also owns release and cancellation.
+                    } else if (released) {
                         finishBodyDrag(velocityTracker.calculateVelocity())
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     } else cancelBodyDrag()
@@ -651,7 +652,7 @@ fun WeekCourseBlock(
                             backdrop = activeCardBackdrop,
                             config = config,
                             course = underlyingCourse,
-                            muted = muted,
+                            muted = subdued,
                             modifier = Modifier.fillMaxSize(),
                             shape = cardShape,
                             onClick = null
@@ -765,9 +766,8 @@ fun WeekCourseBlock(
                 mountMaterial = occlusionMaterialMounted,
                 // Pager owns lifetime; scrolling never toggles a card's material nodes.
                 viewportMaterialVisible = true,
-                backdropSampleScale = backdropSampleScale,
-                sampledShape = sampledCardShape,
-                muted = muted,
+                muted = subdued,
+                followTouch = !editMode,
                 onClick = null
             ) {
             // The day column already knows the measured width. Subcomposing every card again
@@ -782,7 +782,7 @@ fun WeekCourseBlock(
             Box(Modifier.fillMaxWidth().height(displayedHeight).clip(cardShape)
                 .padding(bottom = badgeInset)) {
             WeekCourseCardTextContent(course, config, cardLayoutWidth,
-                (displayedHeight - badgeInset).coerceAtLeast(0.dp), gridColumnWidth, muted)
+                (displayedHeight - badgeInset).coerceAtLeast(0.dp), gridColumnWidth, subdued)
             }
             }
             }
@@ -795,6 +795,7 @@ fun WeekCourseBlock(
                 val pillTextColor =
                     if (glassUsesLightStyle(config)) ComposeColor.Black else ComposeColor.White
                 GlassSurface(
+                    nativeMaterial = true,
                     backdrop = activeCardBackdrop,
                     config = config,
                     // The parent card owns pager/tail motion, as for adjustment badges.
@@ -892,6 +893,7 @@ fun WeekCourseBlock(
                     scaleOut(tween(120), targetScale = 0.55f, transformOrigin = TransformOrigin(1f, 1f))
             ) {
                 GlassSurface(
+                    nativeMaterial = true,
                     backdrop = activeCardBackdrop,
                     config = config,
                     modifier = Modifier.fillMaxSize(),

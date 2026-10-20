@@ -113,7 +113,9 @@ fun WallpaperColorSamplerScreen(
                     bitmap = wallpaperBitmap,
                     config = config,
                     modifier = Modifier.fillMaxSize(),
-                    useSavedCrop = !config.wallpaperUri.isNullOrBlank()
+                    useSavedCrop = !config.wallpaperUri.isNullOrBlank(),
+                    orientation = if (previewSize.width > previewSize.height) WallpaperPreviewOrientation.Landscape
+                        else WallpaperPreviewOrientation.Portrait
                 )
             } else {
                 Text("当前没有可取色的壁纸", color = glassForegroundColor(config))

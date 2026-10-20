@@ -217,7 +217,7 @@ fun ScheduleManagerEntryPill(
                         contentPadding = PaddingValues(horizontal = 18.dp)
                 ) {
                     Text(
-                        "课表设置",
+                        "多课表管理",
                         color = glassForegroundColor(config),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
@@ -235,7 +235,7 @@ fun ScheduleManagerEntryPill(
                 ) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            "课表设置",
+                            "多课表管理",
                             color = glassForegroundColor(config),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold,

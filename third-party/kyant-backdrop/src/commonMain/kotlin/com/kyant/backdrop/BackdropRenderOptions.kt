@@ -21,8 +21,8 @@ class BackdropRenderOptions(
     val coordinatesFrozen: () -> Boolean = { false },
     /** Complete scene identity; only a frozen, matching scene may reuse a sampled recording. */
     val sampleRecordKey: () -> Any? = { null },
-    /** Pure shared-wallpaper sampling: source revision + position fully determine its pixels. */
-    val cacheSharedSamples: Boolean = false
+    /** Skip background recording for fully clipped course cards; never changes node lifetime. */
+    val viewport: BackdropViewport? = null
 ) {
     companion object {
         val Default = BackdropRenderOptions()

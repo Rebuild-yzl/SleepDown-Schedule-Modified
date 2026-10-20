@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -50,6 +51,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -105,7 +107,11 @@ internal fun <T> CenteredDialogContentTransition(
     if (nativeWindow) {
         // One live picker only: AnimatedContent keeps both AndroidView trees mounted while
         // size changes, letting outgoing controls draw/measure over the newly selected mode.
-        Box(modifier.then(Modifier.animateContentSize(animationSpec = tween(260, easing = FastOutSlowInEasing)))) {
+        // A wrap-content native window measures this panel again after every size change.
+        // Animate only when the caller requests it, otherwise resize once with the content.
+        Box(modifier.then(if (smoothResize) Modifier.animateContentSize(
+            animationSpec = tween(260, easing = FastOutSlowInEasing)
+        ) else Modifier)) {
             content(targetState)
         }
         return
@@ -153,6 +159,11 @@ fun SleepDownPickerDialog(
 ) {
     val foreground = sleepDownPanelForegroundColor(config)
     val body: @Composable () -> Unit = {
+        val nativeStyle = LocalNativePickerStyle.current.takeIf { LocalNativeDialogSurface.current }
+        val titleStyle = nativeStyle?.let { MaterialTheme.typography.titleLarge.copy(
+            fontSize = it.titleSize, lineHeight = androidx.compose.ui.unit.TextUnit.Unspecified,
+            fontWeight = it.titleWeight
+        ) } ?: MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
         androidx.compose.runtime.CompositionLocalProvider(
             androidx.compose.material3.LocalContentColor provides foreground
         ) {
@@ -174,8 +185,7 @@ fun SleepDownPickerDialog(
                         Text(
                             text = title,
                             modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
+                            style = titleStyle,
                             color = foreground,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
@@ -188,8 +198,7 @@ fun SleepDownPickerDialog(
                             Text(
                                 text = displayedTitle,
                                 modifier = Modifier.fillMaxWidth(),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.SemiBold,
+                                style = titleStyle,
                                 color = foreground,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
@@ -472,10 +481,20 @@ internal fun SleepDownFloatingSheet(
             Column(contentModifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     startAction()
-                    Text(title, Modifier.weight(1f).padding(horizontal = 8.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp, lineHeight = 24.sp),
-                        color = foreground)
+                    BoxWithConstraints(Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                        val density = LocalDensity.current
+                        val measurer = rememberTextMeasurer()
+                        val titleStyle = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp, lineHeight = 24.sp)
+                        val naturalWidth = remember(title, titleStyle, measurer) {
+                            measurer.measure(title, style = titleStyle, softWrap = false, maxLines = 1).size.width
+                        }
+                        val widthPx = with(density) { maxWidth.toPx() }
+                        val fit = if (naturalWidth > 0) ((widthPx - 1f) / naturalWidth).coerceIn(0.01f, 1f) else 1f
+                        Text(title, Modifier.fillMaxWidth(),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            style = titleStyle, fontSize = 20.sp * fit,
+                            maxLines = 1, softWrap = false, color = foreground)
+                    }
                     endAction()
                 }
                 Box(Modifier.weight(1f, fill = false)) { content() }
@@ -676,12 +695,17 @@ internal fun QuickSheetLiquidAction(
     height: Dp = 38.dp,
     onClick: () -> Unit
 ) {
-    val actionModifier = if (modifier == Modifier) Modifier.width(84.dp) else modifier
     val centeredAction = height == SleepDownDesignTokens.CenteredDialog.ActionHeight
+    // Header actions keep the compact capsule dimensions; only full-size confirmation actions
+    // inherit the system dialog button size, which otherwise crowds the sheet title.
+    val nativeStyle = LocalNativePickerStyle.current.takeIf { LocalNativeDialogSurface.current && centeredAction }
+    val actionModifier = if (modifier != Modifier) modifier else nativeStyle?.let {
+        Modifier.widthIn(min = it.buttonMinWidth)
+    } ?: Modifier.width(84.dp)
     if (LocalNativeCapsuleButtonRenderer.current?.invoke(NativeCapsuleButtonRequest(
             onClick = onClick,
             modifier = actionModifier,
-            height = height,
+            height = nativeStyle?.buttonHeight ?: height,
             contentPadding = PaddingValues(horizontal = 14.dp),
             dark = appUsesDarkTheme(config),
             enabled = enabled,
@@ -691,7 +715,8 @@ internal fun QuickSheetLiquidAction(
                 primary -> Color.White
                 destructive -> Color(0xFFFF453A)
                 else -> MaterialTheme.colorScheme.onSurface
-            }, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            }, fontWeight = nativeStyle?.buttonWeight ?: FontWeight.SemiBold,
+                fontSize = nativeStyle?.buttonTextSize ?: 13.sp)
         } == true) return
     if (backdrop != null) {
         val dark = appUsesDarkTheme(config)

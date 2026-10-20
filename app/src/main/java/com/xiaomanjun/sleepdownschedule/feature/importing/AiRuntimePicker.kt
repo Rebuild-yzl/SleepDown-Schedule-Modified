@@ -32,6 +32,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.xiaomanjun.sleepdownschedule.feature.importing.chatgpt.ChatGptAuthManager
 import com.kyant.backdrop.Backdrop
 import com.kyant.shapes.Capsule
 import com.xiaomanjun.sleepdownschedule.*
@@ -101,7 +103,17 @@ internal fun AiRuntimePicker(
         Color(0xFF111111)
     }
     val lightGlass = glassUsesLightStyle(config)
-    val profiles = remember(state.revision) {
+    val auth by ChatGptAuthManager.state.collectAsStateWithLifecycle()
+    LaunchedEffect(auth.account, auth.models, state.settings.profile.id) {
+        if (AiProviderPresets.isChatGptId(state.settings.profile.id)) {
+            val refreshed = AiImportSettingsStore.loadProvider(context, state.settings.profile.id)
+            if (refreshed != state.settings) {
+                state.commit(refreshed)
+                onSettingsChanged(refreshed)
+            }
+        }
+    }
+    val profiles = remember(state.revision, auth.account) {
         AiImportSettingsStore.selectableProfiles(context)
             .filter { it.id != AiProviderPresets.none.id }
             .filter { profile ->
@@ -120,8 +132,9 @@ internal fun AiRuntimePicker(
 
     fun commit(next: AiImportSettings) {
         AiImportSettingsStore.save(context, next)
-        state.commit(next)
-        onSettingsChanged(next)
+        val refreshed = AiImportSettingsStore.loadProvider(context, next.profile.id)
+        state.commit(refreshed)
+        onSettingsChanged(refreshed)
     }
 
     val menuItems = listOf(

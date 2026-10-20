@@ -390,7 +390,9 @@ internal fun SleepDownLiquidCascadingPopup(
     collapseOnSelection: Boolean = true,
     morphFromAnchor: Boolean = false,
     collapseContent: (@Composable () -> Unit)? = null,
-    onDismissFinished: (() -> Unit)? = null
+    onDismissFinished: (() -> Unit)? = null,
+    alignment: PopupPositionProvider.Align = PopupPositionProvider.Align.End,
+    morphHorizontalInset: Dp = 7.dp
 ) {
     val completeUnderlayBackdrop = LocalSettingsPopupBackdrop.current ?: backdrop
     val renderInRootScaffold = LocalCenteredDialogRenderInRootScaffold.current
@@ -431,9 +433,9 @@ internal fun SleepDownLiquidCascadingPopup(
         contentColor ?: sleepDownPanelForegroundColor(config)
     )
     val density = LocalDensity.current
-    val popupPositionProvider = remember(horizontalSafeInset, morphFromAnchor, density) {
+    val popupPositionProvider = remember(horizontalSafeInset, morphFromAnchor, morphHorizontalInset, density) {
         UpwardDropdownPositionProvider(horizontalSafeInset, overlapAnchor = morphFromAnchor,
-            morphHorizontalInset = if (morphFromAnchor) with(density) { 7.dp.roundToPx() } else 0,
+            morphHorizontalInset = if (morphFromAnchor) with(density) { morphHorizontalInset.roundToPx() } else 0,
             morphVerticalInset = if (morphFromAnchor) with(density) { 5.dp.roundToPx() } else 0)
     }
     OverlayCascadingListPopup(
@@ -442,7 +444,7 @@ internal fun SleepDownLiquidCascadingPopup(
         onDismissRequest = onDismissRequest,
         onDismissFinished = onDismissFinished,
         popupPositionProvider = popupPositionProvider,
-        alignment = PopupPositionProvider.Align.End,
+        alignment = alignment,
         enableWindowDim = false,
         minWidth = panelMinWidth,
         maxHeight = menuMaxHeight,

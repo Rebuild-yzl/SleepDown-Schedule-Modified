@@ -318,13 +318,7 @@ class GlassFrameworkTest {
     }
 
     @Test
-    fun courseGlassSamplingOnlyDropsResolutionAtHighComposedCounts() {
-        assertEquals(1f, adaptiveCourseGlassSampleScale(7, enabled = true))
-        assertEquals(0.75f, adaptiveCourseGlassSampleScale(8, enabled = true))
-        assertEquals(0.75f, adaptiveCourseGlassSampleScale(11, enabled = true))
-        assertEquals(0.5f, adaptiveCourseGlassSampleScale(12, enabled = true))
-        assertEquals(1f, adaptiveCourseGlassSampleScale(32, enabled = false))
-
+    fun genericSampledSurfacesScaleOnlyMaterialEffects() {
         val sampled = GlassEffectFrame(
             blur = 4.dp,
             lensHeight = 12.dp,
@@ -339,22 +333,6 @@ class GlassFrameworkTest {
         assertEquals(null, sampled.highlight)
         assertEquals(null, sampled.shadowAlpha)
         assertEquals(null, sampled.innerShadow)
-    }
-
-    @Test
-    fun referenceLensSamplingRejectsGenericShapeFallbacks() {
-        assertEquals(
-            0.75f,
-            referenceLensSampleScale(0.75f, hasSupportedSampledShape = true)
-        )
-        assertEquals(
-            1f,
-            referenceLensSampleScale(0.75f, hasSupportedSampledShape = false)
-        )
-        assertEquals(
-            1f,
-            referenceLensSampleScale(1f, hasSupportedSampledShape = false)
-        )
     }
 
     @Test

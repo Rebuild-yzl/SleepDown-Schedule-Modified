@@ -216,7 +216,7 @@ internal fun ColorOsHomeDock(
 ): Boolean {
     val style = LocalHomeMaterialStyle.current
     val effectiveDark = style?.dark ?: dark
-    val native = rememberNativeContext(effectiveDark) ?: return false
+    val native = rememberNativeContext(effectiveDark, retainOnThemeChange = true) ?: return false
     val host = LocalContext.current
     val callback = rememberUpdatedState(onSelect)
     val source = native.first

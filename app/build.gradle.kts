@@ -19,7 +19,8 @@ val releaseStorePassword = releaseSecret("sleepdown.releaseStorePassword", "SLEE
 val releaseKeyAlias = releaseSecret("sleepdown.releaseKeyAlias", "SLEEPDOWN_RELEASE_KEY_ALIAS")
 val releaseKeyPassword = releaseSecret("sleepdown.releaseKeyPassword", "SLEEPDOWN_RELEASE_KEY_PASSWORD")
 val remoteConfigSecret = releaseSecret("sleepdown.remoteConfigSecret", "SLEEPDOWN_REMOTE_CONFIG_SECRET").orEmpty()
-val sleepDownVersionName = "1.2.7_beta5"
+// 用旧客户端可识别的第四段数字补发 r1 修复；versionCode 仍为 35。
+val sleepDownVersionName = "1.2.7.1"
 val skipReleaseResourceShrink = providers.gradleProperty("sleepdown.skipReleaseResourceShrink")
     .map(String::toBoolean)
     .getOrElse(false)
@@ -42,6 +43,7 @@ android {
     }
     buildFeatures {
         buildConfig = true
+        aidl = true
     }
     testOptions {
         unitTests.isIncludeAndroidResources = true
@@ -71,7 +73,7 @@ android {
         applicationId = "com.xiaomanjun.sleepdownschedule"
         minSdk = 26
         targetSdk = 36
-        versionCode = 34
+        versionCode = 35
         versionName = sleepDownVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SLEEPDOWN_API_BASE_URL", "\"https://api.sleepdownschedule.cn\"")
@@ -219,6 +221,7 @@ dependencies {
     implementation("androidx.metrics:metrics-performance:1.0.0")
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation("androidx.palette:palette-ktx:1.0.0")
+    implementation("androidx.exifinterface:exifinterface:1.4.2")
     compileOnly("com.oplus.animation:viewseamless:1.0.0@aar")
     implementation(project(":kyant-backdrop"))
     implementation("io.github.kyant0:shapes:1.2.0")

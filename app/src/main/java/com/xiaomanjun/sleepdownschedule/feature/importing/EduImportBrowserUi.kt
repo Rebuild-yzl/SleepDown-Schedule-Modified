@@ -822,7 +822,6 @@ private fun EduImportBrowserScreen(
         onDispose { topEdgeSampler.dispose() }
     }
     val currentTopEdgeSampler = rememberUpdatedState(topEdgeSampler)
-    val requestInterceptor = remember(adapter) { ShiguangWebRequestInterceptor() }
     val taskProgress by AiEduImportProgressSession.progress.collectAsStateWithLifecycle()
     LaunchedEffect(taskProgress?.taskId, taskProgress?.finished) {
         val completed = taskProgress?.takeIf {
@@ -1296,6 +1295,7 @@ private fun EduImportBrowserScreen(
             // Chromium from repeated backdrop replay without forcing a second WebView layer.
             setLayerType(android.view.View.LAYER_TYPE_NONE, null)
             setOnTouchListener { _, event ->
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) webCompatDelegates[this]?.onUserInteraction()
                 webGestureActive = when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> true
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> false
@@ -1326,20 +1326,22 @@ private fun EduImportBrowserScreen(
             isHorizontalScrollBarEnabled = true
             isVerticalScrollBarEnabled = true
             overScrollMode = android.view.View.OVER_SCROLL_IF_CONTENT_SCROLLS
-            val compatDelegate = WebCompatDelegate(this, desktopMode)
+            val compatDelegate = WebCompatDelegate(this, desktopMode, onMessage)
             webCompatDelegates[this] = compatDelegate
             CookieManager.getInstance().apply {
                 setAcceptCookie(true)
                 setAcceptThirdPartyCookies(this@webView, true)
             }
-            installShiguangRuntime(bridge)
+            val requestInterceptor = ShiguangWebRequestInterceptor()
+            installShiguangRuntime(bridge, requestInterceptor)
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest): Boolean {
                     return handleExternalNavigation(request.url)
                 }
 
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                    view?.injectShiguangRuntime(desktopMode)
+                    compatDelegate.onPageStarted()
+                    view?.injectShiguangRuntime(desktopMode, url)
                     val visiblePage = if (isPopup) popupWebView === view else popupWebView == null
                     if (visiblePage) {
                         originalDocumentVersion += 1
@@ -1355,7 +1357,7 @@ private fun EduImportBrowserScreen(
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    compatDelegate.onPageFinished()
+                    compatDelegate.onPageFinished(url)
                     view?.injectShiguangRuntime(desktopMode)
                     scheduleWebTopEdgeSample()
                     val visiblePage = if (isPopup) popupWebView === view else popupWebView == null
@@ -1403,7 +1405,10 @@ private fun EduImportBrowserScreen(
                     view: WebView?,
                     request: WebResourceRequest?
                 ): WebResourceResponse? {
-                    return request?.let { requestInterceptor.intercept(it, desktopMode) }
+                    // Record POST too, including requests consumed by the Shiguang bridge.
+                    request?.let(compatDelegate::recordRequest)
+                    return request?.let { requestInterceptor.intercept(it) }
+                        ?: request?.let(compatDelegate::intercept)
                         ?: super.shouldInterceptRequest(view, request)
                 }
 
@@ -1424,13 +1429,16 @@ private fun EduImportBrowserScreen(
                     errorResponse: WebResourceResponse?
                 ) {
                     super.onReceivedHttpError(view, request, errorResponse)
+                    if (request != null && errorResponse != null) {
+                        compatDelegate.onHttpError(request, errorResponse.statusCode)
+                    }
                     if (
                         request?.isForMainFrame == false &&
                         request.url.path?.endsWith(".js", ignoreCase = true) == true
                     ) {
                         Log.w(
                             "EduWebView",
-                            "JS resource HTTP ${errorResponse?.statusCode ?: "unknown"}: ${request.url}"
+                            "JS resource HTTP ${errorResponse?.statusCode ?: "unknown"}: host=${request.url.host}"
                         )
                     }
                     if (request?.isForMainFrame == true) {
@@ -1489,9 +1497,10 @@ private fun EduImportBrowserScreen(
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
                     consoleMessage?.let { message ->
+                        compatDelegate.onConsoleMessage(message)
                         Log.d(
                             "EduWebView",
-                            "console=${message.message()} sourceId=${message.sourceId()} lineNumber=${message.lineNumber()}"
+                            "console=${message.messageLevel()} host=${eduWebOrigin(message.sourceId())} line=${message.lineNumber()}"
                         )
                     }
                     return super.onConsoleMessage(consoleMessage)

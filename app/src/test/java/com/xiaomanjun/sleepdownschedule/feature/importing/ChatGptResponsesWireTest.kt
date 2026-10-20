@@ -7,6 +7,19 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 class ChatGptResponsesWireTest {
+    @Test fun inlineFilesRemainInTheStatelessResponsesRequest() {
+        val config = AiImportSettings(AiProviderPresets.chatGpt.copy(defaultModel = "text-model"), "")
+            .toProviderConfig().normalizedForRequest()
+        assertTrue(config.supportsFileUpload)
+        assertEquals("https://api.openai.com/v1/responses", config.resolveRequestEndpoint())
+        val input = Json.parseToJsonElement("""[{"role":"user","content":[
+            {"type":"input_file","filename":"schedule.rtf","file_data":"data:application/rtf;base64,e30="}
+        ]}]""")
+        val request = chatGptResponsesBody(buildJsonObject { put("input", input) })
+        assertEquals(input, request["input"])
+        assertEquals(JsonPrimitive(false), request["store"])
+    }
+
     @Test fun selectedEffortReachesAccountRequestAndKeepsReasoningSummary() {
         listOf("low", "medium", "high", "xhigh", "max").forEach { effort ->
             val request = chatGptResponsesBody(Json.parseToJsonElement("""{

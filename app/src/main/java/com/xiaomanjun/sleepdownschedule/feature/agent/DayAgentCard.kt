@@ -103,7 +103,8 @@ fun TodayAgentCard(
     backgroundMotionState: DayAgentBackgroundMotionState,
     onPrepareOpen: suspend () -> Unit,
     onAgentDismissed: () -> Unit,
-    onAgentAction: AgentActionHandler
+    onAgentAction: AgentActionHandler,
+    onImportFile: ((android.net.Uri) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scheduleId = state.config.id
@@ -344,6 +345,7 @@ fun TodayAgentCard(
             sourceGlassTokens = cardTokens,
             backgroundMotionState = backgroundMotionState,
             onAgentAction = onAgentAction,
+            onImportFile = onImportFile,
             onOverlayReady = {
                 if (!inlineTabletConversation) sourceCardHidden = true
             },

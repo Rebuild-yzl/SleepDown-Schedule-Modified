@@ -87,6 +87,7 @@ fun GlassSurface(
     nativeBlurRadiusScale: Float = 1f,
     nativeTintAlphaScale: Float = 1f,
     nativeDockMaterial: Boolean = false,
+    nativeFollowLightIntensityScale: Float = 1f,
     content: @Composable () -> Unit
 ) {
     if (nativeMaterial) {
@@ -99,6 +100,7 @@ fun GlassSurface(
             shape = shape, dark = nativeDark ?: !glassUsesLightStyle(config),
             blurRadiusScale = nativeBlurRadiusScale,
             tintAlphaScale = nativeTintAlphaScale,
+            followLightIntensityScale = nativeFollowLightIntensityScale,
             role = if (nativeDockMaterial) com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRole.HomeDock
                 else com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRole.Content,
             onClick = onClick,

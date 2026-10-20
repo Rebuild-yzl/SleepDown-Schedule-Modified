@@ -87,6 +87,7 @@ import java.time.LocalTime
 import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
@@ -124,15 +125,18 @@ internal fun SinglePillWeekScheduleScreen(
     // boundless mode the rail is narrowed so the period/time header shifts left, the left
     // clearance to the grid shrinks, and the freed width flows into every course column equally.
     val boundless = style == WeekViewStyle.BOUNDLESS
+    val scrollState = rememberScrollState()
+    val weekEditOverlay = rememberWeekEditOverlayController(scrollState = scrollState, scheduleId = state.config.id)
     val rowHeaderWidth = if (boundless) BoundlessWeekRowHeaderWidth else 56.dp
-    val today = LocalDate.now()
-    val weekStart = scheduleWeekStartDate(state.config, displayWeek, today)
-    val now by produceState(initialValue = LocalTime.now()) {
+    val clock by produceState(initialValue = java.time.LocalDateTime.now()) {
         while (true) {
             delay(30_000)
-            value = LocalTime.now()
+            value = java.time.LocalDateTime.now()
         }
     }
+    val today = clock.toLocalDate()
+    val now = clock.toLocalTime()
+    val weekStart = scheduleWeekStartDate(state.config, displayWeek, today)
     val currentPeriod = currentTimelinePeriod(state.periods, now)
     // Keep one computed bucket per visited week, shared by the rail, supplements and Pager.
     // Data replacement invalidates the cache; swiping back reuses the same immutable lists.
@@ -176,7 +180,7 @@ internal fun SinglePillWeekScheduleScreen(
         }
     }
     val supplementaryHeight = if (supplementaryRowCount > 0) 24.dp + 88.dp * supplementaryRowCount else 0.dp
-    val weekdays = remember(weekBuckets, state.courses, state.config, displayWeek) {
+    val weekdays = weekEditOverlay.request?.let { (1..it.weekdayCount).toList() } ?: remember(weekBuckets, state.courses, state.config, displayWeek) {
         weekPresentationWeekdays(weekBuckets, state.courses, state.config, displayWeek)
     }
     val periodIndexes = remember(state.periods) {
@@ -223,7 +227,9 @@ internal fun SinglePillWeekScheduleScreen(
     val latestWeekJumpSettled by rememberUpdatedState(onWeekJumpSettled)
     val weekTail = rememberWeekPageTailMotion(pagerState,
         com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.policy.courseSamples(
-            state.config.courseCardGlassEnabled, state.config.courseCardGaussianBlurEnabled, state.config.hasAnyWallpaper()))
+            state.config.courseCardGlassEnabled, state.config.courseCardGaussianBlurEnabled, state.config.hasAnyWallpaper()),
+        tailEnabled = !com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isSuperPerformance ||
+            com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current != null)
     val homeSwitching = LocalHomeTextContrastFrozen.current
     LaunchedEffect(pagerState, boundless) {
         try {
@@ -304,7 +310,6 @@ internal fun SinglePillWeekScheduleScreen(
             }
         }
     }
-    val scrollState = rememberScrollState()
     val contentUnderTopBar by remember {
         derivedStateOf { scrollState.value > 0 }
     }
@@ -312,10 +317,6 @@ internal fun SinglePillWeekScheduleScreen(
         onContentUnderTopBarChange(contentUnderTopBar)
     }
     val overlayHostBounds = remember { mutableStateOf<Rect?>(null) }
-    val weekEditOverlay = rememberWeekEditOverlayController(
-        scrollState = scrollState,
-        scheduleId = state.config.id
-    )
     val stationaryCoursesBackdrop = rememberGlassLayerBackdrop(
         domain = GlassBackdropDomain.Content,
         providerId = "week-stationary-courses"
@@ -329,6 +330,38 @@ internal fun SinglePillWeekScheduleScreen(
     }
     val overlayScreenHeightPx = with(density) { adaptiveMetrics.screenHeight.toPx() }
     val overlayEdgePx = with(density) { if (adaptiveMetrics.isLargeScreen) 64.dp.toPx() else 88.dp.toPx() }
+    val latestState by rememberUpdatedState(state)
+    val latestWeekCourses by rememberUpdatedState<(Int) -> List<CourseEntity>>({ bucketsForWeek(it).visibleCourses })
+    val pageEdgePx = with(density) { 28.dp.toPx() }
+    val pageDragThresholdPx = with(density) { 12.dp.toPx() }
+    LaunchedEffect(weekEditOverlay, pagerState, pageEdgePx) {
+        snapshotFlow {
+            val request = weekEditOverlay.request
+            if (request == null || !weekEditOverlay.gestureActive || !weekEditOverlay.rootOwnsMoveGesture ||
+                request.mode != WeekEditOverlayMode.Move ||
+                abs(weekEditOverlay.offsetX) + abs(weekEditOverlay.offsetY) < pageDragThresholdPx) 0
+            else {
+                val left = request.sourceBounds.left - (request.dayIndex - 1) * request.gridColumnWidthPx
+                weekDragEdgeDirection(weekEditOverlay.pointerPosition.x, left,
+                    left + request.weekdayCount * request.gridColumnWidthPx, pageEdgePx,
+                    request.destinationWeek, latestState.config.totalWeeks)
+            }
+        }.distinctUntilChanged().collectLatest { direction ->
+            if (direction == 0) return@collectLatest
+            var dwell = 450L
+            while (true) {
+                delay(dwell)
+                val request = weekEditOverlay.request ?: break
+                if (!weekEditOverlay.gestureActive) break
+                if (pagerState.isScrollInProgress || programmaticPage >= 0) continue
+                val target = (request.destinationWeek + direction).coerceIn(1, latestState.config.totalWeeks)
+                if (target == request.destinationWeek) break
+                weekEditOverlay.moveToWeek(target, latestWeekCourses(target))
+                latestSwipeWeek(target - latestDisplayWeek)
+                dwell = 650L
+            }
+        }
+    }
     // Keep a small cross-axis drawing gutter around HorizontalPager while edit chrome is visible.
     // The first-row delete pill can then overlap the weekday header instead of being clipped or
     // pushed into the course card. Retain it briefly for the exit scale/fade as well.
@@ -393,6 +426,25 @@ internal fun SinglePillWeekScheduleScreen(
             .fillMaxSize()
             .graphicsLayer { clip = false }
             .weekTailTouchAnchor(weekTail)
+            .weekMoveGestureHost(weekEditOverlay,
+                onDrag = { weekEditOverlay.drag(it, overlayScreenHeightPx, overlayEdgePx, with(density) { 4.dp.toPx() }) },
+                onFinish = { velocity ->
+                    val request = weekEditOverlay.request
+                    val saved = weekEditOverlay.finishMove(velocity,
+                        canMoveToWeekday = { day ->
+                            com.xiaomanjun.sleepdownschedule.domain.schedule.scheduleAdjustmentForDate(state.config,
+                                scheduleWeekStartDate(state.config, request?.destinationWeek ?: displayWeek)
+                                    .plusDays((day - 1).toLong())) == null
+                        }, onUpdateCourseSingleWeek = onUpdateCourseSingleWeek)
+                    if (!saved && request != null && request.destinationWeek != request.editWeek) {
+                        latestSwipeWeek(request.editWeek - latestDisplayWeek)
+                    }
+                },
+                onCancel = {
+                    val source = weekEditOverlay.request?.editWeek
+                    weekEditOverlay.cancelGesture()
+                    if (source != null && source != latestDisplayWeek) latestSwipeWeek(source - latestDisplayWeek)
+                })
             .onGloballyPositioned { overlayHostBounds.value = it.boundsInRoot() }
     ) {
     Box(
@@ -425,7 +477,7 @@ internal fun SinglePillWeekScheduleScreen(
                         text = "第${displayWeek}周",
                         modifier = Modifier.padding(horizontal = 10.dp),
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                         color = textColor
                     )
@@ -451,7 +503,7 @@ internal fun SinglePillWeekScheduleScreen(
                                     Text(
                                         text = "节次",
                                         style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.SemiBold,
+                                        fontWeight = FontWeight.Bold,
                                         color = textColor,
                                         textAlign = TextAlign.Center
                                     )
@@ -516,7 +568,7 @@ internal fun SinglePillWeekScheduleScreen(
                                                 period.periodIndex.toString(),
                                                 fontSize = 13.sp,
                                                 lineHeight = 15.sp,
-                                                fontWeight = FontWeight.Bold,
+                                                fontWeight = FontWeight.ExtraBold,
                                                 textAlign = TextAlign.Center,
                                                 color = if (isSpecialCurrent) ComposeColor(0xFF3D2B00) else ComposeColor.White
                                             )
@@ -525,7 +577,7 @@ internal fun SinglePillWeekScheduleScreen(
                                                 period.periodIndex.toString(),
                                                 fontSize = 13.sp,
                                                 lineHeight = 15.sp,
-                                                fontWeight = FontWeight.Bold,
+                                                fontWeight = FontWeight.ExtraBold,
                                                 textAlign = TextAlign.Center,
                                                 color = textColor
                                             )
@@ -536,7 +588,7 @@ internal fun SinglePillWeekScheduleScreen(
                                             specialBell?.takeIf { isSpecialCurrent }?.start?.toString() ?: period.startTime,
                                             fontSize = 10.sp,
                                             lineHeight = 11.sp,
-                                            fontWeight = FontWeight.Light,
+                                            fontWeight = FontWeight.Normal,
                                             textAlign = TextAlign.Center,
                                             color = textColor.copy(alpha = 0.86f)
                                         )
@@ -544,7 +596,7 @@ internal fun SinglePillWeekScheduleScreen(
                                             specialBell?.takeIf { isSpecialCurrent }?.end?.toString() ?: period.endTime,
                                             fontSize = 10.sp,
                                             lineHeight = 11.sp,
-                                            fontWeight = FontWeight.Light,
+                                            fontWeight = FontWeight.Normal,
                                             textAlign = TextAlign.Center,
                                             color = textColor.copy(alpha = 0.86f)
                                         )
@@ -588,7 +640,7 @@ internal fun SinglePillWeekScheduleScreen(
                             val pageWeek = (weekJump?.logicalPage(page) ?: page) + 1
                             val pageBuckets = bucketsForWeek(pageWeek)
                             val pageCourses = pageBuckets.visibleCourses
-                            val pageWeekdays = remember(pageBuckets, state.courses, state.config, pageWeek) {
+                            val pageWeekdays = weekEditOverlay.request?.let { (1..it.weekdayCount).toList() } ?: remember(pageBuckets, state.courses, state.config, pageWeek) {
                                 weekPresentationWeekdays(pageBuckets, state.courses, state.config, pageWeek)
                             }
                             val isActivePage = programmaticPage < 0 && pageWeek == displayWeek && pagerState.settledPage == page
@@ -641,7 +693,7 @@ internal fun SinglePillWeekScheduleScreen(
                                 onDeleteSingleWeekCourse = { course ->
                                     onDeleteCourseSingleWeek(course, pageWeek)
                                 },
-                                activeOverlayCourseId = weekEditOverlay.request?.course?.id,
+                                activeOverlayCourseId = weekEditOverlay.request?.takeIf { it.editWeek == pageWeek }?.course?.id,
                                 activeOverlayTargetKey = weekEditOverlay.committedTargetKey,
                                 activeOverlayTargetWeek = weekEditOverlay.committedTargetWeek,
                                 onStartWeekEditOverlay = weekEditOverlay::start,
@@ -687,7 +739,6 @@ internal fun SinglePillWeekScheduleScreen(
             overlayAlpha = weekEditOverlay.alpha * weekEditOverlay.revealProgress,
             liftProgress = weekEditOverlay.liftProgress,
             rotation = weekEditOverlay.rotation,
-            pointerPosition = weekEditOverlay.pointerPosition,
             gestureActive = weekEditOverlay.gestureActive,
             gridOffsetY = weekEditOverlay.gridOffsetY,
             gridScrollCompensationY = weekEditOverlay.gridScrollCompensationY,

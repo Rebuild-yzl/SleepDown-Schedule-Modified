@@ -168,7 +168,7 @@ internal fun BoundlessWeekdayHeaderRow(
                 text = "第${displayWeek}周",
                 color = textColor,
                 style = MaterialTheme.typography.titleSmall.copy(
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 ),
                 modifier = Modifier
@@ -180,7 +180,7 @@ internal fun BoundlessWeekdayHeaderRow(
                     HomeReadableText(
                         text = "第${displayWeek}周", color = textColor,
                         style = MaterialTheme.typography.titleSmall,
-                        fontSize = fittedSize, fontWeight = FontWeight.SemiBold,
+                        fontSize = fittedSize, fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center, maxLines = 1, softWrap = false,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -386,7 +386,7 @@ private fun WeekdayHeaderLabels(
                         text = "周${weekdayLabel(day)}",
                         fontSize = if (enlargeWeekdayLabels) 13.sp else 11.sp,
                         lineHeight = if (enlargeWeekdayLabels) 14.sp else 12.sp,
-                        fontWeight = if (isToday) FontWeight.ExtraBold else FontWeight.Bold,
+                        fontWeight = if (isToday) FontWeight.Black else FontWeight.ExtraBold,
                         color = if (showTodayCapsule) capsuleTextColor else textColor,
                         textAlign = TextAlign.Center,
                         maxLines = 1
@@ -395,7 +395,7 @@ private fun WeekdayHeaderLabels(
                         text = "${date.monthValue}/${date.dayOfMonth}",
                         fontSize = if (enlargeWeekdayLabels) 11.sp else 9.sp,
                         lineHeight = if (enlargeWeekdayLabels) 12.sp else 10.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = FontWeight.SemiBold,
                         color = if (showTodayCapsule) {
                             capsuleTextColor.copy(alpha = 0.92f)
                         } else {

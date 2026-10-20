@@ -2,6 +2,18 @@ package com.xiaomanjun.sleepdownschedule.feature.reminder
 
 import android.app.NotificationManager
 
+internal fun courseDoNotDisturbFilter(currentFilter: Int): Int {
+    require(currentFilter in setOf(
+        NotificationManager.INTERRUPTION_FILTER_ALL,
+        NotificationManager.INTERRUPTION_FILTER_PRIORITY,
+        NotificationManager.INTERRUPTION_FILTER_ALARMS,
+        NotificationManager.INTERRUPTION_FILTER_NONE
+    )) { "Unable to read the current DND mode" }
+    return if (currentFilter == NotificationManager.INTERRUPTION_FILTER_ALL) {
+        NotificationManager.INTERRUPTION_FILTER_PRIORITY
+    } else currentFilter
+}
+
 /** Ownership of a global DND change on Android 14 and earlier. */
 internal data class LegacyDndSession(
     val previousFilter: Int,
@@ -17,17 +29,10 @@ internal data class LegacyDndSession(
 
     companion object {
         fun start(currentFilter: Int, bootCount: Int): LegacyDndSession {
-            require(currentFilter in setOf(
-                NotificationManager.INTERRUPTION_FILTER_ALL,
-                NotificationManager.INTERRUPTION_FILTER_PRIORITY,
-                NotificationManager.INTERRUPTION_FILTER_ALARMS,
-                NotificationManager.INTERRUPTION_FILTER_NONE
-            )) { "Unable to read the current DND mode" }
             require(bootCount >= 0) { "Unable to read the current boot count" }
             return LegacyDndSession(
                 previousFilter = currentFilter,
-                appliedFilter = if (currentFilter == NotificationManager.INTERRUPTION_FILTER_ALL)
-                    NotificationManager.INTERRUPTION_FILTER_PRIORITY else currentFilter,
+                appliedFilter = courseDoNotDisturbFilter(currentFilter),
                 bootCount = bootCount
             )
         }

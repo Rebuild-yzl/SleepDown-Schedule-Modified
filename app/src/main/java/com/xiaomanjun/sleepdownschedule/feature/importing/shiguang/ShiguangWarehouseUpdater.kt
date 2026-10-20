@@ -181,6 +181,8 @@ internal object ShiguangWarehouseUpdater {
 
     private fun download(url: String): ByteArray {
         val connection = URL(url).openConnection() as HttpURLConnection
+        connection.useCaches = false
+        connection.setRequestProperty("Cache-Control", "no-cache")
         return try {
             connection.connectTimeout = 12_000
             connection.readTimeout = 20_000

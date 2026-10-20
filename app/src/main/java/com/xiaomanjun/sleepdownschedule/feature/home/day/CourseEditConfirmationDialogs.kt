@@ -13,6 +13,7 @@ import com.xiaomanjun.sleepdownschedule.effectiveCurrentWeek
 import com.xiaomanjun.sleepdownschedule.feature.course.editor.courseEditorHasOccurrence
 import com.xiaomanjun.sleepdownschedule.feature.course.editor.courseEditorOccurrenceLabel
 import com.xiaomanjun.sleepdownschedule.feature.course.editor.courseEditorScopeDescription
+import com.xiaomanjun.sleepdownschedule.feature.course.editor.courseEditorSingleDestinationWeek
 
 @Composable
 fun ApplyCourseEditDialog(
@@ -33,7 +34,9 @@ fun ApplyCourseEditDialog(
         message = buildString {
             append("“${original.name}”\n")
             if (singleAllowed) {
-                append("仅本次：${courseEditorOccurrenceLabel(original, targetWeek, config)}。只修改这一次课，不应用其他周次选择。\n\n")
+                val destination = courseEditorSingleDestinationWeek(original, edited, targetWeek) ?: targetWeek
+                append("仅本次：${courseEditorOccurrenceLabel(original, targetWeek, config)}\n")
+                append("改为：${courseEditorOccurrenceLabel(edited, destination, config)}。其他周次保持原安排。\n\n")
             }
             append("应用全部将修改以下原排课：\n${courseEditorScopeDescription(originals, config)}")
             append("\n\n保存后的排课：\n${courseEditorScopeDescription(editedCourses, config)}")

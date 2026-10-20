@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -53,7 +52,6 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -307,7 +305,7 @@ internal fun AgentInputLiquidCapsule(
     val nativeSurface = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeMaterialSurfaceRenderer.current
     if (nativeSurface?.invoke(com.xiaomanjun.sleepdownschedule.core.ui.designsystem.NativeMaterialSurfaceRequest(
         modifier = modifier.height(dockHeight), shape = shape, dark = foreground.luminance() > 0.5f,
-        surfaceAlpha = surfaceVisibility
+        surfaceAlpha = surfaceVisibility, elasticTouchFeedback = true
     )) { Box(Modifier.fillMaxSize()) { content() } } == true) return
 
     val interactionScope = rememberCoroutineScope()
@@ -379,76 +377,6 @@ internal fun AgentInputLiquidCapsule(
     }
 }
 
-@Composable
-internal fun AgentAttachmentLiquidButton(
-    backdrop: Backdrop?,
-    config: ScheduleConfigEntity,
-    foreground: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-    label: String = "选择图片",
-    darkSurface: Boolean = false
-) {
-    val content: @Composable () -> Unit = {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_image_attachment),
-                contentDescription = null,
-                tint = foreground,
-                modifier = Modifier.size(22.dp)
-            )
-            Text(
-                label,
-                color = foreground,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
-            )
-        }
-    }
-    if (backdrop != null) {
-        LiquidButton(
-            onClick = onClick,
-            backdrop = backdrop,
-            modifier = modifier,
-            height = 48.dp,
-            contentPadding = PaddingValues(0.dp),
-            blurRadius = 16.dp,
-            lensHeight = 18.dp,
-            lensAmount = 28.dp,
-            chromaticAberration = false,
-            surfaceColor = if (com.xiaomanjun.sleepdownschedule.core.performance.AppMaterialPreferences.isSuperPerformance)
-                com.xiaomanjun.sleepdownschedule.glass.flatControlColor(foreground.luminance() > 0.5f)
-                else if (darkSurface) Color.Black.copy(alpha = 0.56f)
-                else Color.White.copy(alpha = if (appUsesDarkTheme(config)) 0.08f else 0.14f),
-            shadowEnabled = true,
-            pressExpansion = 1.5.dp
-        ) {
-            Box(Modifier.weight(1f).fillMaxSize()) { content() }
-        }
-    } else {
-        GlassSurface(
-            backdrop = null,
-            config = config,
-            modifier = modifier.height(48.dp),
-            shape = Capsule(),
-            tokens = GlassTokens.dialog(intensity = 1f).copy(
-                blur = 16.dp,
-                surfaceAlpha = if (darkSurface) 0.56f else if (appUsesDarkTheme(config)) 0.08f else 0.14f,
-                shadowAlpha = 0.06f
-            ),
-            baseSurfaceColorOverride = if (darkSurface) Color.Black else Color.White,
-            onClick = onClick
-        ) {
-            content()
-        }
-    }
-}
 
 @Composable
 internal fun AgentCapsuleSendButton(

@@ -7,6 +7,17 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class ShiguangImportSessionCustomTimeTest {
+    @Test fun sparseSchoolSlotsKeepOriginalNumbersAndClock() {
+        val session = ShiguangImportSession()
+        session.begin(defaultConfig(), basePeriods, allowImportedBellTimes = true)
+        session.stageTimeSlots("""[{"number":3,"startTime":"10:00","endTime":"10:45"},{"number":5,"startTime":"11:00","endTime":"11:45"}]""")
+        session.stageCourses("""[{"name":"课程","teacher":"","position":"","day":1,"startSection":5,"endSection":5,"weeks":[1,2]}]""")
+        val draft = session.complete()
+        assertEquals(listOf(1, 2), draft.periods.map { it.periodIndex })
+        assertEquals(listOf(5), draft.courses.single().periods)
+        assertEquals("11:00", draft.courses.single().customStartTime)
+        assertEquals("5,11:00-11:45", draft.courses.single().originalPeriodTimes)
+    }
     @Test fun overlappingSchoolSlotsKeepBothOriginalClocksAndCourses() {
         val session = ShiguangImportSession()
         session.begin(defaultConfig(), basePeriods, allowImportedBellTimes = true)

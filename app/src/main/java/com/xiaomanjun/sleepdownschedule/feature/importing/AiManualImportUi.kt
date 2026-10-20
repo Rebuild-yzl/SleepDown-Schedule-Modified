@@ -306,30 +306,6 @@ fun NormalizedAiManualImportScreen(
         routeMessage = "正在使用拾光 ${request.label} 官方适配器读取口令…"
         target.loadUrl(adapter.importUrl.ifBlank { "about:blank" })
     }
-    val icsFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) launcher@{ uri ->
-        if (uri == null) return@launcher
-        selectedFileName = null
-        routeMessage = null
-        error = null
-        scope.launch {
-            loadAiImportFile(context, uri)
-                .onSuccess { file ->
-                    selectedFileName = file.displayName
-                    if (!file.isIcs) {
-                        error = "所选文件不是有效的 ICS 日历文件"
-                        return@onSuccess
-                    }
-                    routeMessage = "ICS 将在本机解析，不会调用 AI，也不会消耗模型额度。"
-                    IcsScheduleCodec.parse(file.bytes, state.config)
-                        .onSuccess { draft ->
-                            error = null
-                            onParsed(draft)
-                        }
-                        .onFailure { error = it.message ?: "ICS 解析失败" }
-                }
-                .onFailure { error = it.message ?: "ICS 文件读取失败" }
-        }
-    }
     fun prepareImportFile(uri: Uri) {
         val settings = AiImportSettingsStore.load(context)
         aiSettings = settings
@@ -342,16 +318,24 @@ fun NormalizedAiManualImportScreen(
                 .onSuccess fileLoaded@{ file ->
                     selectedFileName = file.displayName
                     if (file.isIcs) {
-                        IcsScheduleCodec.parse(file.bytes, state.config)
-                            .onSuccess(onParsed)
-                            .onFailure { error = it.message ?: "ICS 解析失败" }
-                        aiParsing = false
-                        return@fileLoaded
+                        val parsed = IcsScheduleCodec.parse(file.bytes, state.config)
+                        if (parsed.isSuccess) {
+                            aiParsing = false
+                            onParsed(parsed.getOrThrow())
+                            return@fileLoaded
+                        }
+                        if (IcsScheduleCodec.isSleepDown(file.bytes)) {
+                            error = parsed.exceptionOrNull()?.message ?: "SleepDown 日历内容不完整"
+                            aiParsing = false
+                            return@fileLoaded
+                        }
+                        // Complex external calendars use the existing file confirmation flow;
+                        // no model request is sent until the user confirms there.
                     }
                     val localTextPreviewResult = withContext(Dispatchers.Default) {
                         runCatching { extractAiImportTextPreview(file) }
                     }
-                    if (file.isLocalTextDocument && localTextPreviewResult.isFailure) {
+                    if ((file.isLocalTextDocument || file.isIcs) && localTextPreviewResult.isFailure) {
                         error = localTextPreviewResult.exceptionOrNull()?.message ?: "文件文字提取失败"
                         aiParsing = false
                         return@fileLoaded
@@ -361,6 +345,7 @@ fun NormalizedAiManualImportScreen(
                         appendLine("文件名：${file.displayName}")
                         appendLine("类型：${file.mimeType}")
                         appendLine("大小：${formatAiImportFileSize(file.bytes.size)}")
+                        if (file.isIcs) appendLine("本地无法完整整理此日历，需核对重复规则并推导节次；请确认后交给 AI。")
                         if (localTextPreview != null) {
                             appendLine("本地读取：${localTextPreview.formatLabel}")
                             appendLine()
@@ -379,7 +364,7 @@ fun NormalizedAiManualImportScreen(
                     val previewImages = previewResult.getOrDefault(emptyList())
                     if (previewImages.isNotEmpty() && !AiProviderPresets.supportsImageInput(settings.profile)) {
                         error = if (settings.profile.id == AiProviderPresets.deepSeek.id) {
-                            "当前 DeepSeek 模型只接收文字。请在 AI 设置中选择 V4 Flash Vision Exp，或改用带文字的 PDF/XLSX/CSV。"
+                            "当前 DeepSeek 模型只接收文字。请在 AI 设置中选择 V4.1 Flash，或改用带文字的 PDF/XLSX/CSV。"
                         } else {
                             "当前模型不支持图片输入，请换视觉模型，或上传可提取文字的 PDF/XLSX/CSV。"
                         }
@@ -395,7 +380,7 @@ fun NormalizedAiManualImportScreen(
                     AiEduImportProgressSession.clearActions()
                     AiEduImportProgressSession.update(
                         AiEduImportProgress(
-                            routeLabel = "AI 手动导入",
+                            routeLabel = "口令/文件导入",
                             steps = listOf("已读取文件，等待确认"),
                             userPrompt = "帮我按规则导入这份课表",
                             attachmentTitle = file.displayName,
@@ -437,7 +422,7 @@ fun NormalizedAiManualImportScreen(
                     aiParsing = false
                     AiEduImportProgressSession.update(
                         AiEduImportProgress(
-                            routeLabel = "AI 手动导入",
+                            routeLabel = "口令/文件导入",
                             steps = listOf("准备读取文件", "文件读取失败"),
                             requestPreview = "服务商：${settings.profile.displayName}\n模型：${settings.profile.defaultModel}",
                             error = it.message ?: "文件读取失败",
@@ -448,6 +433,9 @@ fun NormalizedAiManualImportScreen(
         }
     }
     val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(::prepareImportFile)
+    }
+    val icsFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(::prepareImportFile)
     }
     LaunchedEffect(initialFileUri) {
@@ -504,7 +492,7 @@ fun NormalizedAiManualImportScreen(
         AiEduImportProgressSession.clearActions()
         AiEduImportProgressSession.update(
             AiEduImportProgress(
-                routeLabel = "AI 手动导入",
+                routeLabel = "口令/文件导入",
                 steps = listOf("本地口令校验未通过", "已暂存，等待确认"),
                 userPrompt = "帮我按规则整理并导入这份课表",
                 attachmentTitle = "课表口令文本",
@@ -759,7 +747,7 @@ private fun AiManualImportDialogContent(
             .height(panelHeight)
     ) {
         LiquidDialogHeader(
-            title = "手动导入课表",
+            title = "口令/文件导入",
             onDismiss = onCancel,
             backdrop = backdrop,
             config = state.config,

@@ -9,6 +9,50 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IcsScheduleCodecTest {
+    @Test fun aiCalendarFallbackKeepsCompleteTextAndRejectsOversizedInputBeforeUpload() {
+        val text = "BEGIN:VCALENDAR\nEND:VCALENDAR"
+        assertEquals(text, icsTextForAi(text.toByteArray()))
+        assertTrue(runCatching { icsTextForAi("x".repeat(60_001).toByteArray()) }.isFailure)
+    }
+    @Test fun overlappingClockRangesOnDifferentDaysCreateNonOverlappingGrid() {
+        val bytes = """
+            BEGIN:VCALENDAR
+            VERSION:2.0
+            BEGIN:VEVENT
+            DTSTART:20260907T080000
+            DTEND:20260907T093000
+            SUMMARY:周一课程
+            END:VEVENT
+            BEGIN:VEVENT
+            DTSTART:20260908T083000
+            DTEND:20260908T100000
+            SUMMARY:周二课程
+            END:VEVENT
+            END:VCALENDAR
+        """.trimIndent().toByteArray()
+        val draft = IcsScheduleCodec.parse(bytes, defaultConfig()).getOrThrow()
+        assertEquals(listOf("08:00", "08:30", "09:30"), draft.periods.map { it.startTime })
+        assertEquals(listOf(listOf(1, 2), listOf(2, 3)), draft.courses.map { it.periods })
+        assertTrue(draft.notices.isNotEmpty())
+    }
+
+    @Test fun sleepDownCalendarPreservesTermOriginEvenWhenFirstLessonIsWeekFive() {
+        val config = defaultConfig().copy(totalWeeks = 10, termStartDate = "2026-09-07", autoCurrentWeek = true)
+        val periods = listOf(PeriodEntity(1, "08:00", "08:45"), PeriodEntity(2, "08:55", "09:40"))
+        val course = CourseEntity(name = "课程", teacher = null, location = null, weekday = 1,
+            periods = listOf(2), weeks = listOf(5, 6), weekParity = WeekParity.ALL, note = null)
+        val bytes = IcsScheduleCodec.export("测试", config, periods, listOf(course), LocalDate.parse("2026-09-07")).toByteArray()
+        assertTrue(IcsScheduleCodec.isSleepDown(bytes))
+        val restored = IcsScheduleCodec.parse(bytes, defaultConfig()).getOrThrow()
+        assertEquals(listOf(5, 6), restored.courses.single().weeks)
+        assertEquals(periods, restored.periods)
+        assertTrue(restored.notices.isEmpty())
+    }
+
+    @Test fun unsupportedRecurrenceDoesNotSilentlyImportOnlyFirstOccurrence() {
+        val bytes = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:20260907T080000\nDTEND:20260907T090000\nRRULE:FREQ=MONTHLY;COUNT=4\nEND:VEVENT\nEND:VCALENDAR".toByteArray()
+        assertTrue(IcsScheduleCodec.parse(bytes, defaultConfig()).isFailure)
+    }
     @Test fun exportUsesEffectiveMappedLessonsAndExactPartialCustomClocks() {
         val config = defaultConfig().copy(autoCurrentWeek = true, termStartDate = "2026-09-07", totalWeeks = 1)
         val bells = listOf(PeriodEntity(1, "08:00", "08:45"), PeriodEntity(2, "08:55", "09:40"))

@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
  * not be used as an excuse to retune it; visual changes require their own reviewed batch.
  */
 object SleepDownDesignTokens {
+    val LightPageBackground = Color(0xFFE4E5EB)
+
     /**
      * Shared page chrome and content rhythm for secondary screens.
      *

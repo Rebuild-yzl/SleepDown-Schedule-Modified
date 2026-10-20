@@ -33,8 +33,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -50,6 +48,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import com.xiaomanjun.sleepdownschedule.core.ui.layout.rememberFloatingInputInsets
+import com.xiaomanjun.sleepdownschedule.core.ui.layout.floatingInputPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -205,39 +205,6 @@ open class AiEduImportProgressActivityHost : ComponentActivity() {
     }
 }
 
-internal fun aiComposerBottomInsetPx(
-    imeBottomPx: Int,
-    navigationBottomPx: Int,
-    baselineRootHeightPx: Int,
-    currentRootHeightPx: Int,
-    baselineRootTopOnScreenPx: Int,
-    currentRootTopOnScreenPx: Int,
-    tolerancePx: Int,
-    hostConsumesImeResize: Boolean = false
-): Int {
-    // The quick-history detail is hosted inside MainActivity, whose adjustResize parent can
-    // consume the IME displacement outside this page's fixed morph target. Its local root metrics
-    // therefore look unchanged even though the visible viewport has already moved. Trust the
-    // explicit host contract in that route instead of adding the same IME height a second time.
-    if (hostConsumesImeResize) return navigationBottomPx
-    if (imeBottomPx <= navigationBottomPx) return navigationBottomPx
-    if (baselineRootHeightPx <= 0 || currentRootHeightPx <= 0) return imeBottomPx
-
-    // OEMs can honor ADJUST_NOTHING in three different ways: leave the root untouched,
-    // resize it, or pan the whole window. Only compensate the portion that has not already
-    // been applied by the window manager, otherwise the composer moves by two IME heights.
-    // Use the physical bottom-edge displacement. Some OEMs resize and pan during the same IME
-    // session; max(resize, pan) under-counts that combined movement and adds a second partial IME
-    // offset, which is the intermittent "composer flies upward" failure.
-    val baselineRootBottomPx = baselineRootTopOnScreenPx.toLong() + baselineRootHeightPx
-    val currentRootBottomPx = currentRootTopOnScreenPx.toLong() + currentRootHeightPx
-    val alreadyAppliedPx = (baselineRootBottomPx - currentRootBottomPx)
-        .coerceIn(0L, Int.MAX_VALUE.toLong())
-        .toInt()
-    val remainingPx = (imeBottomPx - alreadyAppliedPx).coerceAtLeast(0)
-    return if (remainingPx <= tolerancePx) 0 else remainingPx
-}
-
 @Composable
 internal fun AiEduImportProgressPage(
     config: ScheduleConfigEntity,
@@ -249,7 +216,6 @@ internal fun AiEduImportProgressPage(
     historicalDraft: ImportDraft? = null,
     historicalEntryId: String? = null,
     showHistoryAction: Boolean = true,
-    hostConsumesImeResize: Boolean = false,
     onImportRequested: ((ImportDraft, Boolean) -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -316,8 +282,6 @@ internal fun AiEduImportProgressPage(
     var rootSize by remember { mutableStateOf(IntSize.Zero) }
     var rootPositionOnScreen by remember { mutableStateOf(Offset.Zero) }
     var rootPositionInWindow by remember { mutableStateOf(Offset.Zero) }
-    var baselineRootHeightPx by remember { mutableIntStateOf(0) }
-    var baselineRootTopOnScreenPx by remember { mutableIntStateOf(0) }
     val previewBackgroundZoom = remember { Animatable(1f) }
     val previewSceneBackdrop = rememberGlassLayerBackdrop(
         domain = GlassBackdropDomain.ActivityBackground,
@@ -346,36 +310,7 @@ internal fun AiEduImportProgressPage(
     val runtimePickerState = rememberAiRuntimePickerState()
     var historySourceHidden by remember { mutableStateOf(false) }
     val density = LocalDensity.current
-    val imeBottomPx = WindowInsets.ime.getBottom(density)
-    val navigationBottomPx = WindowInsets.navigationBars.getBottom(density)
-    val insetTolerancePx = with(density) { 24.dp.roundToPx() }
-    LaunchedEffect(
-        imeBottomPx,
-        navigationBottomPx,
-        rootSize.width,
-        rootSize.height,
-        rootPositionOnScreen.y
-    ) {
-        if (imeBottomPx <= navigationBottomPx && rootSize.height > 0) {
-            // Closing animations can report a hidden IME one or two frames before an OEM restores
-            // the resized/panned root. Commit only a settled hidden-window baseline so the next
-            // keyboard session never starts from a transient short root.
-            withFrameNanos { }
-            withFrameNanos { }
-            baselineRootHeightPx = rootSize.height
-            baselineRootTopOnScreenPx = rootPositionOnScreen.y.roundToInt()
-        }
-    }
-    val composerBottomInsetPx = aiComposerBottomInsetPx(
-        imeBottomPx = imeBottomPx,
-        navigationBottomPx = navigationBottomPx,
-        baselineRootHeightPx = baselineRootHeightPx,
-        currentRootHeightPx = rootSize.height,
-        baselineRootTopOnScreenPx = baselineRootTopOnScreenPx,
-        currentRootTopOnScreenPx = rootPositionOnScreen.y.roundToInt(),
-        tolerancePx = insetTolerancePx,
-        hostConsumesImeResize = hostConsumesImeResize
-    )
+    val inputInsets = rememberFloatingInputInsets()
     val conversationScope = rememberCoroutineScope()
     fun persistWorkspace(previousDraft: ImportDraft?, next: AiEduImportProgress, draft: ImportDraft) {
         (context.applicationContext as CourseScheduleApp).applicationScope.launch(Dispatchers.IO) {
@@ -455,6 +390,7 @@ internal fun AiEduImportProgressPage(
         Modifier
             .fillMaxSize()
             .clipToBounds()
+            .then(inputInsets.viewportModifier)
             .onGloballyPositioned {
                 rootSize = it.size
                 rootPositionOnScreen = it.positionOnScreen()
@@ -576,7 +512,20 @@ internal fun AiEduImportProgressPage(
                     ) {
                 current.conversationTurns.forEachIndexed { index, turn ->
                     item(key = "conversation-turn-$index") {
-                        AiEduConversationTurnSummary(turn, index + 1, textColor)
+                        AiEduUserMessage(
+                            progress = current.copy(userPrompt = turn.userPrompt),
+                            textColor = textColor, config = config, backdrop = backdrop,
+                            includeAttachment = index == 0,
+                            showAttachment = !previewSourceHidden,
+                            onPreview = { previewAttachment = it }
+                        )
+                        AiEduConversationTurnReply(turn, textColor)
+                        current.checkpoints.lastOrNull { it.payload == turn.artifactPayload }?.let { checkpoint ->
+                            Text("查看此轮课表 · ${checkpoint.courseCount} 门课程",
+                                modifier = Modifier.clickable { selectCheckpoint(checkpoint.id) }.padding(vertical = 8.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.labelLarge)
+                        }
                     }
                 }
                 item {
@@ -586,6 +535,7 @@ internal fun AiEduImportProgressPage(
                         config = config,
                         backdrop = backdrop,
                         showAttachment = !previewSourceHidden,
+                        includeAttachment = current.conversationTurns.isEmpty(),
                         onPreview = { previewAttachment = it }
                     )
                 }
@@ -687,6 +637,11 @@ internal fun AiEduImportProgressPage(
                 }
                     }
                 }
+
+            }
+        }
+        // A full-page sibling of the scaffold, like the school search dock. Keep it within the
+        // page recorder so history and attachment transitions still include the input.
                 AiEduConversationComposer(
                     value = conversationInput,
                     sending = conversationSending || (!current.finished && !current.awaitingConfirmation),
@@ -701,8 +656,11 @@ internal fun AiEduImportProgressPage(
                         (current.pageText.isNotBlank() || current.screenshotPreviews.isNotEmpty()),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = with(density) { composerBottomInsetPx.toDp() })
-                        .onSizeChanged { composerHeightPx = it.height },
+                        // Reserve the whole occupied area, including the manual IME/nav inset.
+                        // Measuring inside padding only reserved the capsule, leaving the last
+                        // message and import buttons behind it when the keyboard opened.
+                        .onSizeChanged { composerHeightPx = it.height }
+                        .floatingInputPadding(inputInsets),
                     onValueChange = { conversationInput = it.take(600) },
                     onSend = send@{
                         val prompt = conversationInput.trim().ifBlank {
@@ -735,8 +693,6 @@ internal fun AiEduImportProgressPage(
                 )
             }
         }
-            }
-        }
         previewAttachment?.let { request ->
             AiEduAttachmentMorphOverlay(
                 request = request,
@@ -767,24 +723,23 @@ private fun Bitmap.cropToWindowBounds(
 }.getOrNull()
 
 @Composable
-private fun AiEduConversationTurnSummary(
+private fun AiEduConversationTurnReply(
     turn: AiEduImportConversationTurn,
-    index: Int,
     textColor: Color
 ) {
-    var expanded by remember(turn) { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text("第 $index 轮 · ${turn.status}${if (expanded) " · 收起" else " · 展开"}",
-            modifier = Modifier.clickable { expanded = !expanded }.padding(vertical = 8.dp),
+        Text(turn.status,
+            modifier = Modifier.padding(vertical = 8.dp),
             color = textColor.copy(alpha = 0.64f), style = MaterialTheme.typography.labelMedium)
-        AgentMarkdownText(turn.userPrompt, textColor, MaterialTheme.typography.bodyMedium)
-        if (expanded && turn.reasoningOutput.isNotBlank()) AiEduModelSummary(turn.reasoningOutput, textColor)
+        if (turn.reasoningOutput.isNotBlank()) AiEduModelSummary(turn.reasoningOutput, textColor)
         if (turn.assistantMessage.isNotBlank()) AgentMarkdownText(turn.assistantMessage, textColor, MaterialTheme.typography.bodyMedium)
+        if (turn.artifactPayload.isNotBlank()) Text("课表已通过本地校验",
+            color = textColor.copy(alpha = 0.64f), style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -1121,6 +1076,7 @@ private fun AiEduUserMessage(
     config: ScheduleConfigEntity,
     backdrop: Backdrop?,
     showAttachment: Boolean,
+    includeAttachment: Boolean = true,
     onPreview: (AiEduAttachmentPreviewRequest) -> Unit
 ) {
     val density = LocalDensity.current
@@ -1141,7 +1097,7 @@ private fun AiEduUserMessage(
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        if (hasAttachment) {
+        if (includeAttachment && hasAttachment) {
             if (showAttachment || attachmentSize == IntSize.Zero) {
                 AiEduLiquidPanel(
                     backdrop = backdrop,
@@ -1183,8 +1139,6 @@ private fun AiEduUserMessage(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 color = Color.White,
                 style = MaterialTheme.typography.bodyLarge,
-                maxLines = 8,
-                overflow = TextOverflow.Ellipsis
             )
         }
     }

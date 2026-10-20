@@ -28,6 +28,8 @@ interface ScheduleFilePreprocessor {
 internal class DefaultScheduleFilePreprocessor(private val context: Context) : ScheduleFilePreprocessor {
     override suspend fun preprocess(file: AiImportFile, config: AiProviderConfig): PreprocessResult {
         return when {
+            file.isIcs -> PreprocessResult.Text(icsTextForAi(file.bytes),
+                "已读取 ICS 日历文本，确认后由 AI 整理课程与节次。")
             file.isLocalTextDocument -> {
                 val extracted = extractLocalAiDocumentText(file.displayName, file.mimeType, file.bytes)
                     ?: error("无法从 ${file.displayName} 提取文字")
@@ -79,9 +81,9 @@ internal class DefaultScheduleFilePreprocessor(private val context: Context) : S
 
 private val NativeResponsesDocumentExtensions = setOf("xls", "doc", "ppt", "rtf", "odt", "odp")
 
-private fun canSendNativeFile(file: AiImportFile, config: AiProviderConfig): Boolean {
+internal fun canSendNativeFile(file: AiImportFile, config: AiProviderConfig): Boolean {
     val extension = file.displayName.substringAfterLast('.', "").lowercase()
-    val officialOpenAiResponses = config.providerId == AiProviderPresets.openAI.id &&
+    val officialOpenAiResponses = config.providerId in setOf(AiProviderPresets.openAI.id, AiProviderPresets.chatGpt.id) &&
         isOfficialOpenAIBaseUrl(config.baseUrl) &&
         config.endpointStyle == AiEndpointStyle.RESPONSES
     val explicitlyEnabledCompatibleResponses = config.endpointStyle == AiEndpointStyle.RESPONSES &&
@@ -92,7 +94,14 @@ private fun canSendNativeFile(file: AiImportFile, config: AiProviderConfig): Boo
         (officialOpenAiResponses || explicitlyEnabledCompatibleResponses)
 }
 
+internal fun icsTextForAi(bytes: ByteArray): String {
+    val text = bytes.toString(Charsets.UTF_8).removePrefix("\uFEFF")
+    require(text.length <= 60_000) { "日历内容过多，请只导出当前学期后再导入，避免遗漏课程。" }
+    return text
+}
+
 internal fun extractAiImportTextPreview(file: AiImportFile): LocalAiDocumentText? = when {
+    file.isIcs -> LocalAiDocumentText(icsTextForAi(file.bytes), "ICS 日历")
     file.isLocalTextDocument -> extractLocalAiDocumentText(file.displayName, file.mimeType, file.bytes)
     file.isPdf -> extractPdfTextBestEffort(file.bytes)
         .takeIf(::isUsefulExtractedScheduleText)

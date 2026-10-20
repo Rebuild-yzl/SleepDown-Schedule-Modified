@@ -200,6 +200,11 @@ private fun AutoRefreshDashboardContent(
     var refreshing by remember { mutableStateOf(false) }
     var message by remember(profile.lastResult) { mutableStateOf(profile.lastResult) }
     var refreshResultMessage by remember { mutableStateOf<String?>(null) }
+    var reviewOpenRequest by remember { mutableIntStateOf(0) }
+    val pendingReview by AutoRefreshReviewStore.observe(context).collectAsState()
+    val hasPendingReview = pendingReview?.let {
+        it.scheduleId == profile.scheduleId && it.schoolId == profile.schoolId && it.adapterId == profile.adapterId
+    } == true
     var showLogout by remember { mutableStateOf(false) }
     var cropUri by rememberSaveable { mutableStateOf<String?>(null) }
     var cropVisible by rememberSaveable { mutableStateOf(false) }
@@ -308,18 +313,22 @@ private fun AutoRefreshDashboardContent(
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
                         Column(Modifier.fillMaxWidth().padding(14.dp)) {
                             SettingsActionButton(
-                                if (profile.sessionOnly) "打开教务手动刷新"
+                                if (hasPendingReview) "核对课表差异"
+                                else if (profile.sessionOnly) "打开教务手动刷新"
                                 else if (refreshing) "正在刷新…" else "立即刷新课表",
                                 backdrop,
                                 modifier = Modifier.fillMaxWidth(),
                                 onClick = {
-                                    if (profile.sessionOnly) {
+                                    if (hasPendingReview) {
+                                        reviewOpenRequest++
+                                    } else if (profile.sessionOnly) {
                                         if (reconnectAvailable) onManualRefresh() else onRetryCatalog()
                                     } else if (!refreshing) scope.launch {
                                         refreshing = true
                                         try {
                                             message = AutoRefreshScheduleCoordinator.refreshSaved(context).message
-                                            refreshResultMessage = message
+                                            if (AutoRefreshReviewStore.load(context) == null) refreshResultMessage = message
+                                            else reviewOpenRequest++
                                         } finally {
                                             refreshing = false
                                         }
@@ -403,6 +412,8 @@ private fun AutoRefreshDashboardContent(
         backdrop = backdrop, config = state.config,
         onDismissRequest = { showLogout = false }
     )
+    AutoRefreshReviewHost(state.config, backdrop, state.schedules, enabled = !showLogout && !cropVisible && !refreshing,
+        openRequest = reviewOpenRequest)
     refreshResultMessage?.let { result ->
         LiquidAlertDialog(
             title = "课表刷新结果",

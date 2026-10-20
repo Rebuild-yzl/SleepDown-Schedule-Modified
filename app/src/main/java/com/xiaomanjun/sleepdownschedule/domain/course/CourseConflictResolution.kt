@@ -215,12 +215,16 @@ fun conflictWeeksForSingleWeekEdit(
     targetWeek: Int,
     courses: List<CourseEntity>,
     periodDefinitions: List<PeriodEntity> = emptyList()
-): List<Int> = conflictWeeksForEditedCourse(
-    original = original.copy(weeks = listOf(targetWeek)),
-    edited = edited.copy(weeks = listOf(targetWeek)),
-    courses = courses,
-    periodDefinitions = periodDefinitions
-)
+): List<Int> {
+    val destinationWeek = edited.weeks.distinct().singleOrNull() ?: targetWeek
+    if (destinationWeek != targetWeek) return conflictWeeksForAddedCourses(
+        listOf(edited.copy(id = 0, weeks = listOf(destinationWeek))),
+        courses.filterNot { it.id == original.id } + original.copy(weeks = original.weeks.filter { it != targetWeek }),
+        periodDefinitions
+    )
+    return conflictWeeksForEditedCourse(original.copy(weeks = listOf(targetWeek)),
+        edited.copy(weeks = listOf(targetWeek)), courses, periodDefinitions)
+}
 
 fun nearestAvailableCourseMove(
     course: CourseEntity,

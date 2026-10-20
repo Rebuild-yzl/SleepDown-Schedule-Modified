@@ -51,6 +51,8 @@ Alert 的原生窗口仅按操作槽位等结构创建，外观和标签变化�
 
 共用 `SleepDownPickerDialog` 也接入同一原生窗口入口，保留已有滚轮、色板、内容切换和确认取消逻辑；标题操作及底部操作仍可由业务提供。选择器先发送关闭请求，业务将 visible 设为 false 后由窗口退出，退出完成再卸载本次宿主。原生路径不叠加 Compose 中心玻璃层。`QuickSheetLiquidAction` 在没有 Backdrop 时也可使用原生胶囊按钮。
 
+选择器标题及操作按钮通过 `ColorOsPickerStyle` 从当前系统对话框读取样式和尺寸，由局部样式契约传入公共选择器。未展示的测量窗口不加入 WindowManager；字体、主题变化会重新读取，其他材质保留自身尺寸。快速编辑的外部手势光效通过 `NativeFollowLightRenderer` 提供，原生宿主只绘制光、不接管手势或建立全屏模糊；课程编辑器另设聚焦光效半径，避免展开后沿用整张大表面对角线的光斑范围。
+
 原生选择器切换内容时只保留当前控件树，通过 `animateContentSize` 执行 260 ms 单调尺寸过渡，不同时挂载新旧两套 AndroidView，也不叠加淡入淡出。窗口实例随本次打开保留，切换模式不重建窗口；非原生路径保留原过渡。
 
 原生弹窗通过 `LocalNativeDialogHostSize` 传递外层页面的可用尺寸。壁纸取色预览与嵌套弹窗的高度限制使用这个尺寸，不能使用正在动画的 wrap-content 弹窗高度反算内容高度，否则会形成重复缩放与取色循环。
@@ -66,6 +68,7 @@ Alert 的原生窗口仅按操作槽位等结构创建，外观和标签变化�
 - Dock 跟手光保持 2× 原始强度，颜色与 Dock 强调色一致；重复更新材质不叠加强度。
 - 首页判为深色壁纸时，Dock、按钮及菜单恢复原生深色材质；浅色壁纸使用中性天气材质，无壁纸时使用应用明暗主题。前景继续与首页文字反色保持一致。
 - 原生 Dock 的后备内容通过稳定 State 传入，避免未使用的 Compose 后备函数捕获背景状态后改变原生宿主参数。shortcut 的整页模糊保留，动画进度只由绘制层读取；这一隔离不等同于实机重组次数已验证。
+- 普通和并列 Dock 在应用内明暗变化时保留 Context 与绑定的原生控件，通过 `updateTheme` / `refreshAppearance` 原地刷新材质，保留融合动画状态。其他控件默认随明暗重建。并列 Dock 首次创建时显式设置展开或收起，不以缓存布尔值代替原生初始化。
 - 课程共享模糊采样通过可跟踪的 `compositionLocalOf` 提供。个性化滑杆替换采样器时只更新课程消费者，不再让 static provider 刷新整页和原生 Dock。
 - 凝光模式通过稳定的 State 持有开关、着色和模糊值，只有读取对应值的消费者订阅变化，框架 provider 不随拖动重新创建模式。表面着色变化仅 invalidate；只有模糊、描边、明暗或可见性变化才重新安装原生效果。
 - 个性化实时整页模糊与冻结路径一样，先录制完整页面，再模糊录制层；不把变化的 RenderEffect 直接挂到原生 Dock 的祖先层。Dock 仍在页面快照及整页模糊范围内。桌面重组测试不等同于实机 GPU 材质已验收。
@@ -74,6 +77,10 @@ Alert 的原生窗口仅按操作槽位等结构创建，外观和标签变化�
 ## 数值与选项控件
 
 `NativeValueControls` 是业务协议，`ColorOsValueControls` 负责加载系统 COUI：数值使用 `COUISeekBar`，开关使用 `COUISwitch`，导入类型等 `LiquidOptionTabs` 使用 `COUISegmentButtonLayout`。旧入口保留给调用方，优先交给原生 renderer；能力不可用时才进入原实现。原生控件负责滑块、文字、拖动、弹簧、触觉与无障碍，不再将 Compose 文本独立贴在原生分段滑块上。
+
+横屏紧凑导航沿用液态玻璃的组合边界：外壳提供一次材质，分段控件以 `containerSurfaceEnabled=false` 只保留文字、选中条和原生运动。COUI Canvas 材质模式关闭 View 整体模糊/描边，以透明背景画笔和无背景描边预设去掉内层轨道的重复外框。侧栏展开/收起按钮保留 Compose 点击及语义，只叠加无材质的原生跟手光，不经过完整胶囊按钮 renderer。
+
+原生分段控件包含可点击、可聚焦的 TextView 子项，容器 OnTouchListener 不能观察被子项处理的完整序列。透明 FrameLayout host 在 `dispatchTouchEvent` 入口记录 DOWN，再通过一次 `super.dispatchTouchEvent` 交给 COUI 子树处理，返回后处理 UP/CANCEL；子项保留原生点击、无障碍、弹簧、光效和触觉。横屏导航设置 `commitOnRelease=true`，拖动期间不把 Compose 的旧页码回写给原生选中条，抬手后再提交页面选择；取消时还原，禁用或销毁时释放手势。程序同步暂时解绑选择回调。侧栏切换按钮独立后绘制，使用 48dp 点击区域，与标签轨道留出间距，避免最小触控扩展和选中条按压溢出相互争抢。
 
 Slider 的值范围与预览/提交协议独立于厂商：拖动开始打开预览，值变化只预览，正常结束先提交再结束预览；取消恢复开始值而不提交；键盘/无障碍变化无需制造触摸预览。禁用状态传入原生 View。课程模糊使用上文百分比映射。
 
@@ -84,6 +91,12 @@ Slider 的值范围与预览/提交协议独立于厂商：拖动开始打开预
 独立使用的 `COUISwitch` 显式启用 clickable / focusable；Settings 的 preference 样式默认依赖外部行处理点击。所有页面的开关选中轨道、滑条进度与强调按钮使用公共 `CourseScheduleTheme` 的壁纸主题色；小图解码与提色按壁纸缓存，无有效色相时回退蓝色。原生 Slider 不套旧 `SliderWithSnapMarker`：默认值标记读取 COUI 的 `getProgressStart`、`getSeekBarLength` 和 `getSeekBarCenterY`，与系统轨道内边距、RTL 保持一致，不修改原生弹性形变。
 
 ## 菜单与教务面板
+
+横屏顶部导航的 Segment 保留主题 Context 与 View，设置/课表页的明暗变化通过原地 `refresh` 更新外观，再恢复无外框协议。抬手提交的导航由宿主锁定触摸、键盘和无障碍输入，不通过禁用原生 View 打断指示器弹簧；其他分段控件继续使用正常 disabled 语义。
+
+折叠后的顶部导航由 `HomeNavigation` 公共材质宿主包住整个胶囊，外壳、标签及左侧按钮共用原生 deformation / rubber collector；跟手光使用 `TYPE_CAPSULE_2` 和原生强度的 0.75 倍，绘制在标签与选中条下面。内轨关闭自身的容器形变和跟手光，保留滑选、触觉和指示器弹簧。背景 delegate 返回含 null 的非空 Paint 数组，跳过内轨背景绘制；透明 Paint 仍会触发 COUI 的 `clipPath`，不能用于避免这层裁剪。外壳只在完整胶囊轮廓裁剪，并在明暗变化时保留 View 与触摸动画绑定。
+
+教务搜索框的入场透明度使用 ModulateAlpha，保留 View 级模糊对窗口前序内容的采样，底部渐变与控件共用入场进度。原生功能按钮文字只在值或外观确需变化时更新，避免逐帧重组重复调用 setter。
 
 加号菜单通过完整 `COUITouchListView` 和 `DefaultAdapter` 处理条目点击、取消及触觉，嵌入页面的外壳使用 `ColorOsMaterialSurface` 的 View 级材质。原宿主仍维护位置、尺寸、源按钮交接和开合动画。同一个原生背景 View 贯穿展开、稳定和收回，不在动画端点替换表面；透明度采用 ModulateAlpha，避免把模糊隔离到空离屏层。原生列表启用时不再叠加 Compose 整面板按压形变。
 
@@ -145,11 +158,11 @@ AI 外壳使用固定 Morph 容器时，原生背景 View 按容器内当前的�
 
 ## 验证入口
 
-本轮弹层、白光、滑条点按及 shortcut 对齐修复见[2026-10-13 弹层修复记录](../reports/2026-10-13-coui-popup-surface-fixes.md)。后续反馈已恢复日视图课程卡和日/周课程编辑外壳的跟手光，展开态继续按实际尺寸计算范围，课程强度保持 1.2×；不能再通过 expandedOutlineLight 隐式关闭反馈。当前补救范围见 [菜单与转场补救记录](../reports/2026-10-13-coloros-menu-rescue.md)。
+日视图课程卡和日/周课程编辑外壳保留跟手光，展开态按实际尺寸计算范围，课程强度为 1.2×；不能通过 expandedOutlineLight 隐式关闭反馈。旧文曾引用 2026-10-13 的弹层与菜单补救报告，当前分支未收录原文，不能据这些名称声称已有本轮验收。
 
-当前浮动面板、完整原生 popup、全局主题色与完整甩尾的验证见[2026-10-13 修订记录](../reports/2026-10-13-coloros-floating-native-popup.md)。完整原生 popup 路线及其专用测试现已撤回，`QuickScheduleSheetLifecycleTest` 检查浮动面板反复显示及保存语义，`HomeSwitchMotionTest` 检查密集页面追随、回弹、反向及结束状态。
+完整原生 popup 路线及其专用测试已撤回；对应 2026-10-13 浮动面板报告未收录于当前分支。`QuickScheduleSheetLifecycleTest` 检查浮动面板反复显示及保存语义，`HomeSwitchMotionTest` 检查密集页面追随、回弹、反向及结束状态。它们是按风险选择的验证入口，不表示每轮均已执行。
 
-UI 改动使用 `assembleGithubRelease` 验证编译、R8、资源和签名；`ColorOsAlertSlotsTest` 保护三操作排列、取消/删除回调映射及空表单动作。`ColorOsDockCompositionTest` 检查背景依赖隔离，`ColorOsCapsuleMotionTest` 检查内容运动及更新，`CourseShortcutTest` 保护退出交接。`NativeDialogTouchGateTest` 检查窗口坐标与触摸序列，`NativeValueControlsTest` 检查预览事务及百分比映射，`ColorOsMaterialCornersTest` 检查真实圆角。桌面测试不加载系统 COUI，实机仍需检查：加号展开收回、菜单反色、滚动过程中取消按钮按压、明暗主题、原生渐变模糊、三操作弹窗及 shortcut / 多课表快照。本轮证据见[输入、控件与材质修订](../reports/2026-10-13-coloros-picker-input.md)，前轮记录见[shortcut 与渐变模糊修订](../reports/2026-10-12-coloros-shortcut-native-blur.md)。
+UI 改动使用 `assembleGithubRelease` 验证编译、R8、资源和签名。已有定向用例分别覆盖三操作排列（`ColorOsAlertSlotsTest`）、背景边界（`ColorOsDockCompositionTest`）、胶囊运动（`ColorOsCapsuleMotionTest`）、shortcut 交接（`CourseShortcutTest`）、窗口触摸（`NativeDialogTouchGateTest`）、值控件映射（`NativeValueControlsTest`）与圆角（`ColorOsMaterialCornersTest`），按实际风险选择，不机械全跑。桌面测试不加载系统 COUI，相关改动仍需实机验收。旧文引用的 2026-10-12/13 输入和 shortcut 报告当前未收录；本轮实际构建与未验收项见[2026-10-19 修订记录](../reports/2026-10-19-navigation-import-feedback.md)，后续从[当前交接](../AI_HANDOFF.md)查对应证据。
 
 ## 菜单触摸与浮动窗口转场补充（2026-10-13）
 

@@ -188,7 +188,8 @@ internal fun PeriodSchemeEditor(
     managementRequest: PeriodSchemeManagementRequest? = null,
     onSaveSession: (suspend (PeriodTimelineSession) -> Unit)? = null,
     onEditorFinished: () -> Unit = {},
-    exitCommitRequest: Int = 0
+    exitCommitRequest: Int = 0,
+    exitCoordinator: PeriodEditorExitCoordinator? = null
 ) {
     val active = draft.schemes.firstOrNull { it.scheme.id == draft.activeSchemeId } ?: return
     val popupBackdrop = LocalSettingsPopupBackdrop.current ?: backdrop
@@ -237,8 +238,10 @@ internal fun PeriodSchemeEditor(
         }
     }
     DisposableEffect(chromeProgress) { onDispose { chromeProgress?.floatValue = 0f } }
+    DisposableEffect(exitCoordinator) { onDispose { exitCoordinator?.abandon() } }
 
     fun enter(value: PeriodTimelineSession) {
+        exitCoordinator?.opened()
         initialSession = PeriodTimelineSession(config, draft)
         frozenActionSource = actionSource
         localError = null
@@ -300,7 +303,7 @@ internal fun PeriodSchemeEditor(
             val error = current.draft.schemes.firstNotNullOfOrNull {
                 validateResolvedPeriodTimes(resolveSchemeTimes(current.config, it))
             }
-            if (error != null) { localError = error; return }
+            if (error != null) { localError = error; exitCoordinator?.cancelRequest(); return }
         }
         val hasChanges = initialSession?.let { current.hasChangesFrom(it) } ?: true
         closing = true
@@ -316,6 +319,7 @@ internal fun PeriodSchemeEditor(
                 } catch (failure: Exception) {
                     if (failure is kotlinx.coroutines.CancellationException) throw failure
                     localError = failure.message ?: "作息保存失败"
+                    exitCoordinator?.cancelRequest()
                     closing = false
                     return@launch
                 }
@@ -332,6 +336,7 @@ internal fun PeriodSchemeEditor(
             closing = false
             localError = null
             onEditorFinished()
+            exitCoordinator?.closedAfterDraftHandoff()
         }
     }
     fun requestExit() {
@@ -357,6 +362,9 @@ internal fun PeriodSchemeEditor(
     }
     LaunchedEffect(exitCommitRequest) {
         if (exitCommitRequest > 0 && session != null) requestExit()
+    }
+    LaunchedEffect(exitCoordinator?.requestVersion, editorOpen) {
+        if (exitCoordinator?.pending == true && editorOpen) requestExit()
     }
     LaunchedEffect(editorOpen, requestedBlock) {
         if (editorOpen && requestedBlock != null) {
@@ -624,8 +632,10 @@ internal fun PeriodSchemeEditor(
         listOf(
             LiquidAlertAction("保存", LiquidAlertActionStyle.Primary, onClick = { showExitConfirmation = false; leave(true) }),
             LiquidAlertAction("不保存", LiquidAlertActionStyle.Destructive, onClick = { showExitConfirmation = false; leave(false) }),
-            LiquidAlertAction("继续编辑", LiquidAlertActionStyle.Cancel, onClick = { showExitConfirmation = false })
-        ), popupBackdrop, state.config, { showExitConfirmation = false })
+            LiquidAlertAction("继续编辑", LiquidAlertActionStyle.Cancel, onClick = {
+                showExitConfirmation = false; exitCoordinator?.cancelRequest()
+            })
+        ), popupBackdrop, state.config, { showExitConfirmation = false; exitCoordinator?.cancelRequest() })
     if (showWizard) PeriodSchemeCreationWizard(config, draft, popupBackdrop, state.config,
         onDismiss = { showWizard = false; if (managementContent != null) onEditorFinished() },
         onCreated = { showWizard = false; enter(it) }, standalone = managementContent != null)

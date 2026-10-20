@@ -9,7 +9,9 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.Drawable
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.CompoundButton
+import android.widget.FrameLayout
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
@@ -202,9 +204,9 @@ private class NativeSwitchBinding(source: ColorOsNativeUi.Source, context: Conte
 @Composable
 internal fun ColorOsSegments(request: NativeSegmentRequest): Boolean {
     if (request.labels.isEmpty()) return false
-    val native = rememberNativeContext(request.dark) ?: return false
+    val native = rememberNativeContext(request.dark, retainOnThemeChange = true) ?: return false
     val latest = rememberUpdatedState(request)
-    val binding = remember(native, request.labels) {
+    val binding = remember(native, request.labels, request.height, request.containerSurfaceEnabled) {
         ColorOsNativeUi.prepare("create native segmented control") {
             val source = native.first
             val type = source.load("com.coui.appcompat.segmentbutton.COUISegmentButtonLayout")
@@ -212,26 +214,142 @@ internal fun ColorOsSegments(request: NativeSegmentRequest): Boolean {
             type.getMethod("setSegmentButtons", Array<String>::class.java)
                 .invoke(view, request.labels.toTypedArray() as Any)
             type.getMethod("setMaterialEffectEnabled", Boolean::class.javaPrimitiveType).invoke(view, true)
-            type.getMethod("setSegmentHeight", Float::class.javaPrimitiveType).invoke(view, 42f)
+            if (!request.containerSurfaceEnabled) {
+                // The common outer surface owns touch deformation and light. This inset
+                // View only owns selection and the indicator's native spring animation.
+                type.getMethod("setIsDrawMaterialEffect", Boolean::class.javaPrimitiveType).invoke(view, true)
+                type.getMethod("setDragAnimationEnabled", Boolean::class.javaPrimitiveType).invoke(view, false)
+                type.getMethod("setSpotLightEnabled", Boolean::class.javaPrimitiveType).invoke(view, false)
+                val strokeType = source.load("com.coui.appcompat.COUIMaterialStrokeEffect\$StrokeEffectType")
+                type.getMethod("setStrokeEffectType", strokeType, Context::class.java)
+                    .invoke(view, strokeType.getField("TYPE_NO_EFFECT").get(null), native.second)
+                val delegate = source.load("${type.name}\$SegmentButtonDrawDelegate")
+                // A transparent Paint still makes COUI's drawButtonBackground clip the
+                // canvas to the inset rail. A null entry skips that draw/clip altogether.
+                val noBackground = arrayOfNulls<Paint>(1)
+                type.getMethod("setSegmentButtonDrawDelegate", delegate).invoke(view,
+                    source.listener(delegate.name) { name, _ ->
+                        if (name == "getCustomBackgroundPaint") noBackground else null
+                    })
+            }
+            type.getMethod("setSegmentHeight", Float::class.javaPrimitiveType).invoke(view, request.height.value)
             type.getMethod("selectSegmentAt", Int::class.javaPrimitiveType).invoke(view, request.selected.coerceIn(request.labels.indices))
-            val listener = source.load("${type.name}\$OnSegmentSelectedListener")
-            type.getMethod("setOnSegmentSelectedListener", listener).invoke(view, source.listener(listener.name) { name, args ->
-                if (name == "onSegmentSelected") (args?.firstOrNull() as? Int)?.let {
-                    if (it in latest.value.labels.indices && it != latest.value.selected) latest.value.onSelected(it)
-                }
-                null
-            })
-            source.bindFollowLightIntensity(view)
-            Triple(type, view, listener)
+            if (request.containerSurfaceEnabled) source.bindFollowLightIntensity(view)
+            NativeSegmentBinding(source, native.second, type, view) { latest.value }
         }
     } ?: return false
-    key(binding.second) { AndroidView(factory = { binding.second }, modifier = request.modifier.height(42.dp), update = {
-        val selected = request.selected.coerceIn(request.labels.indices)
-        if (binding.first.getMethod("getSelectedSegmentPosition").invoke(it) != selected)
-            binding.first.getMethod("selectSegmentAt", Int::class.javaPrimitiveType).invoke(it, selected)
-    }) }
-    DisposableEffect(binding) { onDispose {
-        binding.first.getMethod("setOnSegmentSelectedListener", binding.third).invoke(binding.second, null)
-    } }
+    key(binding.host) { AndroidView(factory = { binding.host }, modifier = request.modifier.height(request.height),
+        update = { binding.synchronize() }) }
+    DisposableEffect(binding) { onDispose { binding.dispose() } }
     return true
+}
+
+private class NativeSegmentBinding(
+    source: ColorOsNativeUi.Source,
+    private val context: Context,
+    type: Class<*>,
+    val view: View,
+    private val request: () -> NativeSegmentRequest
+) {
+    private val getSelected = type.getMethod("getSelectedSegmentPosition")
+    private val select = type.getMethod("selectSegmentAt", Int::class.javaPrimitiveType)
+    private val listenerType = source.load("${type.name}\$OnSegmentSelectedListener")
+    private val setListener = type.getMethod("setOnSegmentSelectedListener", listenerType)
+    private val updateTheme = { dark: Boolean -> source.updateTheme(context, dark) }
+    private val refresh = type.getMethod("refresh")
+    private val strokeType = source.load("com.coui.appcompat.COUIMaterialStrokeEffect\$StrokeEffectType")
+    private val setStroke = type.getMethod("setStrokeEffectType", strokeType, Context::class.java)
+    private var touching = false
+    private var pending: Int? = null
+    private val listener = source.listener(listenerType.name) { name, args ->
+        if (name == "onSegmentSelected") (args.firstOrNull() as? Int)?.let { index ->
+            val current = request()
+            if (current.enabled && index in current.labels.indices) {
+                if (current.commitOnRelease && touching) pending = index
+                else if (index != current.selected) current.onSelected(index)
+            }
+        }
+        null
+    }
+    val host = object : FrameLayout(view.context) {
+        init {
+            clipChildren = false
+            clipToPadding = false
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            addView(view, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+
+        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+            // COUI's clickable TextView children can own the sequence, bypassing an
+            // OnTouchListener on their container. Observe before dispatching to that tree.
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                if (!request().enabled) return false
+                touching = true
+                pending = null
+                parent?.requestDisallowInterceptTouchEvent(true)
+            }
+            val handled = super.dispatchTouchEvent(event)
+            // COUI updates its final selection during UP; commit only after it has done so.
+            when (event.actionMasked) {
+                MotionEvent.ACTION_UP -> finish(cancelled = false)
+                MotionEvent.ACTION_CANCEL -> finish(cancelled = true)
+            }
+            return handled
+        }
+
+        override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean =
+            if (!request().enabled) true else super.dispatchKeyEvent(event)
+    }
+
+    init {
+        // Keep the rail's padding clickable too; child TextViews retain their own input.
+        view.isClickable = true
+        setListener.invoke(view, listener)
+    }
+
+    fun synchronize() {
+        val current = request()
+        if (updateTheme(current.dark)) {
+            refresh.invoke(view)
+            if (!current.containerSurfaceEnabled)
+                setStroke.invoke(view, strokeType.getField("TYPE_NO_EFFECT").get(null), context)
+        }
+        if (!current.enabled && touching) {
+            touching = false
+            pending = null
+            view.parent?.requestDisallowInterceptTouchEvent(false)
+        }
+        if (current.commitOnRelease) {
+            // Navigation locks must not call COUI.setEnabled(false): it cancels the indicator
+            // spring immediately after UP. The host gates touch, keyboard and accessibility.
+            host.importantForAccessibility = if (current.enabled) View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                else View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            host.descendantFocusability = if (current.enabled) ViewGroup.FOCUS_AFTER_DESCENDANTS
+                else ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        } else if (view.isEnabled != current.enabled) view.isEnabled = current.enabled
+        // Compose still has the previously committed page while the native indicator moves.
+        if (touching) return
+        val selected = current.selected.coerceIn(current.labels.indices)
+        if (getSelected.invoke(view) == selected) return
+        setListener.invoke(view, null)
+        try { select.invoke(view, selected) } finally { setListener.invoke(view, listener) }
+    }
+
+    private fun finish(cancelled: Boolean) {
+        touching = false
+        val selection = pending
+        pending = null
+        view.parent?.requestDisallowInterceptTouchEvent(false)
+        val current = request()
+        if (cancelled || !current.enabled) synchronize()
+        else if (selection != null && selection in current.labels.indices && selection != current.selected)
+            current.onSelected(selection)
+    }
+
+    fun dispose() {
+        setListener.invoke(view, null)
+        touching = false
+        pending = null
+        view.parent?.requestDisallowInterceptTouchEvent(false)
+    }
 }

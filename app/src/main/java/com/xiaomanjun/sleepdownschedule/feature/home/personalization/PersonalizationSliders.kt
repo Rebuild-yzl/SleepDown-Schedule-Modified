@@ -43,7 +43,7 @@ private fun PersonalizeSliderLabel(
     value: State<Float>,
     label: (Float) -> String
 ) {
-    Text(label(value.value), style = MaterialTheme.typography.labelMedium)
+    Text(label(value.value), style = MaterialTheme.typography.bodyMedium)
 }
 
 @Composable

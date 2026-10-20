@@ -8,13 +8,14 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URI
+import java.util.UUID
 import kotlin.coroutines.resume
 
 /** Persist only session fields consumed by reviewed adapters, encrypted with the profile. */
 internal object AutoRefreshWebSession {
     const val RestoreSessionExtra = "restore_retained_edu_session"
 
-    suspend fun restore(webView: WebView, profile: AutoRefreshScheduleProfile) {
+    suspend fun restore(webView: WebView, profile: AutoRefreshScheduleProfile): AutoCloseable? {
         val manager = CookieManager.getInstance().apply { setAcceptCookie(true) }
         for (cookie in profile.cookies) {
             if (origin(cookie.url) == null) continue
@@ -31,7 +32,7 @@ internal object AutoRefreshWebSession {
             }
         }
         manager.flush()
-        installStorage(webView, profile.schoolId, profile.webStorage)
+        return installStorage(webView, profile.schoolId, profile.webStorage)
     }
 
     private fun keys(schoolId: String): List<String> = when (schoolId) {
@@ -104,33 +105,62 @@ internal object AutoRefreshWebSession {
         }
     }
 
-    fun installStorage(webView: WebView, schoolId: String, storage: AutoRefreshWebStorage?) {
-        storage ?: return
-        require(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+    fun installStorage(webView: WebView, schoolId: String, storage: AutoRefreshWebStorage?): AutoCloseable? {
+        storage ?: return null
+        require(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT) &&
+            WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
             "请更新 Android System WebView 后重新登录，以恢复教务会话"
         }
         require(origin(storage.origin) == storage.origin) { "教务会话来源无效，请重新登录" }
         val permitted = keys(schoolId)
         val values = JSONObject(storage.values.filterKeys { it.substringAfter(':') in permitted })
         val windowName = if (schoolId == "YIBINU") storage.windowName else null
-        WebViewCompat.addDocumentStartJavaScript(
-            webView,
-            """
-                (function() {
-                    var values = $values;
-                    Object.keys(values).forEach(function(key) {
-                        var index = key.indexOf(':');
-                        var name = index < 0 ? key : key.slice(index + 1);
-                        var storage = key.indexOf('local:') === 0 ? localStorage : sessionStorage;
-                        storage.setItem(name, values[key]);
-                    });
-                    var savedName = ${windowName?.let(JSONObject::quote) ?: "null"};
-                    if (savedName !== null) window.name = savedName;
-                })()
-            """.trimIndent(),
-            setOf(storage.origin)
-        )
+        val bridgeName = "sleepdownRestore" + UUID.randomUUID().toString().replace("-", "")
+        var script: androidx.webkit.ScriptHandler? = null
+        var closed = false
+        val handle = AutoCloseable {
+            if (!closed) {
+                closed = true
+                script?.remove()
+                WebViewCompat.removeWebMessageListener(webView, bridgeName)
+            }
+        }
+        WebViewCompat.addWebMessageListener(webView, bridgeName, setOf(storage.origin)) { _, _, source, mainFrame, _ ->
+            if (mainFrame && origin(source.toString()) == storage.origin) handle.close()
+        }
+        try {
+            script = WebViewCompat.addDocumentStartJavaScript(webView,
+                storageRestoreScript(storage.origin, values.toString(), windowName, bridgeName), setOf(storage.origin))
+        } catch (error: Exception) {
+            handle.close()
+            throw error
+        }
+        return handle
     }
+
+    internal fun storageRestoreScript(origin: String, valuesJson: String, windowName: String?, bridgeName: String): String = """
+        (function() {
+            if (window.top !== window || location.origin !== ${JSONObject.quote(origin)}) return;
+            var marker = ${JSONObject.quote("__" + bridgeName)};
+            var bridge = window[${JSONObject.quote(bridgeName)}];
+            if (sessionStorage.getItem(marker)) { bridge.postMessage('done'); return; }
+            sessionStorage.setItem(marker, '1');
+            var values = $valuesJson;
+            // A live token in either store wins over the whole retained credential snapshot.
+            var occupied = Object.keys(values).some(function(key) {
+                var name = key.slice(key.indexOf(':') + 1);
+                return localStorage.getItem(name) || sessionStorage.getItem(name);
+            });
+            if (!occupied) Object.keys(values).forEach(function(key) {
+                var name = key.slice(key.indexOf(':') + 1);
+                var storage = key.indexOf('local:') === 0 ? localStorage : sessionStorage;
+                storage.setItem(name, values[key]);
+            });
+            var savedName = ${windowName?.let(JSONObject::quote) ?: "null"};
+            if (!window.name && savedName !== null) window.name = savedName;
+            bridge.postMessage('done');
+        })()
+    """.trimIndent()
 
     fun origin(url: String?): String? = runCatching {
         val uri = URI(url.orEmpty())

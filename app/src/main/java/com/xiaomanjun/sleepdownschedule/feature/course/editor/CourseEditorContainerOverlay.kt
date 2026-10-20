@@ -1016,6 +1016,8 @@ private fun CourseEditorAnimatedContainer(
         flatOpacityOverride = flatEditorOpacity,
         expandedOutlineLight = expandedOutlineLight,
         followTouch = true,
+        // The expanded editor must not inherit the card's full-diagonal spotlight radius.
+        followLightRadius = 112.dp,
         modifier = modifier.graphicsLayer { this.alpha = alpha }.drawWithCache {
             // Keep the shell's outline in the parent recording across the fixed-allocation
             // handoff. Child RenderNodes may otherwise replay rectangular pixels for one frame
@@ -1029,9 +1031,7 @@ private fun CourseEditorAnimatedContainer(
         },
         shape = shape,
         blurOverride = editorBlur,
-        cacheSharedSamples = !expandedOutlineLight,
-        backdropSampleScale = if (expandedOutlineLight && currentProgress.value.invoke() <= 0.12f) 1f else 0.5f,
-        sampledShape = shape,
+        editorSampleScale = if (expandedOutlineLight && currentProgress.value.invoke() <= 0.12f) 1f else 0.5f,
         surfaceBackdrop = surfaceBackdrop,
         morphAllocation = morphAllocation
     ) {
