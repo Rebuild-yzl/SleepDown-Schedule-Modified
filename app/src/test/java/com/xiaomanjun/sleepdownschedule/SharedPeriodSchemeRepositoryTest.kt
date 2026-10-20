@@ -43,7 +43,7 @@ class SharedPeriodSchemeRepositoryTest {
             database.scheduleProfileDao().upsertProfile(ScheduleProfileEntity(id, "课表$id", id == 1))
             database.configDao().upsertConfig(defaultConfig(id).copy(activePeriodSchemeId = 11,
                 totalWeeks = if (id == 1) 16 else 20, morningPeriodCount = 2,
-                noonPeriodCount = 0, afternoonPeriodCount = 1, eveningPeriodCount = 0))
+                noonPeriodCount = 0, afternoonPeriodCount = 1, eveningPeriodCount = 0).withDerivedScheduleTermState())
             database.configDao().upsertPeriods(standardTimes(11).map {
                 PeriodEntity(it.periodIndex, it.startTime, it.endTime, id)
             })
@@ -53,6 +53,25 @@ class SharedPeriodSchemeRepositoryTest {
     @After
     fun tearDown() {
         database.close()
+    }
+
+    @Test
+    fun legacyManualWeekIsNormalizedOnceWithoutChangingTheStoredWeekOrSharedScheme() = runBlocking {
+        val legacy = requireNotNull(database.configDao().getConfig(1)).copy(
+            autoCurrentWeek = false, currentWeek = 7, termState = ScheduleTermState.MANUAL)
+        database.configDao().upsertConfig(legacy)
+        val shared = database.periodSchemeDao().getScheme(11)
+        val times = database.periodSchemeDao().getTimes(11)
+
+        repository.loadPeriodSchemes(1)
+
+        assertEquals(legacy.copy(autoCurrentWeek = true).withDerivedScheduleTermState(),
+            database.configDao().getConfig(1))
+        assertEquals(shared, database.periodSchemeDao().getScheme(11))
+        assertEquals(times, database.periodSchemeDao().getTimes(11))
+        val normalized = state()
+        repository.loadPeriodSchemes(1)
+        assertEquals(normalized, state())
     }
 
     @Test
