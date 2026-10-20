@@ -19,8 +19,8 @@ val releaseStorePassword = releaseSecret("sleepdown.releaseStorePassword", "SLEE
 val releaseKeyAlias = releaseSecret("sleepdown.releaseKeyAlias", "SLEEPDOWN_RELEASE_KEY_ALIAS")
 val releaseKeyPassword = releaseSecret("sleepdown.releaseKeyPassword", "SLEEPDOWN_RELEASE_KEY_PASSWORD")
 val remoteConfigSecret = releaseSecret("sleepdown.remoteConfigSecret", "SLEEPDOWN_REMOTE_CONFIG_SECRET").orEmpty()
-// 1.2.7 的修复版本：版本名带 -r1 修订后缀，versionCode 保持 35，便于 1.2.7 用户直接覆盖升级。
-val sleepDownVersionName = "1.2.7-r1"
+// 用旧客户端可识别的第四段数字补发 r1 修复；versionCode 仍为 35。
+val sleepDownVersionName = "1.2.7.1"
 val skipReleaseResourceShrink = providers.gradleProperty("sleepdown.skipReleaseResourceShrink")
     .map(String::toBoolean)
     .getOrElse(false)

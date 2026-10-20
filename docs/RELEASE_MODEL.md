@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 持续开发入口 | `main`，快照为 `a320f6a8`，实际版本 `1.2.7_beta5` / 34 | 上游 main 与该提交的 `app/build.gradle.kts` |
 | 最新正式版 | `v1.2.7-r1`（`1.2.7` 的修复版本，正式发布，非预发布）；上一正式版 `v1.2.7` 源码 `cfe8776f`，尚未回流 main，main 是其祖先 | 发布标签、提交关系与正式版发布记录 |
-| Android 主应用 | `com.xiaomanjun.sleepdownschedule`，正式版为 `versionName=1.2.7-r1`，`versionCode=35` | `app/build.gradle.kts` |
+| Android 主应用 | `com.xiaomanjun.sleepdownschedule`，已发布修复版为 `1.2.7-r1` / 35；2026-10-20 工作树准备 `1.2.7.1` / 35 兼容补发候选，尚未发布 | `app/build.gradle.kts` 与发布记录 |
 | 发行渠道 | `github` 与 `store` 两种 flavor；厂商实验入口由 `SLEEPDOWN_EXPERIMENTAL_FEATURES` 按渠道控制 | `app/build.gradle.kts`、`app/src/github/`、`app/src/store/` |
 | 课程组件 | 独立包 `com.suda.yzune.wakeupschedule`；构建版本 `6.0.19` / `259` | `coloros-wakeup-proxy/build.gradle.kts` |
 | 历史实验线 | `exp` 与 `v1.2.6-exp*` 保留作为已发布历史，停止作为后续功能基线 | Git 历史与旧 Release |
@@ -41,7 +41,7 @@
 
 2026-10-19 发布 `v1.2.7-r1`，是 `1.2.7` 的**修复版本，属于正式发布而非预发布**（`prerelease=false`），同样使用 `versionCode=35`，`1.2.7` 用户可直接覆盖升级。该修订沿用既有 `-r1` 后缀约定（对比 `v1.2.7_beta5-r1`），但不再带 Beta 段，因此不会被更新比较逻辑判为预发布；源码为本轮已构建并签名核验的提交，未合并入 `main`。详见[发布与核验记录](2026-10-19-stable-1.2.7-r1-release.md)。
 
-注意 `-rN` 修订段对应用内更新比较（`AppUpdate.ParsedVersion`）不可见：`1.2.7-r1` 与 `1.2.7` 解析结果相同，`isVersionNewer` 返回 false，两个 `-rN` 之间也无法排序。因此 `1.2.7` 用户不会收到 `1.2.7-r1` 的应用内更新提示，须由发布页或用户手动下载覆盖安装；`versionCode` 相同也不构成更新条件。后续若要让修订版可通过应用内更新送达，需要先让比较逻辑识别 `-rN` 段，属独立改动。
+已发布的 `1.2.7` 与 `1.2.7-r1` 客户端忽略 `-rN` 修订段：两者解析结果相同，`isVersionNewer` 返回 false，两个修订号之间也无法排序，`versionCode` 相同并非此次更新检查失败的原因。2026-10-20 按用户选择准备 `1.2.7.1` / 35 兼容补发候选，旧客户端可识别第四段数字；同时修复比较规则，依次按数字版本、发布阶段、阶段序号、修订号排序，构建元数据不参与比较。只修改新包的比较函数不能改变已安装旧包的行为，必须完成兼容补发才能送达旧用户。原发布标签与历史保留，实际下架和候选状态见[本次修复记录](reports/2026-10-20-update-revision-compatibility.md)。
 
 ## 一轮发布怎样收口
 

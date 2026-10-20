@@ -302,6 +302,14 @@ fun ChangelogSettingsScreen(
                 // versions; each details animation still owns only its own small graphics layer.
                 AboutGlassPanel(darkTheme, Modifier.fillMaxWidth(), longContent = true) {
             changelogItem(
+                "1.2.7.1",
+                """
+                    修复 1.2.7 无法发现本轮修复版更新的问题，使用旧版可识别的版本号补发；1.2.7 与 1.2.7-r1 均可直接覆盖升级。
+                    修复后续修订版的更新识别，正确区分 r1、r2 等修订顺序。
+                    包含 1.2.7-r1 的全部修复，课程时间显示、日视图文件上传、导入交接和界面调整详见下方日志。
+                """.trimIndent()
+            )
+            changelogItem(
                 "1.2.7-r1",
                 """
                     导入课表的时间显示按当前作息精确匹配：起止时间完整吻合时显示节次，有偏移或只覆盖部分时段时保留真实时间；升级前已导入的课表同样按此显示，无需重新导入或改动原有数据。
