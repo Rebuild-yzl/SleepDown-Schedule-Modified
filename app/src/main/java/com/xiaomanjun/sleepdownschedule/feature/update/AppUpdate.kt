@@ -316,7 +316,8 @@ object GiteeAppUpdater {
             return !latestVersion.isPrerelease
         }
         if (latestVersion.stage != currentVersion.stage) return latestVersion.stage > currentVersion.stage
-        return latestVersion.sequence > currentVersion.sequence
+        if (latestVersion.sequence != currentVersion.sequence) return latestVersion.sequence > currentVersion.sequence
+        return latestVersion.revision > currentVersion.revision
     }
 
     internal fun selectRelease(releases: List<GiteeReleaseInfo>, includeBeta: Boolean): GiteeReleaseInfo? =
@@ -666,6 +667,7 @@ private data class ParsedVersion(
     val numbers: List<Int>,
     val stage: Int,
     val sequence: Int,
+    val revision: Int,
     val isExperimental: Boolean
 ) {
     val isPrerelease: Boolean get() = stage < 5
@@ -691,6 +693,8 @@ private data class ParsedVersion(
                 numbers = numbers,
                 stage = stage,
                 sequence = pre?.groupValues?.get(2)?.toIntOrNull() ?: 0,
+                revision = Regex("(?i)(?:^|[\\s._-])r(\\d+)$").find(suffix.trim())
+                    ?.groupValues?.get(1)?.toIntOrNull() ?: 0,
                 isExperimental = stageName == "experimental" || stageName == "exp"
             )
         }
