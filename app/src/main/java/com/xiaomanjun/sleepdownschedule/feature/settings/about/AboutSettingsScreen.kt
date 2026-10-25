@@ -109,7 +109,7 @@ fun AboutSettingsScreen(state: AppState, backdrop: Backdrop?) {
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = "SleepDown 课程表",
+                            text = "SleepDawnModified",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -433,10 +433,10 @@ internal fun AboutHero(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "SleepDown 课程表",
+                text = "SleepDawnModified",
                 style = MaterialTheme.typography.displaySmall.copy(brush = titleBrush),
-                fontSize = if (maxWidth < 320.dp) 30.sp else 36.sp,
-                lineHeight = if (maxWidth < 320.dp) 36.sp else 43.sp,
+                fontSize = if (maxWidth < 320.dp) 24.sp else 30.sp,
+                lineHeight = if (maxWidth < 320.dp) 30.sp else 36.sp,
                 fontWeight = FontWeight.ExtraBold,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
