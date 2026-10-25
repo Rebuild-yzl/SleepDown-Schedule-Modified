@@ -71,7 +71,7 @@ android {
 
     defaultConfig {
         // 个人修改版使用独立 applicationId，可与官方版共存安装；代码 namespace 保持不变。
-        applicationId = "com.xiaomanjun.sleepdownschedule.modified"
+        applicationId = "com.neurosk.sleepdownschedule.modified"
         minSdk = 26
         targetSdk = 36
         versionCode = 35

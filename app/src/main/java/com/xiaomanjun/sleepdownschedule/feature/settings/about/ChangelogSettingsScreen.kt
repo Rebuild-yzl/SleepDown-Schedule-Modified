@@ -188,7 +188,14 @@ fun ChangelogSettingsScreen(
             }
             item(key = "about-project") {
                 AboutGlassPanel(darkTheme = darkTheme, modifier = Modifier.fillMaxWidth()) {
-                    SettingsValueRow("项目作者", "小漫君 / xiaomanjun233")
+                    SettingsValueRow("项目作者", "原作 xiaomanjun233")
+                    SettingsDivider()
+                    SettingsValueRow("修改者", "NeuroSaiKou")
+                    SettingsDivider()
+                    SettingsInfoRow(
+                        "版本说明",
+                        "本应用是 NeuroSaiKou（Neuro赛高）个人修改的非官方版本，基于 SleepDown 课程表，不代表原作者。"
+                    )
                     SettingsDivider()
                     Row(
                         modifier = Modifier
