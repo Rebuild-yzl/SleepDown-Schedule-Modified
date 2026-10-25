@@ -48,6 +48,24 @@ class AppIdentityTest {
     }
 
     @Test
+    fun modifiedBuildRestoresProductionColorOsAndLegacyBackups() {
+        val modified = AppIdentity.MODIFIED_PACKAGE_NAME
+        AppIdentity.requireTrustedBackupSource(production, modified)
+        AppIdentity.requireTrustedBackupSource(AppIdentity.COLOROS_PACKAGE_NAME, modified)
+        AppIdentity.requireTrustedBackupSource(AppIdentity.LEGACY_PACKAGE_NAME, modified)
+        AppIdentity.requireTrustedBackupSource(modified, modified)
+    }
+
+    @Test
+    fun modifiedBuildSuffixesStayIsolated() {
+        val modified = AppIdentity.MODIFIED_PACKAGE_NAME
+        for (source in listOf("$modified.debug", "$modified.benchmark", "$modified.fake")) {
+            assertFalse(AppIdentity.isTrustedBackupSource(source, production))
+            assertFalse(AppIdentity.isTrustedBackupSource(source, modified))
+        }
+    }
+
+    @Test
     fun unknownPackageIsRejected() {
         assertFalse(AppIdentity.isTrustedBackupSource("com.fake.sleepdown", production))
     }
