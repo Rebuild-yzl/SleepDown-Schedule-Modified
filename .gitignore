@@ -21,3 +21,9 @@ sleepdown_log_*.txt
 *.keystore
 /.sleepdown-secrets/
 /SleepDown-Server/
+
+# 设计计划的本地参考图（个人素材，不进入版本库）
+/docs/plans/*.jpg
+/docs/plans/*.jpeg
+/docs/plans/*.png
+/docs/plans/*.webp

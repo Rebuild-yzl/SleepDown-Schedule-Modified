@@ -1,0 +1,135 @@
+# 待办（四象限）改造计划
+
+- 状态：草案（待确认）
+- 日期：2026-10-25
+- 参考稿：[待办与倒数日设计参考](design-reference-todo-countdown.html)（原始参考图由用户在本地放入本目录，未纳入版本库）
+- 涉及：新增 `feature/plan`、`data/local`、`data/repository`、Dock 导航、Room 迁移
+- 配套计划：[事件倒计时改造计划](2026-10-25-countdown-plan.md)（共用同一页面宿主与导航）
+
+## 1. 目标
+
+给 SleepDawnModified 增加"待办"，按**重要 × 紧急**四象限组织，支持截止日期、完成与逾期提示，入口是首页 Dock 新增的第三项「计划」，与倒数日并列。
+
+必须先说清不做什么，避免范围失控：
+
+- 不做标签、子任务、重复规则、协作；分类（参考图的「全部分类」）与提醒推迟到 P2。
+- 不改动课程数据、时间规则与已发布的导入/备份协议。
+- 待办是**应用级**数据，不跟随课表切换（与课程、节次不同域）。
+
+## 2. 现状与证据
+
+| 事实 | 位置 |
+| --- | --- |
+| Dock 只有 2 栏（课程、设置），并列模式 3 栏（今日、课程表、设置），选中项到页面的映射写死在回调里 | `feature/home/HomeDockTabs.kt:34`、`HomeNavigationControls.kt:143`、`HomeDockChrome.kt:37`、`ParallelHomeDock.kt:178` |
+| 二级页统一由"薄 Activity + Host"承载，跨页动效走注册路由 | `SettingsDetailActivity.kt:5`、`SettingsDetailActivityHost.kt:93`、`transition/TransitionRoute.kt:6`、`CrossActivityTransitionHost.kt:103` |
+| 数据库版本 47，迁移集中在单一文件，导出版本化 schema | `AppDatabase.kt:7`、`data/local/AppDatabaseMigrations.kt` |
+| 已有迁移回归测试，会把历史库一路迁到当前版本并校验 schema | `app/src/androidTest/.../AppDatabaseMigrationTest.kt:24` |
+| 文案只有中文 `values/`，无 `values-en` | `app/src/main/res/values*` |
+| 引用计数：仓内没有待办/四象限相关表或页面 | `rg -i "quadrant|todo_|countdown"` 无命中 |
+
+## 3. 导航与宿主（两个新功能共用）
+
+1. Dock 增加「计划」：普通模式 3 栏（课程 / 计划 / 设置），并列模式 4 栏（今日 / 课程表 / 计划 / 设置）。图标沿用 Compose 线性图标，24dp。
+2. 点击「计划」打开新 `PlanActivity`（薄 Activity + `PlanActivityHost`，与设置页同构：Manifest `@style/AppTheme`），并注册 `TransitionRouteId.HomeToPlanPage`；尚无锚点，使用 `LegacyTransitionProfile.Page` 的页面动效，不新造 Morph 轨迹。
+3. 平板侧栏与设置首页同步增加「计划与倒数日」入口，保证非 Dock 场景可达。
+4. 页面骨架：58dp 紧凑顶栏（返回 42dp + 左侧标题「计划」）+ 内容区 16dp 边距；顶栏下方是玻璃分段控件「待办 | 倒数日」（44dp 高、两段等宽、滑块 36dp 圆角），分段状态在 `PlanActivityHost` 内保存，返回首页不清空。
+5. Dock 索引改动是本次最高回归风险：`HomeDockChrome`、`NativeHomeDockChrome`、`ParallelHomeDock`、`HomeNavigationControls` 都按 `selectedIndex` 判断页面，必须逐一核对为"最后一栏是设置"。
+
+## 4. 待办页
+
+### 4.1 版式
+
+```text
+58dp 顶栏：‹ 计划
+[ 待办 | 倒数日 ]                      ← 分段控件
+10月25日 周日 · 2 项待办               ← 日期行
+[一][二][三][四][五][六][日]           ← 周条，点上带未完成计数
+┌──────────┬──────────┐
+│ 重要且紧急 │ 重要不紧急 │              ← 2×2 象限，最多 3 条/格
+│  □ 交作业  │  □ 复习线代 │
+│  还有 N 项 │            │
+├──────────┼──────────┤
+│ 紧急不重要 │ 不重要不紧急 │
+└──────────┴──────────┘
+                              ( + )     ← FAB 56dp
+```
+
+- 象限顺序固定：重要且紧急 → 重要不紧急 → 紧急不重要 → 不重要不紧急；颜色只用在标题下的 3×28dp 短线（红 / 黄 / 绿 / 蓝）与计数徽标底色（14% 透明度），不给整卡铺色。
+- 卡片：24dp 圆角、12dp 内边距、最小高 168dp，玻璃材质走 `glass/` 既有入口；无 Backdrop 时同几何实色降级。
+- 自适应：内容宽 ≥ 360dp 用 2 列；更窄或字体放大到 1.3 倍时退回单列，避免两列文字被压成两三个字。
+- 每格最多展示 3 条，超出显示「还有 N 项」，点击进入该象限的列表页（同一 Activity 内的二级列表，沿用 `SleepDownSecondaryPageList(Content)`）。
+- 周条：公历 7 天 + 当天 2dp 描边 + 未完成计数点；点某天即按截止日筛选，再点取消，顶部日期行同步。**不采用参考图的农历**：仓内无农历数据源，为它引入第三方表或算法不值得；这一条写在此处备查。
+
+### 4.2 待办行
+
+- 左侧 22dp 圆形勾选（描边 1.5dp，点击区 ≥ 48dp），中间标题 15sp（2 行截断），下方 12sp 元信息。
+- 元信息优先级：已逾期（红 `#FF453A`，「已逾期 3 天」）> 今天到期 > 日期（「10月30日 · 还有 5 天」）> 无截止（不显示）。
+- 点击行 = 编辑；长按 = 快捷菜单（编辑 / 移动象限 / 删除，删除用危险色）。
+- 勾选：200ms 勾选路径动画 → 划线淡出 → 从象限移除，底部浮出撤销条 3 秒（`LiquidAlertOverlay` 同族表面，不新造 Snackbar 材质）。
+
+### 4.3 新建与编辑
+
+- FAB 为 56dp 液态蓝按钮，位置右下、上移 16dp 安全区；点开 `CenterLiquidDialog` 表单：标题（必填，≤ 80 字）、象限四选一、截止日期（可选，`SleepDownPickerDialog`，含「今天 / 明天 / 本周日 / 自定义」快捷）、备注（可选，≤ 500 字）。
+- 显式「保存」；标题为空时保存按钮置灰并提示。编辑态 FAB 隐藏由表单遮罩接管，不再叠加第二个 FAB。
+
+### 4.4 已完成
+
+- 顶栏右侧「已完成」入口，进入按完成时间倒序的列表，支持单条恢复与「清空已完成」（二次确认，危险色）。
+- 完成记录保留 `doneAt`，不物理删除，除非用户清空。
+
+## 5. 数据与迁移
+
+```kotlin
+@Entity(tableName = "todo_items")
+data class TodoItemEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val note: String = "",
+    val quadrant: String,          // IMPORTANT_URGENT | IMPORTANT_NOT_URGENT | URGENT_NOT_IMPORTANT | NEITHER
+    val dueDate: String?,          // ISO yyyy-MM-dd，null = 无截止
+    val doneAt: Long?,             // null = 未完成
+    val createdAt: Long,
+    val updatedAt: Long
+)
+```
+
+- 索引：`(doneAt)`、`(quadrant, doneAt, dueDate)`。
+- 象限用 TEXT 存枚举名（与 `notificationMode` 等既有列一致），读取时 `valueOf` 失败回退到 `IMPORTANT_URGENT`，不因单条脏数据崩溃整页。
+- 迁移：`APP_DATABASE_VERSION` 47 → 48，新增 `MIGRATION_47_48`（两条 `CREATE TABLE IF NOT EXISTS` + 索引，无 ALTER），并追加 `AppDatabaseMigrationTest` 的 47→48 用例；既有 44→当前 的链路测试必须继续通过。
+- 排序规则（固定，进单测）：未完成且逾期 → 未完成有日期 → 未完成无日期 → 已完成；同日按 `createdAt`。
+
+## 6. 影响范围
+
+- **Dock 与首页**：索引映射、栏宽、Morph 与三点菜单回归；并列模式多一栏后按最窄 360dp 屏检查是否会挤压加号按钮。
+- **设置页与侧栏**：新增一行入口，不改变现有分组结构和保存语义。
+- **备份**：`.sleepdown` v1 本轮**不包含**待办数据，避免改动已冻结的 codec 与校验规则；待办仅存在本地，导出/恢复行为与现在完全一致。扩展备份留到 P3 并单独评审。
+- **桌面组件**、通知、AI 助理本轮不接入。
+
+## 7. 验证
+
+| 项 | 入口 |
+| --- | --- |
+| Kotlin / Compose 编译 | `compileGithubReleaseKotlin` |
+| 资源、Manifest、Dock 改动、安装 | `assembleGithubRelease` + 模拟器/真机覆盖安装 |
+| 迁移 | `AppDatabaseMigrationTest` 47→48、44→48 全链路 |
+| 时间与排序规则 | 新增 `TodoRulesTest`（固定 `Clock`：逾期天数、今天到期、排序、象限回退） |
+| 视觉 | 浅色/深色、壁纸与无壁纸、字体 1.3 倍、360dp 与平板横屏、空态与 50 条密集态 |
+
+未执行项必须在交付说明里写清楚，不用"应该没问题"代替。
+
+## 8. 分阶段
+
+- **P0**：表 + DAO + 仓储 + 页面只读渲染（无编辑）；Dock 入口与分段控件。
+- **P1**：新建/编辑/完成/撤销/删除/已完成列表。
+- **P2**：分类与筛选（`todo_categories` + 参考图的「全部分类」）、到期提醒（复用 `NotificationScheduler` 的通道，不自建第二套通知）。
+- **P3**：备份段、桌面组件、空态插画。
+
+## 9. 参考图中未采纳的部分
+
+| 参考图元素 | 处理 | 理由 |
+| --- | --- | --- |
+| 手绘便签边框、兔子插画、纸张底色 | 不采纳，仅在 P3 作为空态插画可选 | 与现有液态玻璃与壁纸体系冲突，插画需成套矢量资产 |
+| 农历日期行（初十、霜降…） | 不采纳 | 无农历数据源，且四象限视图不按日期组织 |
+| 底部五栏（计划/视图/统计/倒数日/我的） | 并入 Dock 第三项「计划」 | 不重构现有导航与转场 |
+| 珊瑚色 FAB | 改用主操作蓝 | 设计系统规定主操作固定主色 + 白色前景 |
+| 右上角「全部分类」 | P2 实现 | 需要分类表与迁移，先保证核心可用 |

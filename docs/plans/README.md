@@ -20,3 +20,18 @@
 ## 与长期规则的关系
 
 计划是某个改动的设计依据，不覆盖 [AGENTS.md](../../AGENTS.md) 中的长期约定（数据安全、兼容性、设计系统复用、验证入口）。动手前按 AGENTS.md 选择最小充分验证；涉及公共控件时先读 [设计系统](../architecture/SLEEPDOWN_DESIGN_SYSTEM.md)。
+
+## 现有计划
+
+| 计划 | 状态 | 正式设计参考 |
+| --- | --- | --- |
+| [待办（四象限）](2026-10-25-todo-quadrant-plan.md) | 草案 | [计划页设计参考](design-reference-todo-countdown.html) |
+| [事件倒计时](2026-10-25-countdown-plan.md) | 草案 | 同上 |
+
+两份计划共用同一页面宿主与导航，导航与 Dock 改动只写在待办计划第 3 节，倒计时计划引用它。
+
+## 参考图与 HTML 参考稿
+
+- 用户提供的原始参考图（例如 `代办ui.jpg`、`事件倒计时ui.jpg`）是**本地素材**，已在根 [.gitignore](../../.gitignore) 中排除，不进入版本库。
+- 参考图里的版式与交互被转写为 [design-reference-todo-countdown.html](design-reference-todo-countdown.html)：自带样式、无外部资源、不引用未入库图片，可直接用浏览器打开或打印为 PDF。
+- 实现与验收以 HTML 参考稿和计划正文为准；参考图只用于回看原始意图。调整版式或令牌时先改参考稿，再改代码。
