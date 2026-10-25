@@ -13,6 +13,7 @@
 | [RELEASE_MODEL.md](RELEASE_MODEL.md) | 版本、渠道、发布规则与注明日期的基线快照 | 发布或 main 回流关系变化 |
 | [AI_HANDOFF.md](AI_HANDOFF.md) | 当前目标、分支/PR、已有授权来源、验证、产物和下一步 | 阶段交付、更换助手或任务结束 |
 | 专项规范 | 对应模块的设计与实现约定 | 模块契约或实现路线变化 |
+| [`plans/`](plans/README.md) | 本个人修改版的界面与交互改造计划、方案取舍 | 形成新改造计划、计划落地或放弃时 |
 | 日期报告、`reports/`、`archive/` | 当时的调查、验收和暂停实验记录 | 形成可追溯的阶段结论；后续纠正需注明时间与新证据 |
 | 根目录 `release-notes/` | 每次 Beta 与正式版的产品更新说明 | 对应发布时 |
 
@@ -30,6 +31,7 @@
 | 1.2.7-r1 修复版发布 | [发布与核验记录](2026-10-19-stable-1.2.7-r1-release.md) |
 | 1.2.7.1 兼容补发与 r1 下架 | [更新识别修复、发布与核验记录](reports/2026-10-20-update-revision-compatibility.md) |
 | 按用户任务查功能与实现入口 | [FEATURE_MAP.md](FEATURE_MAP.md) |
+| 本修改版要改界面/交互，先看已有计划 | [设计修改计划](plans/README.md) |
 | 目录、依赖与结构调整 | [PROJECT_STRUCTURE.md](architecture/PROJECT_STRUCTURE.md)、[CODE_ORGANIZATION.md](architecture/CODE_ORGANIZATION.md) |
 | 页面、弹窗、选择器与公共控件 | [SLEEPDOWN_DESIGN_SYSTEM.md](architecture/SLEEPDOWN_DESIGN_SYSTEM.md) |
 | 玻璃采样、渲染和生命周期 | [LIQUID_GLASS_FRAMEWORK.md](performance/LIQUID_GLASS_FRAMEWORK.md) |
