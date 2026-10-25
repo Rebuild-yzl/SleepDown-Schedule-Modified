@@ -906,6 +906,47 @@ private val MIGRATION_46_47 = object : Migration(46, 47) {
     }
 }
 
+/**
+ * 48：新增本地待办与倒数日。两张表都是纯新增，不读写既有列；
+ * 声明必须与 Room 生成的 schema 一致（列名、类型与 NOT NULL 有关，列顺序无关）。
+ */
+private val MIGRATION_47_48 = object : Migration(47, 48) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `todo_items` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`title` TEXT NOT NULL, " +
+                "`note` TEXT NOT NULL, " +
+                "`quadrant` TEXT NOT NULL, " +
+                "`dueDate` TEXT, " +
+                "`doneAt` INTEGER, " +
+                "`createdAt` INTEGER NOT NULL, " +
+                "`updatedAt` INTEGER NOT NULL)"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_todo_items_doneAt` ON `todo_items` (`doneAt`)")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_todo_items_quadrant_doneAt_dueDate` " +
+                "ON `todo_items` (`quadrant`, `doneAt`, `dueDate`)"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `countdown_events` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`title` TEXT NOT NULL, " +
+                "`targetDate` TEXT NOT NULL, " +
+                "`targetTime` TEXT, " +
+                "`repeatYearly` INTEGER NOT NULL, " +
+                "`pinned` INTEGER NOT NULL, " +
+                "`note` TEXT NOT NULL, " +
+                "`createdAt` INTEGER NOT NULL, " +
+                "`updatedAt` INTEGER NOT NULL)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_countdown_events_targetDate` " +
+                "ON `countdown_events` (`targetDate`)"
+        )
+    }
+}
+
 internal val APP_DATABASE_MIGRATIONS: List<Migration> = listOf(
     MIGRATION_1_2,
     MIGRATION_2_3,
@@ -952,7 +993,8 @@ internal val APP_DATABASE_MIGRATIONS: List<Migration> = listOf(
     MIGRATION_43_44,
     MIGRATION_44_45,
     MIGRATION_45_46,
-    MIGRATION_46_47
+    MIGRATION_46_47,
+    MIGRATION_47_48
 )
 
 private fun addWallpaperCropColumns(db: SupportSQLiteDatabase) {

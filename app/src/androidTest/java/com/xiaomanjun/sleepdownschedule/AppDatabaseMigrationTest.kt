@@ -640,6 +640,20 @@ class AppDatabaseMigrationTest {
         }
     }
 
+    @Test
+    fun migrate47To48AddsLocalTodoAndCountdownTables() {
+        helper.createDatabase(TEST_DATABASE, 47).use { database ->
+            database.execSQL("INSERT INTO schedule_profiles (id, name, isActive) VALUES (1, '课表', 1)")
+        }
+
+        helper.runMigrationsAndValidate(TEST_DATABASE, APP_DATABASE_VERSION, true,
+            *APP_DATABASE_MIGRATIONS.toTypedArray()).use { database ->
+            assertSingleValue(database, "SELECT COUNT(*) FROM todo_items", 0)
+            assertSingleValue(database, "SELECT COUNT(*) FROM countdown_events", 0)
+            assertSingleValue(database, "SELECT COUNT(*) FROM schedule_profiles", 1)
+        }
+    }
+
     private companion object {
         const val TEST_DATABASE = "migration-v32-v34-test"
     }

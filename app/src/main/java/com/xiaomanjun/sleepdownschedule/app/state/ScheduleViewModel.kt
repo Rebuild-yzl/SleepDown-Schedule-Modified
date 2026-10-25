@@ -16,6 +16,8 @@ import com.xiaomanjun.sleepdownschedule.feature.agent.*
 import com.xiaomanjun.sleepdownschedule.feature.reminder.NotificationScheduler
 import com.xiaomanjun.sleepdownschedule.feature.schedule.*
 import com.xiaomanjun.sleepdownschedule.model.agent.AgentPeriodSettingsPatch
+import com.xiaomanjun.sleepdownschedule.model.CountdownEventEntity
+import com.xiaomanjun.sleepdownschedule.model.TodoItemEntity
 import com.xiaomanjun.sleepdownschedule.model.agent.AgentValidatedAction
 import com.xiaomanjun.sleepdownschedule.model.agent.AgentValidatedActionType
 import java.time.LocalTime
@@ -865,6 +867,72 @@ class ScheduleViewModel(
             weatherEnabled = snapshot.weatherEnabled
         )
         DayAgentPreferences.setMemoryEnabled(app, snapshot.memoryEnabled)
+    }
+
+    // 待办与倒数日：本地数据，和课表数据无关，单独订阅。
+    val todoItems: StateFlow<List<TodoItemEntity>> = repository.observeTodoItems().stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        emptyList()
+    )
+    val countdownEvents: StateFlow<List<CountdownEventEntity>> = repository.observeCountdownEvents().stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        emptyList()
+    )
+
+    fun saveTodoItem(item: TodoItemEntity) = viewModelScope.launch {
+        try {
+            repository.saveTodoItem(item)
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            snackbar.value = error.message ?: "待办保存失败"
+        }
+    }
+
+    fun toggleTodoDone(item: TodoItemEntity) = viewModelScope.launch {
+        try {
+            repository.setTodoDone(item.id, !item.isDone)
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            snackbar.value = error.message ?: "待办状态更新失败"
+        }
+    }
+
+    fun deleteTodoItem(item: TodoItemEntity) = viewModelScope.launch {
+        try {
+            repository.deleteTodoItem(item.id)
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            snackbar.value = error.message ?: "删除待办失败"
+        }
+    }
+
+    fun clearCompletedTodoItems() = viewModelScope.launch {
+        try {
+            repository.clearCompletedTodoItems()
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            snackbar.value = error.message ?: "清空已完成失败"
+        }
+    }
+
+    fun saveCountdownEvent(event: CountdownEventEntity) = viewModelScope.launch {
+        try {
+            repository.saveCountdownEvent(event)
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            snackbar.value = error.message ?: "倒数日保存失败"
+        }
+    }
+
+    fun deleteCountdownEvent(id: Long) = viewModelScope.launch {
+        try {
+            repository.deleteCountdownEvent(id)
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            snackbar.value = error.message ?: "删除倒数日失败"
+        }
     }
 
     private suspend fun refreshScheduleSurfaces() = withContext(Dispatchers.IO) {
