@@ -2730,6 +2730,8 @@ fun CourseScheduleAppUi(
             containerColor = ComposeColor.Transparent,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
+                // 全屏一级页（待办 / 倒数日）不渲染首页顶栏，否则它会盖住页面自己的页头。
+                if (screen !is Screen.Todo && screen !is Screen.Countdown) {
                 HomeSwitchPane(rootPageMotion, secondary = false,
                     modifier = Modifier.fillMaxWidth().homeSidebarContentInset(homeSidebarState),
                     pageClip = HomeSwitchClip.TopBar, retainContent = true) {
@@ -2851,7 +2853,8 @@ fun CourseScheduleAppUi(
                     }
                 }
                 }
-            }
+                }
+                }
         ) { padding ->
             val transitionBackground = settingsPageBackground(settingsVisualConfig(state.config))
             Box(
@@ -2951,7 +2954,13 @@ fun CourseScheduleAppUi(
                     if (screen !is Screen.Home) {
                         message?.let { Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
                     }
-                    ContentEntranceContainer(phase = startupPhase, modifier = Modifier.weight(1f)) {
+                    // 待办 / 倒数日是全屏一级页：首页与设置不需要参与绘制，省一次合成也避免页头透出。
+                    ContentEntranceContainer(
+                        phase = startupPhase,
+                        modifier = Modifier.weight(1f).graphicsLayer {
+                            alpha = if (screen is Screen.Todo || screen is Screen.Countdown) 0f else 1f
+                        }
+                    ) {
                         HomeSwitchPane(rootPageMotion, secondary = false, modifier = Modifier.fillMaxSize()
                             .graphicsLayer {
                                 alpha = importHomeReveal.value
@@ -3135,6 +3144,8 @@ fun CourseScheduleAppUi(
                 TodoPage(
                     items = todoItems,
                     bottomInset = 88.dp,
+                    // 压在首页内容与首页页头之上，但要留在 Dock（100f）下面。
+                    modifier = Modifier.zIndex(90f),
                     onSave = { viewModel.saveTodoItem(it) },
                     onToggleDone = { viewModel.toggleTodoDone(it) },
                     onDelete = { viewModel.deleteTodoItem(it) },
@@ -3145,6 +3156,7 @@ fun CourseScheduleAppUi(
                 CountdownPage(
                     events = countdownEvents,
                     bottomInset = 88.dp,
+                    modifier = Modifier.zIndex(90f),
                     onSave = { viewModel.saveCountdownEvent(it) },
                     onDelete = { viewModel.deleteCountdownEvent(it) }
                 )
