@@ -21,6 +21,15 @@
 
 **模拟器已验证**（`emulator-5554`，Android 17）：Dock 五项可切；待办新建成功；勾选后圈填充打勾、标题灰字划线、行保留、计数归零；页头不再被首页顶栏覆盖。
 
+**用户 2026-10-25 补充的两条硬要求（下次改造必须先满足）**
+
+1. **参考原版 UI、复用既有控件**：页头、分组卡、行、弹窗、Picker、加号都用仓内控件（清单见本节末），不要 Material3 `AlertDialog` / `DatePicker` / 自绘卡片。
+2. **加号与「视图 / 课程表」共用同一个控件、同一套动效**：待办 / 倒数日**不再自绘 FAB**，改用 Dock 上那颗 `SleepDownFloatingAddButton`：
+   - 加号归属 Dock chrome（`ParallelHomeDock` 的 split 动画 + `HomeAnchoredOverlayKind.Add` 的 morph 菜单），页面只回传「新建待办 / 新建倒数日」的回调；
+   - `ParallelHomeDock` 目前 `homeSelected = selectedIndex < 2`，进入待办 / 倒数日会把加号并回 Dock；需要把这两页也算作 add-capable，保持加号在外、动效一致；
+   - `ScheduleAppUi` 的 `AddMenuAction` 列表（约 `:3552`）按当前页给菜单项：待办 → 新建待办，倒数日 → 新建倒数日；锚点、返回图层继续用 `addButtonBounds` / dockImportReturnLayer；
+   - ColorOS 原生路径（`ColorOsParallelHomeDock`、`NativeHomeDockChrome`）同样要跟着改，否则真机上加号行为不一致。
+
 **下一步（按优先级）**
 
 1. **按原版 UI 重做两个页面（用户 2026-10-25 明确要求）**：页头、分组卡、行、弹窗、Picker、加号都要复用仓内既有控件，不要 Material3 `AlertDialog` / `DatePicker` / 裸 `background` 卡片。复用入口见本节末「可复用控件」。
