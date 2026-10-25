@@ -1,6 +1,6 @@
 # 事件倒计时改造计划
 
-- 状态：草案（待确认）
+- 状态：已实现（P0/P1，模拟器验收；见 `docs/AI_HANDOFF.md` 本轮记录）
 - 日期：2026-10-25
 - 参考稿：[待办与倒数日设计参考](design-reference-todo-countdown.html)（原始参考图由用户在本地放入本目录，未纳入版本库）
 - 涉及：新增 `feature/plan` 倒数日页、`data/local`、`data/repository`、Room 迁移
@@ -35,7 +35,7 @@ val repeatYearly: Boolean
 | 概念 | 规则 |
 | --- | --- |
 | 目标时刻 | `LocalDate.parse(targetDate).atTime(targetTime ?: "00:00")` 于当前时区；每天 00:00 视为"当天开始" |
-| 每年重复 | 用当前或下一年的同月同日重建；2 月 29 日在平年回落到 2 月 28 日，并在表单中明示 |
+| 每年重复 | 用当前或下一年的同月同日重建；2 月 29 日在平年回落到 2 月 28 日，并在表单中明示。纪念日当天但当天时刻已过时顺延到明年（否则 Hero 会停在 00:00:00） |
 | 卡片「还有 N 天」 | `ChronoUnit.DAYS.between(今天, 目标日期)`，按**日历日**而非 24 小时倍数；0 → 「今天」；负数 → 「已过 N 天」 |
 | Hero 实时剩余 | `Duration.between(now, 目标时刻)`，向上取整到秒；> 0 才显示"还有"，否则显示「已过 …」 |
 | 排序 | 置顶优先 → 未过期按目标时刻升序 → 已过期按最近过期在前，统一排在最后 |
@@ -71,10 +71,10 @@ val repeatYearly: Boolean
 
 ### 4.2 新建与编辑
 
-- 加号与待办页同一个：Dock 右侧、56dp 主色圆按钮。
-- 表单（`CenterLiquidDialog`）：标题（必填 ≤ 40 字）、日期（`SleepDownPickerDialog` 日期选择，默认今天）、时间（开关，默认全天；开启后为时间 Picker）、每年重复（开关）、备注（≤ 300 字）、置顶（开关）。
+- 加号与「视图 / 课程表 / 待办」是 Dock 上的同一个控件、同一套 Morph 动效（索引 0–3 可展开），页面不再自绘 FAB。
+- 表单为 `SleepDownPickerDialog`，分详情页 / 日期页 / 时间页：名称 `DialogCapsuleField`、`SettingsNavigationRow`「目标日期 / 目标时间」、`SettingsToggleRow`「全天 / 每年重复 / 置顶」，日期用 `SettingsDatePickerContent`，时间用 `SettingsTimePickerContent`；分页走 `contentTransitionKey` + `contentForState`，不叠第二个弹窗。
 - 保存前校验：日期不早于今天时给"已过期"提示但不阻止（补记过去的纪念日是合理需求）。
-- 删除在长按菜单里，与待办一致；删除不弹二次确认，用 3 秒撤销条兜底。
+- 删除改为卡片左滑 → `LiquidAlertDialog` 二次确认（与待办、设置页一致），不再用长按菜单和 3 秒撤销条。
 
 ### 4.3 秒级刷新与性能
 

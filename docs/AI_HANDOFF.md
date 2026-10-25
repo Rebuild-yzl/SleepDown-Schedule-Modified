@@ -18,32 +18,29 @@
 | `f70eb4b9` | 数据层：`todo_items` / `countdown_events`、Room 47→48、规则与单测 |
 | `3eccd1e8` | 五项 Dock + 待办/倒数日页面接进首页 |
 | `b788deb3` | 修页面盖住首页页头的层级问题 |
+| `3b047b60` | 交接：记下「复用原版控件」「共用加号」两条要求 |
+| 本轮（`git log -1`） | 两页改用公共控件、加号与首页共用、完成不重排、倒数日跨年顺延 |
 
-**模拟器已验证**（`emulator-5554`，Android 17）：Dock 五项可切；待办新建成功；勾选后圈填充打勾、标题灰字划线、行保留、计数归零；页头不再被首页顶栏覆盖。
+**本轮已完成（`emulator-5554` / Android 17 实机验证）**
 
-**用户 2026-10-25 补充的两条硬要求（下次改造必须先满足）**
-
-1. **参考原版 UI、复用既有控件**：页头、分组卡、行、弹窗、Picker、加号都用仓内控件（清单见本节末），不要 Material3 `AlertDialog` / `DatePicker` / 自绘卡片。
-2. **加号与「视图 / 课程表」共用同一个控件、同一套动效**：待办 / 倒数日**不再自绘 FAB**，改用 Dock 上那颗 `SleepDownFloatingAddButton`：
-   - 加号归属 Dock chrome（`ParallelHomeDock` 的 split 动画 + `HomeAnchoredOverlayKind.Add` 的 morph 菜单），页面只回传「新建待办 / 新建倒数日」的回调；
-   - `ParallelHomeDock` 目前 `homeSelected = selectedIndex < 2`，进入待办 / 倒数日会把加号并回 Dock；需要把这两页也算作 add-capable，保持加号在外、动效一致；
-   - `ScheduleAppUi` 的 `AddMenuAction` 列表（约 `:3552`）按当前页给菜单项：待办 → 新建待办，倒数日 → 新建倒数日；锚点、返回图层继续用 `addButtonBounds` / dockImportReturnLayer；
-   - ColorOS 原生路径（`ColorOsParallelHomeDock`、`NativeHomeDockChrome`）同样要跟着改，否则真机上加号行为不一致。
+1. **加号共用**：`ParallelHomeDock` 的 add-capable 扩到 0..3（视图 / 课程表 / 待办 / 倒数日）。split 动效、玻璃按钮、返回图层与首页完全一致；`ScheduleAppUi` 按当前页给 `AddMenuAction`（待办 → 新建待办，倒数日 → 新建倒数日），菜单完全收起后才挂载编辑器（`pendingTodoComposer` / `pendingCountdownComposer` + `composerRequest`）。
+2. **复用公共控件**：页头 `DetailTopBar`（`showBackButton = false`，「已完成」用 `DialogLiquidButton`）；象限卡 / 倒数卡 `SettingsGroup`；行 `SettingsSwipeDeleteRow`（左滑 → `LiquidAlertDialog` 确认）；编辑器 `SleepDownPickerDialog`（详情页 / 日期页 / 时间页，`contentTransitionKey` + `contentForState`）；字段 `DialogCapsuleField`；开关 `SettingsToggleRow`；跳转行 `SettingsNavigationRow`；按钮 `QuickSheetLiquidAction` / `LiquidAlertActions`；日期轮 `SettingsDatePickerContent`；时间轮 `SettingsTimePickerContent`。自绘 FAB、Material3 `AlertDialog` / `DatePicker` / `DropdownMenu` 已全部删除。
+3. **完成不立即重排**：`sortTodoItems` / `groupTodoItems` 新增 `settledDoneIds`。页面进入时快照已完成 id，本次新勾选的行保持原位置（只变灰字划线、计数归零），重新进入页面才按完成态归位。
+4. **倒数日跨年顺延**：`countdownDate` / `sortCountdownEvents` / `heroCountdownEvent` 接受可选 `now`。重复事件在「纪念日当天但当天时刻已过」时顺延到明年，Hero 不再停在 `00:00:00`（新增单测覆盖）。
 
 **下一步（按优先级）**
 
-1. **按原版 UI 重做两个页面（用户 2026-10-25 明确要求）**：页头、分组卡、行、弹窗、Picker、加号都要复用仓内既有控件，不要 Material3 `AlertDialog` / `DatePicker` / 裸 `background` 卡片。复用入口见本节末「可复用控件」。
-2. 完成项不立即重排：`groupTodoItems` 每次重组都会排序，勾选后行会立刻沉到格尾；应改为进入页面时排一次序，完成只改样式。
-3. 象限滚动边缘 24dp 渐隐（计划 4.1）尚未实现。
-4. ColorOS 原生 Dock：`ColorOsParallelHomeDock` 仍按 3 项渲染，`colorOsOrdinaryDockWidth()` 未同步 258dp；ColorOS 设备上索引会错位。
-5. 待办/倒数日目前直接切换，没有接 `HomeSwitchPane` 的淡入转场。
-6. 倒数日的添加/编辑、Hero 每秒刷新、置顶与每年重复尚未在真机验证。
-7. `AppDatabaseMigrationTest.migrate47To48AddsLocalTodoAndCountdownTables` 只在代码里，未跑 androidTest。
+1. 象限滚动边缘 24dp 渐隐（计划 4.1）未实现。
+2. ColorOS 原生路径：`ColorOsParallelHomeDock` 仍按 3 项渲染、`colorOsOrdinaryDockWidth()` 未同步 258dp；ColorOS 真机上索引会错位，待办 / 倒数日也不会有加号。
+3. 待办 / 倒数日直接切换，没有接 `HomeSwitchPane` 的淡入转场。
+4. 仅模拟器 + 深色主题验收过；浅色主题、横屏 / 平板、真机均未验收。带时刻的倒数日「每秒刷新」本轮没有单独截图验证。
+5. `AppDatabaseMigrationTest.migrate47To48AddsLocalTodoAndCountdownTables` 仍未跑 androidTest。
+6. `docs/plans/design-reference-todo-countdown.html` 还是改造前的低保真稿，未同步本次的控件映射。
 
 **已知偏差**
 
-- 待办/倒数日的弹窗、卡片、加号都是自绘 Material3 外观，与计划「复用公共设计系统」不一致；这是下一次改造的主要目标。
-- 已完成列表用对话框承载，不是独立页；删除撤销条已实现（3 秒），样式同样是自绘。
+- 加号菜单在待办 / 倒数日上仍用首页的 `homeAnchoredOverlayBackdrop` 采样玻璃（`HomeAnchoredMorphOverlayHost` 的 `backdrop`），壁纸与页面底色差异大时可能有细微色差；若要精确可换成页面级 producer。
+- 行内删除是「左滑 + 确认弹窗」，原计划的「长按菜单」不再提供。
 - 两张新表不参与 `.sleepdown` v1 备份（按计划保留，等备份格式单独评审）。
 
 **验证命令**
@@ -57,27 +54,30 @@ $env:GRADLE_USER_HOME='C:\Users\TableATK\.gradle'
 adb -P 5038 -s emulator-5554 install -r app/build/outputs/apk/github/release/app-github-release.apk
 ```
 
+本轮实际：`compileGithubReleaseKotlin` 通过；`TodoCountdownRulesTest` 8 项全通过；`assembleGithubRelease` 4m59s 通过并覆盖安装。
+
 **代码地图**
 
 - 数据：`model/TodoModels.kt`、`data/local/TodoDaos.kt`、`data/local/AppDatabaseMigrations.kt` 的 `MIGRATION_47_48`、`AppDatabase.kt`（version 48）
-- 仓储/VM：`data/repository/ScheduleRepository.kt`（`observeTodoItems` 等）、`app/state/ScheduleViewModel.kt`（`todoItems` / `countdownEvents` 与写操作）
-- 规则：`feature/todo/TodoRules.kt`、`feature/countdown/CountdownRules.kt`（`TodoCountdownRulesTest` 全覆盖）
-- 页面：`feature/todo/TodoPage.kt`、`feature/countdown/CountdownPage.kt`
-- 装配：`app/ui/AppNavigation.kt`（`Screen`）、`app/ui/AppTopBar.kt`、`app/ui/ScheduleAppUi.kt`（`currentDockSelect`、`dockSelectedIndex`、页面宿主、顶栏与首页内容隐藏）
-- Dock：`feature/home/HomeDockTabs.kt`（五项与 46dp）、`HomeNavigationControls.kt`（`FloatingDock` / `DockItem`）、`ParallelHomeDock.kt`（组宽 318dp / Dock 258dp）、`core/ui/material/HomeMaterialControls.kt`（258dp）
+- 仓储 / VM：`data/repository/ScheduleRepository.kt`（`observeTodoItems` 等）、`app/state/ScheduleViewModel.kt`（`todoItems` / `countdownEvents` 与写操作）
+- 规则：`feature/todo/TodoRules.kt`（`settledDoneIds`）、`feature/countdown/CountdownRules.kt`（可选 `now`）
+- 页面：`feature/todo/TodoPage.kt`、`feature/countdown/CountdownPage.kt`（均复用公共控件，签名带 `config` / `composerRequest`）
+- 装配：`app/ui/AppNavigation.kt`（`Screen`）、`app/ui/AppTopBar.kt`、`app/ui/ScheduleAppUi.kt`（`todoAddActions` / `countdownAddActions`、composer 请求、页面宿主、顶栏与首页内容隐藏）
+- Dock：`feature/home/HomeDockTabs.kt`（五项 46dp）、`HomeNavigationControls.kt`（`FloatingDock`）、`ParallelHomeDock.kt`（`addCapable = selectedIndex < 4`）、`core/ui/material/HomeMaterialControls.kt`（258dp）
 
-**可复用控件（下一次改造直接从这里挑）**
+**可复用控件（本轮实际用到的入口）**
 
 | 用途 | 入口 |
 | --- | --- |
-| 居中液态弹窗 | `core/ui/designsystem/SleepDownDialog.kt:193 CenterLiquidDialog`；选项卡 `:317 LiquidDialogChoiceCard` |
-| 日期/时间/选项 Picker | `core/ui/designsystem/SleepDownQuickSheet.kt:140 SleepDownPickerDialog` |
-| 悬浮加号 | `core/ui/designsystem/SleepDownFloatingAddButton.kt:25 SleepDownFloatingAddButton` |
-| 分组卡片 | `core/ui/settings/SettingsGroups.kt:32 SettingsGroup` |
-| 设置行 / 滑动删除行 | `core/ui/settings/SettingsRows.kt`（`:617 SettingsSwipeDeleteRow`） |
-| 顶栏圆形按钮 | `core/ui/chrome/HomeChromeButtons.kt:173 HomeIconButton` |
-| 详情页标题栏脚手架 | `core/ui/scaffold/DetailScaffold.kt:58 DetailActivityScaffold` |
-| 玻璃胶囊 | `glass/ui/GlassSurfaces.kt:233 GlassPill` |
+| 页面标题栏（含右侧动作槽） | `core/ui/scaffold/DetailScaffold.kt:92 DetailTopBar`（`showBackButton = false` + `statusTopOverride = 0.dp`） |
+| 居中液态弹窗 / 确认框 | `core/ui/designsystem/SleepDownDialog.kt:534 LiquidAlertDialog`、`:722 DialogLiquidButton`、`:874 DialogCapsuleField`、`:193 CenterLiquidDialog` |
+| 编辑器 / Picker 外壳 | `core/ui/designsystem/SleepDownQuickSheet.kt:140 SleepDownPickerDialog`（分页用 `contentTransitionKey`） |
+| 弹层内按钮 | `core/ui/designsystem/SleepDownQuickSheet.kt:687 QuickSheetLiquidAction`、`SleepDownDialog.kt:501 LiquidAlertActions` |
+| 分组卡片 | `core/ui/settings/SettingsGroups.kt:32 SettingsGroup`、`:84 SettingsDivider` |
+| 行 / 开关 / 滑动删除 | `core/ui/settings/SettingsRows.kt`: `SettingsNavigationRow`、`SettingsToggleRow`、`SettingsPickerValueRow`、`:617 SettingsSwipeDeleteRow` |
+| 日期 / 时间轮 | `core/ui/settings/SettingsTimePickers.kt`: `SettingsDatePickerContent`、`SettingsTimePickerContent` |
+| 悬浮加号（Dock 共用） | `core/ui/designsystem/SleepDownFloatingAddButton.kt:25`，由 `ParallelHomeDock` + `HomeAnchoredMorphOverlayHost` 驱动 |
+| 玻璃胶囊 / 圆形按钮 | `glass/ui/GlassSurfaces.kt:233 GlassPill`、`core/ui/chrome/HomeChromeButtons.kt:173 HomeIconButton` |
 
 ## 当前分支与目标
 
