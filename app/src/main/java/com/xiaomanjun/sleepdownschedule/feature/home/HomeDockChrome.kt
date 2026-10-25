@@ -23,7 +23,6 @@ internal fun HomeDockChrome(
     phase: StartupPhase,
     buttonHidden: Boolean,
     onSelect: (Int) -> Unit,
-    onOrdinaryHome: () -> Unit,
     onOpenMenu: (Rect, GraphicsLayer) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -32,13 +31,13 @@ internal fun HomeDockChrome(
         if (parallel) {
             ParallelHomeDock(selectedIndex, config, backdrop, onSelect, onOpenMenu, buttonHidden)
         } else {
-            val onConfig = remember(onSelect) { { onSelect(2) } }
+            // 五项统一：视图 / 课程表 / 待办 / 倒数日 / 设置。索引由调用方解释。
             FloatingDock(
-                selected = if (selectedIndex == 2) Screen.Config else Screen.Home,
+                selected = if (selectedIndex >= 4) Screen.Config else Screen.Home,
+                selectedIndex = selectedIndex,
                 backdrop = backdrop,
                 config = config,
-                onHome = onOrdinaryHome,
-                onConfig = onConfig
+                onSelect = onSelect
             )
         }
     }

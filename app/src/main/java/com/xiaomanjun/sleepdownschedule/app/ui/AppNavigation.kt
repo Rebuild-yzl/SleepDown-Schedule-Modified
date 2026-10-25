@@ -9,6 +9,8 @@ import com.xiaomanjun.sleepdownschedule.feature.settings.SettingsPage
 sealed interface Screen {
     data object Home : Screen
     data object Config : Screen
+    data object Todo : Screen
+    data object Countdown : Screen
 }
 
 internal fun agentSettingsPage(value: String?): SettingsPage? = when (value) {

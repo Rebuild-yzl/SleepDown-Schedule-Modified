@@ -301,12 +301,12 @@ private fun LiquidGlassDockPreview(
             CompositionLocalProvider(LocalAdaptiveGlass provides adaptiveGlass) {
                 FloatingDock(
                     selected = Screen.Home,
+                    selectedIndex = 0,
                     backdrop = previewBackdrop,
                     config = config,
                     modifier = Modifier.align(Alignment.BottomCenter),
                     previewMode = true,
-                    onHome = {},
-                    onConfig = {}
+                    onSelect = {}
                 )
             }
         }

@@ -211,6 +211,8 @@ import com.xiaomanjun.sleepdownschedule.feature.agent.LocalHomeAssistant
 import com.xiaomanjun.sleepdownschedule.feature.agent.TodayAgentHost
 import com.xiaomanjun.sleepdownschedule.feature.agent.assistantPullGesture
 import com.xiaomanjun.sleepdownschedule.feature.agent.homeCountdownShockwave
+import com.xiaomanjun.sleepdownschedule.feature.countdown.CountdownPage
+import com.xiaomanjun.sleepdownschedule.feature.todo.TodoPage
 import com.xiaomanjun.sleepdownschedule.feature.agent.rememberDayAgentBackgroundMotionState
 import com.xiaomanjun.sleepdownschedule.feature.course.editor.CourseEditorCloseDurationMillis
 import com.xiaomanjun.sleepdownschedule.feature.course.editor.CourseEditorContainerOverlayHost
@@ -440,6 +442,8 @@ fun CourseScheduleAppUi(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val allSchedulesState by viewModel.allSchedulesState.collectAsStateWithLifecycle()
     val message by viewModel.snackbar.collectAsStateWithLifecycle()
+    val todoItems by viewModel.todoItems.collectAsStateWithLifecycle()
+    val countdownEvents by viewModel.countdownEvents.collectAsStateWithLifecycle()
     val pickerState = rememberSchedulePickerState()
     var previewScheduleId by remember { mutableStateOf<Int?>(null) }
     var pendingPickerEditorScheduleId by remember { mutableStateOf<Int?>(null) }
@@ -891,6 +895,9 @@ fun CourseScheduleAppUi(
     }
     BackHandler(enabled = screen is Screen.Config && settingsExitInterceptionRequired) {
         requestSettingsExit { context.findActivity()?.finish() }
+    }
+    BackHandler(enabled = screen is Screen.Todo || screen is Screen.Countdown) {
+        screen = Screen.Home
     }
     var showManagedFreeAiOffer by remember(context) { mutableStateOf(false) }
     LaunchedEffect(remoteExperience) {
@@ -2172,12 +2179,17 @@ fun CourseScheduleAppUi(
     // Keep callback identity independent of overlay state. The latest guards and navigation
     // inputs are read only when the user acts, not while a shortcut animates its background.
     val currentDockSelect = rememberUpdatedState<(Int) -> Unit> { index ->
-        if (index == 2) {
-            sidebarPage = HomeSidebarDestination.Settings
-            screen = Screen.Config
-        } else requestSettingsExit {
-            homeMode = if (index == 0) HomeMode.Day else HomeMode.Week
-            screen = Screen.Home
+        when (index) {
+            0, 1 -> requestSettingsExit {
+                homeMode = if (index == 0) HomeMode.Day else HomeMode.Week
+                screen = Screen.Home
+            }
+            2 -> requestSettingsExit { screen = Screen.Todo }
+            3 -> requestSettingsExit { screen = Screen.Countdown }
+            else -> {
+                sidebarPage = HomeSidebarDestination.Settings
+                screen = Screen.Config
+            }
         }
     }
     val dockSelect = remember { { index: Int -> currentDockSelect.value(index) } }
@@ -2623,8 +2635,14 @@ fun CourseScheduleAppUi(
             }
     ) {
         val nativeHomeDockAvailable = nativeVisuals
-        val dockVisible = !homeAdaptiveMetrics.isLargeScreen && (screen is Screen.Home || screen is Screen.Config)
-        val dockSelectedIndex = if (screen is Screen.Config) 2 else if (homeMode == HomeMode.Day) 0 else 1
+        val dockVisible = !homeAdaptiveMetrics.isLargeScreen && (screen is Screen.Home || screen is Screen.Config || screen is Screen.Todo || screen is Screen.Countdown)
+        val dockSelectedIndex = when {
+            screen is Screen.Config -> 4
+            screen is Screen.Todo -> 2
+            screen is Screen.Countdown -> 3
+            homeMode == HomeMode.Day -> 0
+            else -> 1
+        }
         val dockConfig = if (screen is Screen.Home) visualState.config else state.config
         val dockButtonHidden = homeMenuFromDock && addButtonHidden
         Box(
@@ -3113,6 +3131,24 @@ fun CourseScheduleAppUi(
                 showScheduleEntryPill = false
                 if (pickerState.phase is CustomizeUiState.ShowingEntryButton) pickerState.phase = CustomizeUiState.Home
             }
+            if (screen is Screen.Todo) {
+                TodoPage(
+                    items = todoItems,
+                    bottomInset = 88.dp,
+                    onSave = { viewModel.saveTodoItem(it) },
+                    onToggleDone = { viewModel.toggleTodoDone(it) },
+                    onDelete = { viewModel.deleteTodoItem(it) },
+                    onClearCompleted = { viewModel.clearCompletedTodoItems() }
+                )
+            }
+            if (screen is Screen.Countdown) {
+                CountdownPage(
+                    events = countdownEvents,
+                    bottomInset = 88.dp,
+                    onSave = { viewModel.saveCountdownEvent(it) },
+                    onDelete = { viewModel.deleteCountdownEvent(it) }
+                )
+            }
             if (!nativeHomeDockAvailable) HomeDockChrome(
                 visible = dockVisible,
                 parallel = parallelPhoneNavigation,
@@ -3122,7 +3158,6 @@ fun CourseScheduleAppUi(
                 phase = startupPhase,
                 buttonHidden = dockButtonHidden,
                 onSelect = dockSelect,
-                onOrdinaryHome = ordinaryDockHome,
                 onOpenMenu = dockOpenMenu,
                 modifier = Modifier.align(Alignment.BottomStart).zIndex(100f)
             )
@@ -3138,7 +3173,7 @@ fun CourseScheduleAppUi(
     // Keep that changing closure behind State, so it cannot invalidate the native host.
     val nativeDockFallback = rememberUpdatedState<@Composable () -> Unit> {
         HomeDockChrome(dockVisible, parallelPhoneNavigation, dockSelectedIndex, dockConfig,
-            chromeBackdrop, startupPhase, dockButtonHidden, dockSelect, ordinaryDockHome, dockOpenMenu)
+            chromeBackdrop, startupPhase, dockButtonHidden, dockSelect, dockOpenMenu)
     }
     if (nativeHomeDockAvailable) com.xiaomanjun.sleepdownschedule.feature.home.NativeHomeDockChrome(
         visible = dockVisible,

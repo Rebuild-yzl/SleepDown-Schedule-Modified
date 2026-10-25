@@ -23,7 +23,6 @@ import com.xiaomanjun.sleepdownschedule.glass.ui.GlassPill
 @Composable
 internal fun HomeDockTabs(
     selectedIndex: Int,
-    parallel: Boolean,
     config: ScheduleConfigEntity,
     backdrop: Backdrop?,
     lightGlass: Boolean,
@@ -31,14 +30,19 @@ internal fun HomeDockTabs(
     containerSurfaceEnabled: Boolean = true,
     onSelect: (Int) -> Unit
 ) {
-    val tabs = if (parallel) listOf(
-        R.drawable.ic_day_view to "今日", R.drawable.ic_week_view to "课程表", R.drawable.ic_settings to "设置"
-    ) else listOf(R.drawable.ic_week_view to "课程", R.drawable.ic_settings to "设置")
+    // 五项固定顺序：视图 / 课程表 / 待办 / 倒数日 / 设置。「今日」只是改名与隐藏，实现仍在 HomeMode.Day。
+    val tabs = listOf(
+        R.drawable.ic_day_view to "视图",
+        R.drawable.ic_week_view to "课程表",
+        R.drawable.ic_todo_quadrant to "待办",
+        R.drawable.ic_countdown_event to "倒数日",
+        R.drawable.ic_settings to "设置"
+    )
     if (LocalHomeMaterialControls.current.Dock(tabs, selectedIndex, dark = !lightGlass,
             modifier = modifier, onSelect = onSelect)) return
     if (backdrop == null) {
         GlassPill(backdrop = null, config = config, modifier = modifier) {
-            Row(Modifier.height(54.dp).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.height(46.dp).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 tabs.forEachIndexed { index, (icon, label) ->
                     DockItem(selectedIndex == index, null, config, icon, label) { onSelect(index) }
                 }
@@ -49,7 +53,7 @@ internal fun HomeDockTabs(
     LiquidBottomTabs(
         selectedTabIndex = { selectedIndex }, onTabSelected = onSelect,
         backdrop = backdrop, tabsCount = tabs.size, modifier = modifier,
-        containerHeight = 54.dp, indicatorHeight = 46.dp,
+        containerHeight = 46.dp, indicatorHeight = 38.dp,
         blurRadius = homeChromeBlur(1.3.dp, config),
         containerAlpha = homeChromeGlassSurfaceAlpha(lightGlass), lensHeight = 10.dp, lensAmount = 40.dp,
         indicatorWidthOverflow = 8.dp, indicatorHeightOverflow = 4.dp,
@@ -61,7 +65,7 @@ internal fun HomeDockTabs(
     ) {
         tabs.forEachIndexed { index, (icon, label) ->
             LiquidBottomTab(onClick = { onSelect(index) }) {
-                DockTabContent(icon, label, if (icon == R.drawable.ic_settings) 24.dp else 23.dp)
+                DockTabContent(icon, label, 18.dp)
             }
         }
     }

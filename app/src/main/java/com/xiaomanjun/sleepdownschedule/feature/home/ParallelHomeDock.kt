@@ -120,19 +120,20 @@ internal fun ParallelHomeDock(
     BoxWithConstraints(modifier.fillMaxSize()) {
         // COUI's expansion view uses a 12dp edge-to-edge gap. Keep the same resting
         // spacing in liquid glass, including when a narrow window reduces the dock.
-        val groupWidth = minOf(276.dp, maxWidth - 36.dp)
-        val dockWidth = minOf(210.dp, groupWidth - 54.dp - 12.dp)
+        // 五项：5×50 + 内边距 8 = 258；加号 52 + 间距 8。
+        val groupWidth = minOf(318.dp, maxWidth - 36.dp)
+        val dockWidth = minOf(258.dp, groupWidth - 52.dp - 8.dp)
         val dockTop = 24.dp
         val dockBounds = remember(density, groupWidth, dockWidth) {
             derivedStateOf { with(density) {
                 val s = split.value.coerceIn(0f, 1f)
                 val dockX = ((groupWidth - dockWidth) / 2).toPx() * (1f - s)
-                Rect(dockX, dockTop.toPx(), dockX + dockWidth.toPx(), dockTop.toPx() + 54.dp.toPx())
+                Rect(dockX, dockTop.toPx(), dockX + dockWidth.toPx(), dockTop.toPx() + 46.dp.toPx())
             } }
         }
         val buttonInteractive = homeSelected && splitReady && !buttonHidden
         Box(Modifier.align(Alignment.BottomCenter).padding(bottom = bottomInset + 8.dp)
-            .width(groupWidth).height(dockTop + 54.dp).graphicsLayer { translationY = imeCompensation.toFloat() }) {
+            .width(groupWidth).height(dockTop + 46.dp).graphicsLayer { translationY = imeCompensation.toFloat() }) {
             // Keep the original LiquidButton mounted throughout the split. Its glass, shadow,
             // refraction and press response use the same renderer at rest and while travelling.
             // Clip its returning part behind the Dock even though the Dock itself is translucent.
@@ -150,10 +151,10 @@ internal fun ParallelHomeDock(
                         val s = split.value.coerceIn(0f, 1f)
                         val body = dockBounds.value
                         IntOffset(
-                            lerp(body.right - 54.dp.toPx(), (groupWidth - 54.dp).toPx(), s).roundToInt(),
+                            lerp(body.right - 52.dp.toPx(), (groupWidth - 52.dp).toPx(), s).roundToInt(),
                             (body.top - 3.dp.toPx() * sin(PI * s).toFloat()).roundToInt()
                         )
-                    }.size(54.dp)
+                    }.size(52.dp)
                         .onGloballyPositioned { buttonBounds = it.boundsInRoot() }
                         .drawWithContent {
                             // Hidden disables LiquidButton's press transform. Record that resting
@@ -175,7 +176,7 @@ internal fun ParallelHomeDock(
                     blurRadius = homeChromeBlur(1.3.dp, config))
             }
             CompositionLocalProvider(LocalContentColor provides ink) {
-                HomeDockTabs(selectedIndex, true, config, backdrop, light,
+                HomeDockTabs(selectedIndex, config, backdrop, light,
                     modifier = Modifier.offset {
                         IntOffset((((groupWidth - dockWidth) / 2).toPx() * (1f - split.value)).roundToInt(), dockTop.roundToPx())
                     }.width(dockWidth).excludeParentPullGesture().semantics { testTag = "parallel_home_dock" },

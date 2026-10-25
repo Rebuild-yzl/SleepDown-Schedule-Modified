@@ -51,6 +51,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.catalog.components.LiquidButton
@@ -76,12 +77,12 @@ import kotlinx.coroutines.delay
 @Composable
 fun FloatingDock(
     selected: Screen,
+    selectedIndex: Int,
     backdrop: Backdrop?,
     config: ScheduleConfigEntity,
     modifier: Modifier = Modifier,
     previewMode: Boolean = false,
-    onHome: () -> Unit,
-    onConfig: () -> Unit
+    onSelect: (Int) -> Unit
 ) {
     val adaptiveGlass = LocalAdaptiveGlass.current
     val lightGlass = if (selected is Screen.Home) {
@@ -109,7 +110,7 @@ fun FloatingDock(
     )
     val bottomOffset = (bottomInset + 8.dp).coerceAtLeast(8.dp)
     val dockTextColor by animateColorAsState(
-        targetValue = if (selected is Screen.Home) {
+        targetValue = if (selected is Screen.Home && selectedIndex < 2) {
             adaptiveGlass.contentColor
         } else if (appUsesDarkTheme(config)) {
             ComposeColor.White
@@ -140,10 +141,10 @@ fun FloatingDock(
     ) {
         CompositionLocalProvider(LocalContentColor provides dockTextColor) {
             HomeDockTabs(
-                selectedIndex = if (selected is Screen.Home) 0 else 1, parallel = false,
+                selectedIndex = selectedIndex,
                 config = config, backdrop = backdrop, lightGlass = lightGlass,
                 modifier = Modifier.width(LocalHomeMaterialControls.current.ordinaryDockWidth()).excludeParentPullGesture(),
-                onSelect = { index -> if (index == 0) onHome() else onConfig() }
+                onSelect = onSelect
             )
         }
     }
@@ -271,7 +272,7 @@ internal fun DockTabContent(iconRes: Int, label: String, iconSize: Dp) {
         verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.CenterVertically)
     ) {
         Icon(homeActionIconPainter(iconRes), contentDescription = null, modifier = Modifier.size(iconSize))
-        Text(label, style = MaterialTheme.typography.labelSmall)
+        Text(label, fontSize = 9.5.sp, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }
 
@@ -283,8 +284,8 @@ fun DockItem(selected: Boolean, backdrop: Backdrop?, config: ScheduleConfigEntit
         modifier = Modifier
             .clip(Capsule())
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .height(60.dp)
-            .width(78.dp),
+            .height(38.dp)
+            .width(50.dp),
         contentAlignment = Alignment.Center
     ) {
         if (pressed) {
@@ -296,12 +297,12 @@ fun DockItem(selected: Boolean, backdrop: Backdrop?, config: ScheduleConfigEntit
             )
         }
         Column(
-            modifier = Modifier.padding(vertical = 7.dp),
+            modifier = Modifier.padding(vertical = 3.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)
         ) {
-            Icon(homeActionIconPainter(iconRes), contentDescription = null, modifier = Modifier.size(22.dp))
-            Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+            Icon(homeActionIconPainter(iconRes), contentDescription = null, modifier = Modifier.size(18.dp))
+            Text(label, fontSize = 9.5.sp, maxLines = 1, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
         }
     }
 }

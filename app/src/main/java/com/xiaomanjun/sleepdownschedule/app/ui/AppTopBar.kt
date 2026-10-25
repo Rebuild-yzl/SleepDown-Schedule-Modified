@@ -69,6 +69,8 @@ internal fun rootTopBarLayoutHeight(
             }
         }
         Screen.Config -> detailTopOverlayHeight()
+        // 待办与倒数日自带页头，不叠系统 TopBar。
+        Screen.Todo, Screen.Countdown -> 0.dp
     }
 }
 
@@ -175,6 +177,8 @@ internal fun AppTopBar(
         }
         return
     }
+    // 待办与倒数日自带页头：不渲染通用 TopBar。
+    if (screen !is Screen.Config) return
     TopAppBar(
         modifier = Modifier.windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility).height(66.dp),
         colors = TopAppBarDefaults.topAppBarColors(
