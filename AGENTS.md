@@ -80,14 +80,16 @@
 默认环境及正式构建：
 
 ```powershell
-$env:JAVA_HOME='D:\Android studio\JDK'
-$env:GRADLE_USER_HOME='C:\Users\23085\.gradle'
+$env:JAVA_HOME='D:\JetBrains\Android Studio\jbr'
+$env:GRADLE_USER_HOME='C:\Users\TableATK\.gradle'
 .\gradlew.bat assembleGithubRelease --console=plain --no-parallel --max-workers=2
 ```
 
+Android SDK 位于 `D:\Android\Sdk`，由仓库外（已 gitignore）的 `local.properties` 里的 `sdk.dir` 指定；编译需要 `platforms;android-37.0`。Miuix 使用 `D:\Dev\miuix-reference`（v0.9.3 加本仓库补丁），由 `settings.gradle.kts` 的 `../miuix-reference` 回退路径自动发现，也可用 `-Psleepdown.miuixSourcePath` 覆盖。
+
 按机器内存减少 worker；避免同时运行多个高内存构建。开发可使用 `-Psleepdown.skipReleaseResourceShrink=true`，正式候选保留资源压缩、R8、lintVital、打包与签名。Release 签名位于仓库外。
 
-本机 Android SDK 的 ADB 使用独立 `5038` 端口，默认连接为 `ADB_SERVER_SOCKET=tcp:127.0.0.1:5038`；SDK 路径为 `D:\Android studio\AndroidSDK\platform-tools\adb.exe`。OPPO 互联使用的 `5037` 服务端不作为本项目安装入口。当前应用进程可能尚未继承用户环境，项目命令统一显式使用 `adb -P 5038`，避免混用服务端。
+本机 Android SDK 的 ADB 使用独立 `5038` 端口，默认连接为 `ADB_SERVER_SOCKET=tcp:127.0.0.1:5038`；SDK 路径为 `D:\Android\Sdk\platform-tools\adb.exe`。OPPO 互联使用的 `5037` 服务端不作为本项目安装入口。当前应用进程可能尚未继承用户环境，项目命令统一显式使用 `adb -P 5038`，避免混用服务端。
 
 复用 `scripts/Invoke-Adb.ps1` 可固定 SDK 来源与 `5038` 通道；本机 PowerShell 7 / Windows PowerShell 5 的 `adb` 命令也转到该入口。入口通过 `server-status` 核对实际服务端程序和当前用户配对密钥目录；5038 被其他来源占用时，仅重启这条通道，确认 SDK 接管后才发送项目命令。只固定客户端路径或端口不能保证服务端来源正确。用户环境同时设置 `ANDROID_ADB_SERVER_PORT=5038`，供 Android Studio / DDMLib 识别同一端口；修改前已运行的程序需重启才会继承用户环境。连接结果以 `connected to` / `already connected to` 及后续设备状态为准，不能只凭原生 ADB 的退出码判断成功；该脚本将打印连接失败却返回 `0` 的情况修正为失败退出码。无线端口可能变化，优先使用已配对设备的 mDNS 服务发现当前端点，不固化旧手机端口。
 
