@@ -656,6 +656,31 @@ fun CourseScheduleAppUi(
     var homeMenuFromDock by remember { mutableStateOf(false) }
     var dockImportButtonBounds by remember { mutableStateOf<Rect?>(null) }
     var dockImportReturnLayer by remember { mutableStateOf<androidx.compose.ui.graphics.layer.GraphicsLayer?>(null) }
+
+    // 待办 / 倒数日与「视图 / 课程表」共用 Dock 上的同一个加号与同一套 Morph；
+    // 只把菜单内容换成当前页面自己的新建动作。
+    var todoComposerRequest by remember { mutableIntStateOf(0) }
+    var countdownComposerRequest by remember { mutableIntStateOf(0) }
+    var pendingTodoComposer by remember { mutableStateOf(false) }
+    var pendingCountdownComposer by remember { mutableStateOf(false) }
+    val latestOpenTodoComposer = rememberUpdatedState<() -> Unit> {
+        pendingTodoComposer = true
+        homeAnchoredOverlayRequest = null
+    }
+    val latestOpenCountdownComposer = rememberUpdatedState<() -> Unit> {
+        pendingCountdownComposer = true
+        homeAnchoredOverlayRequest = null
+    }
+    val todoAddActions = remember {
+        listOf(AddMenuAction(R.drawable.ic_todo_quadrant, "新建待办") {
+            latestOpenTodoComposer.value()
+        })
+    }
+    val countdownAddActions = remember {
+        listOf(AddMenuAction(R.drawable.ic_countdown_event, "新建倒数日") {
+            latestOpenCountdownComposer.value()
+        })
+    }
     var jumpWeekDialogMounted by remember { mutableStateOf(false) }
     var jumpWeekDialogVisible by remember { mutableStateOf(false) }
     var pendingJumpWeekDialog by remember { mutableStateOf(false) }
@@ -3143,7 +3168,9 @@ fun CourseScheduleAppUi(
             if (screen is Screen.Todo) {
                 TodoPage(
                     items = todoItems,
+                    config = state.config,
                     bottomInset = 88.dp,
+                    composerRequest = todoComposerRequest,
                     // 压在首页内容与首页页头之上，但要留在 Dock（100f）下面。
                     modifier = Modifier.zIndex(90f),
                     onSave = { viewModel.saveTodoItem(it) },
@@ -3155,7 +3182,9 @@ fun CourseScheduleAppUi(
             if (screen is Screen.Countdown) {
                 CountdownPage(
                     events = countdownEvents,
+                    config = state.config,
                     bottomInset = 88.dp,
+                    composerRequest = countdownComposerRequest,
                     modifier = Modifier.zIndex(90f),
                     onSave = { viewModel.saveCountdownEvent(it) },
                     onDelete = { viewModel.deleteCountdownEvent(it) }
@@ -3699,6 +3728,19 @@ fun CourseScheduleAppUi(
         jumpWeekDialogMounted = true
         jumpWeekDialogVisible = true
     }
+    // 菜单完全收起后再挂载编辑器，避免两个弹层叠在一起。
+    LaunchedEffect(pendingTodoComposer, homeAnchoredMorphState.phase, screen) {
+        if (!pendingTodoComposer || screen !is Screen.Todo) return@LaunchedEffect
+        if (homeAnchoredMorphState.phase != HomeAnchoredOverlayPhase.Idle) return@LaunchedEffect
+        pendingTodoComposer = false
+        todoComposerRequest += 1
+    }
+    LaunchedEffect(pendingCountdownComposer, homeAnchoredMorphState.phase, screen) {
+        if (!pendingCountdownComposer || screen !is Screen.Countdown) return@LaunchedEffect
+        if (homeAnchoredMorphState.phase != HomeAnchoredOverlayPhase.Idle) return@LaunchedEffect
+        pendingCountdownComposer = false
+        countdownComposerRequest += 1
+    }
 
     LaunchedEffect(sourceButtonFollowThrough) {
         val follow = sourceButtonFollowThrough ?: return@LaunchedEffect
@@ -3711,13 +3753,21 @@ fun CourseScheduleAppUi(
     }
 
     HomeAnchoredMorphOverlayHost(
-        request = if (screen is Screen.Home) homeAnchoredOverlayRequest else null,
+        request = if (screen is Screen.Home || screen is Screen.Todo || screen is Screen.Countdown) {
+            homeAnchoredOverlayRequest
+        } else null,
         motionState = homeAnchoredMorphState,
         backdrop = homeAnchoredOverlayBackdrop,
         config = state.config,
-        addActions = if (homeMenuFromDock) homeAddActions.take(3)
-            else if (parallelPhoneNavigation) homeAddActions.drop(3) else homeAddActions,
-        showModeSwitch = !parallelPhoneNavigation,
+        addActions = when {
+            screen is Screen.Todo -> todoAddActions
+            screen is Screen.Countdown -> countdownAddActions
+            homeMenuFromDock -> homeAddActions.take(3)
+            parallelPhoneNavigation -> homeAddActions.drop(3)
+            else -> homeAddActions
+        },
+        showModeSwitch = !parallelPhoneNavigation &&
+            screen !is Screen.Todo && screen !is Screen.Countdown,
         homeMode = homeMode,
         onHomeModeChange = { homeMode = it },
         adaptiveMetrics = homeAdaptiveMetrics,

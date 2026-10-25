@@ -13,21 +13,31 @@ internal data class TodoDueMeta(val text: String, val level: TodoDueLevel)
 
 /**
  * 象限内固定排序：未完成在前，其中逾期 → 有日期（近的在前）→ 无日期，已完成沉到末尾。
- * 勾选完成时不立即调用它重排，避免刚点完的行自己滑走。
+ *
+ * [settledDoneIds] 为空集时按当前完成态排序；传入「进入页面时已完成」的 id 集合时，本次刚勾选
+ * 的行仍按未完成的位置参与排序，避免点完之后自己滑到格尾。是否划线只看 `isDone`。
  */
-internal fun sortTodoItems(items: List<TodoItemEntity>): List<TodoItemEntity> =
+internal fun sortTodoItems(
+    items: List<TodoItemEntity>,
+    settledDoneIds: Set<Long>? = null
+): List<TodoItemEntity> =
     items.sortedWith(
         compareBy<TodoItemEntity>(
-            { it.isDone },
+            { item -> if (settledDoneIds == null) item.isDone else item.id in settledDoneIds },
             { it.dueDate == null },
             { it.dueDate.orEmpty() },
             { it.createdAt }
         )
     )
 
-internal fun groupTodoItems(items: List<TodoItemEntity>): Map<TodoQuadrant, List<TodoItemEntity>> {
+internal fun groupTodoItems(
+    items: List<TodoItemEntity>,
+    settledDoneIds: Set<Long>? = null
+): Map<TodoQuadrant, List<TodoItemEntity>> {
     val grouped = items.groupBy { it.quadrantValue }
-    return TodoQuadrant.entries.associateWith { sortTodoItems(grouped[it].orEmpty()) }
+    return TodoQuadrant.entries.associateWith {
+        sortTodoItems(grouped[it].orEmpty(), settledDoneIds)
+    }
 }
 
 internal fun parseIsoDate(value: String?): LocalDate? =

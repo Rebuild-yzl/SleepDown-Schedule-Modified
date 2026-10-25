@@ -13,6 +13,7 @@ import com.xiaomanjun.sleepdownschedule.model.TodoItemEntity
 import com.xiaomanjun.sleepdownschedule.model.TodoQuadrant
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -127,5 +128,14 @@ class TodoCountdownRulesTest {
 
         assertEquals(2L, heroCountdownEvent(listOf(past, later, todayEvent), today)?.id)
         assertNull(heroCountdownEvent(listOf(past), today))
+    }
+
+    @Test
+    fun repeatingCountdownRollsWhenTodayMomentAlreadyPassed() {
+        val yearly = event(1, "2026-10-25", repeat = true, time = "09:00")
+        assertEquals(LocalDate.of(2026, 10, 25), countdownDate(yearly, today, LocalDateTime.of(2026, 10, 25, 8, 0)))
+        assertEquals(LocalDate.of(2027, 10, 25), countdownDate(yearly, today, LocalDateTime.of(2026, 10, 25, 10, 0)))
+        // 全天事件没有时刻，纪念日当天仍然显示当天。
+        assertEquals(LocalDate.of(2026, 10, 25), countdownDate(event(2, "2026-10-25", repeat = true), today))
     }
 }

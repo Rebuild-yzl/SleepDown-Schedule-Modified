@@ -1,83 +1,87 @@
 package com.xiaomanjun.sleepdownschedule.feature.countdown
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kyant.backdrop.Backdrop
+import com.xiaomanjun.sleepdownschedule.ScheduleConfigEntity
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.DialogButtonRole
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.DialogCapsuleField
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.DialogLiquidButton
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LiquidAlertAction
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LiquidAlertActionStyle
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LiquidAlertDialog
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalCenteredDialogSceneBackdrop
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.QuickSheetLiquidAction
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownDesignTokens
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownPickerDialog
+import com.xiaomanjun.sleepdownschedule.core.ui.scaffold.DetailTopBar
+import com.xiaomanjun.sleepdownschedule.core.ui.scaffold.settingsPageBackground
+import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsDatePickerContent
+import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsDivider
+import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsGroup
+import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsNavigationRow
+import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsSwipeDeleteRow
+import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsTimePickerContent
+import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsToggleRow
 import com.xiaomanjun.sleepdownschedule.model.CountdownEventEntity
 import java.time.Duration
-import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
-import java.time.ZoneOffset
 import kotlinx.coroutines.delay
 
 /**
- * 倒数日页：Hero 显示最近一个未过期事件的剩余时间（有时刻就按秒走），下面是卡片列表。
- * 卡片天数按日历日差，过期项显示「已过 N 天」并沉到列表末尾。
+ * 倒数日页：沿用二级页顶栏与分组卡。Hero 显示最近一个未过期事件的剩余时间（有时刻按秒走），
+ * 下面是卡片列表；卡片天数按日历日差，过期项显示「已过 N 天」并沉到列表末尾。
  */
 @Composable
 internal fun CountdownPage(
     events: List<CountdownEventEntity>,
+    config: ScheduleConfigEntity,
     bottomInset: Dp,
-    modifier: Modifier = Modifier,
+    composerRequest: Int,
     onSave: (CountdownEventEntity) -> Unit,
-    onDelete: (Long) -> Unit
+    onDelete: (Long) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val zone = remember { ZoneId.systemDefault() }
     var today by remember { mutableStateOf(LocalDate.now(zone)) }
     var editorTarget by remember { mutableStateOf<CountdownEventEntity?>(null) }
     var creating by remember { mutableStateOf(false) }
+    var deleteTarget by remember { mutableStateOf<CountdownEventEntity?>(null) }
     val now by produceState(initialValue = LocalDateTime.now(zone)) {
         while (true) {
             value = LocalDateTime.now(zone)
@@ -90,52 +94,68 @@ internal fun CountdownPage(
             delay(60_000)
         }
     }
+    // Dock 上的共用加号通过菜单请求新建；菜单完全收起后才挂载编辑器。
+    LaunchedEffect(composerRequest) {
+        if (composerRequest > 0) creating = true
+    }
 
-    val sorted = remember(events, today) { sortCountdownEvents(events, today) }
-    val hero = remember(events, today) { heroCountdownEvent(events, today) }
-    val heroDate = hero?.let { countdownDate(it, today) }
+    val sorted = remember(events, today, now.hour, now.minute) {
+        sortCountdownEvents(events, today, now)
+    }
+    val hero = remember(events, today, now.hour, now.minute) {
+        heroCountdownEvent(events, today, now)
+    }
+    val heroDate = hero?.let { countdownDate(it, today, now) }
+    val dialogBackdrop = LocalCenteredDialogSceneBackdrop.current
 
-    Box(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(modifier.fillMaxSize().background(settingsPageBackground(config))) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
+            DetailTopBar(
+                title = "倒数日",
+                config = config,
+                backdrop = null,
+                onBack = {},
+                showBackButton = false,
+                statusTopOverride = 0.dp,
+                backButtonStartPadding = 16.dp
+            )
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 6.dp,
+                    bottom = bottomInset + 20.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("倒数日", fontSize = 25.sp, fontWeight = FontWeight.SemiBold)
-            }
-            HeroPanel(hero, heroDate, today, now)
-            if (sorted.isEmpty()) {
-                Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Text(
-                        "还没有倒数日，点右下角的加号添加",
-                        fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                item(key = "countdown-hero") {
+                    HeroPanel(hero, heroDate, today, now, config)
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(9.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        top = 4.dp, bottom = bottomInset + 88.dp
-                    )
-                ) {
+                if (sorted.isEmpty()) {
+                    item(key = "countdown-empty") {
+                        Text(
+                            "还没有倒数日，点 Dock 上的加号添加",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
+                        )
+                    }
+                } else {
                     items(sorted, key = { it.id }) { event ->
-                        CountdownCard(event, today, zone, onEdit = { editorTarget = event }, onDelete = { onDelete(event.id) })
+                        CountdownCard(
+                            event = event,
+                            today = today,
+                            now = now,
+                            zone = zone,
+                            config = config,
+                            onEdit = { editorTarget = event },
+                            onDelete = { deleteTarget = event }
+                        )
                     }
                 }
             }
-        }
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = bottomInset + 12.dp)
-                .size(52.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary)
-                .clickable { creating = true },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Rounded.Add, contentDescription = "新建倒数日", tint = MaterialTheme.colorScheme.onPrimary)
         }
     }
 
@@ -144,12 +164,31 @@ internal fun CountdownPage(
         CountdownEditorDialog(
             initial = editing,
             today = today,
+            backdrop = dialogBackdrop,
+            config = config,
             onDismiss = { creating = false; editorTarget = null },
             onSave = { event ->
                 onSave(event)
                 creating = false
                 editorTarget = null
             }
+        )
+    }
+
+    deleteTarget?.let { target ->
+        LiquidAlertDialog(
+            title = "删除倒数日",
+            message = "确定要删除「${target.title}」吗？",
+            actions = listOf(
+                LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel) { deleteTarget = null },
+                LiquidAlertAction("删除", LiquidAlertActionStyle.Destructive) {
+                    deleteTarget = null
+                    onDelete(target.id)
+                }
+            ),
+            backdrop = dialogBackdrop,
+            config = config,
+            onDismissRequest = { deleteTarget = null }
         )
     }
 }
@@ -159,232 +198,352 @@ private fun HeroPanel(
     event: CountdownEventEntity?,
     date: LocalDate?,
     today: LocalDate,
-    now: LocalDateTime
+    now: LocalDateTime,
+    config: ScheduleConfigEntity
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-            .clip(RoundedCornerShape(22.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-            .padding(vertical = 18.dp, horizontal = 20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        if (event == null || date == null) {
-            Text("近期没有倒计时", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "过去的事件在下面的列表里",
-                fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            return@Column
-        }
-        Text(
-            event.title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis
-        )
-        Spacer(Modifier.height(6.dp))
-        val moment = countdownMoment(event, date)
-        if (event.targetTime == null) {
-            val days = countdownDays(today, date)
-            Row(verticalAlignment = Alignment.Bottom) {
+    SettingsGroup(backdrop = null, config = config, modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (event == null || date == null) {
                 Text(
-                    "$days", fontSize = 34.sp, fontWeight = FontWeight.Bold,
+                    "近期没有倒计时",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "过去的事件在下面的列表里",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                return@Column
+            }
+            Text(
+                event.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(6.dp))
+            val moment = countdownMoment(event, date)
+            if (event.targetTime == null) {
+                val days = countdownDays(today, date)
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        "${days}",
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        " 天",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                }
+            } else {
+                val remaining = Duration.between(now, moment).seconds.coerceAtLeast(0L)
+                val d = remaining / 86_400
+                val h = (remaining % 86_400) / 3_600
+                val m = (remaining % 3_600) / 60
+                val s = remaining % 60
+                Text(
+                    text = buildString {
+                        if (d > 0) append("${d} 天 ")
+                        append(String.format("%02d:%02d:%02d", h, m, s))
+                    },
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
-                Text(
-                    " 天", fontSize = 17.sp, fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
             }
-        } else {
-            val remaining = Duration.between(now, moment).seconds.coerceAtLeast(0L)
-            val d = remaining / 86_400
-            val h = (remaining % 86_400) / 3_600
-            val m = (remaining % 3_600) / 60
-            val s = remaining % 60
+            Spacer(Modifier.height(6.dp))
             Text(
                 text = buildString {
-                    if (d > 0) append("$d 天 ")
-                    append(String.format("%02d:%02d:%02d", h, m, s))
+                    append("${date.monthValue}月${date.dayOfMonth}日")
+                    event.targetTime?.let { append(" · ${it}") }
+                    if (event.repeatYearly) append(" · 每年")
                 },
-                fontSize = 30.sp, fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = buildString {
-                append("${date.monthValue}月${date.dayOfMonth}日")
-                event.targetTime?.let { append(" · $it") }
-                if (event.repeatYearly) append(" · 每年")
-            },
-            fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CountdownCard(
     event: CountdownEventEntity,
     today: LocalDate,
+    now: LocalDateTime,
     zone: ZoneId,
+    config: ScheduleConfigEntity,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    var menu by remember { mutableStateOf(false) }
-    val date = countdownDate(event, today)
+    val date = countdownDate(event, today, now)
     val days = date?.let { countdownDays(today, it) }
     val past = days != null && days < 0
-    val accent = if (past) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
-    Box {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                .combinedClickable(onClick = onEdit, onLongClick = { menu = true })
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (event.pinned) {
-                        Text("置顶", fontSize = 9.5.sp, color = accent, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.width(6.dp))
+    val accent =
+        if (past) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+    SettingsSwipeDeleteRow(
+        rowKey = event.id,
+        onRequestDelete = onDelete,
+        softAppearance = true
+    ) {
+        SettingsGroup(backdrop = null, config = config, modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onEdit)
+                    .padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (event.pinned) {
+                            Text(
+                                "置顶",
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = accent,
+                                modifier = Modifier.padding(end = 6.dp)
+                            )
+                        }
+                        Text(
+                            event.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
+                    Spacer(Modifier.height(2.dp))
                     Text(
-                        event.title, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                        text = buildString {
+                            date?.let { append("${it.monthValue}月${it.dayOfMonth}日") }
+                                ?: append("日期无效")
+                            event.targetTime?.let { append(" · ${it}") }
+                            if (event.repeatYearly) append(" · 每年重复")
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = buildString {
-                        date?.let { append("${it.monthValue}月${it.dayOfMonth}日") } ?: append("日期无效")
-                        event.targetTime?.let { append(" · $it") }
-                        if (event.repeatYearly) append(" · 每年重复")
-                    },
-                    fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Spacer(Modifier.width(10.dp))
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = when {
+                            days == null -> "—"
+                            past -> "${-days}"
+                            else -> "${days}"
+                        },
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = accent
+                    )
+                    Text(
+                        text = if (past) "已过 · 天" else "还有 · 天",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
-            Spacer(Modifier.width(10.dp))
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = when {
-                        days == null -> "—"
-                        past -> "${-days}"
-                        else -> "$days"
-                    },
-                    fontSize = 20.sp, fontWeight = FontWeight.Bold, color = accent
-                )
-                Text(
-                    text = if (past) "已过 · 天" else "还有 · 天",
-                    fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = { menu = true }, modifier = Modifier.size(24.dp)) {
-                Icon(
-                    Icons.Rounded.MoreVert, contentDescription = "更多",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp)
-                )
-            }
-        }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            DropdownMenuItem(text = { Text("编辑") }, onClick = { menu = false; onEdit() })
-            DropdownMenuItem(text = { Text("删除") }, onClick = { menu = false; onDelete() })
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+private enum class CountdownEditorPage { DETAILS, DATE, TIME }
+
 @Composable
 private fun CountdownEditorDialog(
     initial: CountdownEventEntity?,
     today: LocalDate,
+    backdrop: Backdrop?,
+    config: ScheduleConfigEntity,
     onDismiss: () -> Unit,
     onSave: (CountdownEventEntity) -> Unit
 ) {
     var title by remember(initial) { mutableStateOf(initial?.title.orEmpty()) }
-    var date by remember(initial) { mutableStateOf(parseTargetDate(initial ?: CountdownEventEntity(title = "", targetDate = today.toString())) ?: today) }
+    var targetDate by remember(initial) {
+        mutableStateOf(parseTargetDate(initial ?: CountdownEventEntity(title = "", targetDate = today.toString())) ?: today)
+    }
     var allDay by remember(initial) { mutableStateOf(initial?.targetTime == null) }
-    var timeText by remember(initial) { mutableStateOf(initial?.targetTime ?: "09:00") }
+    var timeMinute by remember(initial) {
+        mutableIntStateOf(
+            parseIsoTime(initial?.targetTime)?.let { it.hour * 60 + it.minute } ?: (9 * 60)
+        )
+    }
     var repeatYearly by remember(initial) { mutableStateOf(initial?.repeatYearly ?: false) }
     var pinned by remember(initial) { mutableStateOf(initial?.pinned ?: false) }
-    var pickingDate by remember { mutableStateOf(false) }
-    val parsedTime = parseIsoTime(timeText)
-    val valid = title.isNotBlank() && (allDay || parsedTime != null)
+    var page by remember { mutableStateOf(CountdownEditorPage.DETAILS) }
+    var pickerDate by remember { mutableStateOf(targetDate) }
+    val timeText = "%02d:%02d".format(timeMinute / 60, timeMinute % 60)
+    val contentColor = MaterialTheme.colorScheme.onSurfaceVariant
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "新建倒数日" else "编辑倒数日") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = title, onValueChange = { if (it.length <= 60) title = it },
-                    label = { Text("名称") }, singleLine = true, modifier = Modifier.fillMaxWidth()
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${date.monthValue}月${date.dayOfMonth}日", fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { date = today }) { Text("今天") }
-                    TextButton(onClick = { date = today.plusDays(1) }) { Text("明天") }
+    SleepDownPickerDialog(
+        show = true,
+        title = when (page) {
+            CountdownEditorPage.DETAILS ->
+                if (initial == null) "新建倒数日" else "编辑倒数日"
+            CountdownEditorPage.DATE -> "选择目标日期"
+            CountdownEditorPage.TIME -> "选择目标时间"
+        },
+        onDismissRequest = {
+            if (page == CountdownEditorPage.DETAILS) onDismiss() else page = CountdownEditorPage.DETAILS
+        },
+        backdrop = backdrop,
+        config = config,
+        contentPadding = PaddingValues(SleepDownDesignTokens.QuickSheet.PickerContentPadding),
+        contentTransitionKey = page,
+        scrollableContent = true,
+        smoothContentResize = true,
+        bottomActions = {
+            if (page == CountdownEditorPage.DETAILS) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(SleepDownDesignTokens.Dialog.ActionSpacing)
+                ) {
+                    QuickSheetLiquidAction(
+                        "取消", true, backdrop, config,
+                        modifier = Modifier.weight(1f),
+                        height = SleepDownDesignTokens.CenteredDialog.ActionHeight
+                    ) { onDismiss() }
+                    QuickSheetLiquidAction(
+                        "保存", title.isNotBlank(), backdrop, config,
+                        modifier = Modifier.weight(1f),
+                        primary = true,
+                        height = SleepDownDesignTokens.CenteredDialog.ActionHeight
+                    ) {
+                        onSave(
+                            (initial ?: CountdownEventEntity(title = "", targetDate = targetDate.toString()))
+                                .copy(
+                                    title = title.trim(),
+                                    targetDate = targetDate.toString(),
+                                    targetTime = if (allDay) null else timeText,
+                                    repeatYearly = repeatYearly,
+                                    pinned = pinned
+                                )
+                        )
+                    }
                 }
-                TextButton(onClick = { pickingDate = true }) { Text("选择日期") }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("全天", fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    Switch(checked = allDay, onCheckedChange = { allDay = it })
-                }
-                if (!allDay) {
-                    OutlinedTextField(
-                        value = timeText, onValueChange = { timeText = it },
-                        label = { Text("时间 HH:mm") }, singleLine = true,
-                        isError = parsedTime == null, modifier = Modifier.fillMaxWidth()
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("每年重复", fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    Switch(checked = repeatYearly, onCheckedChange = { repeatYearly = it })
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("置顶", fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    Switch(checked = pinned, onCheckedChange = { pinned = it })
+            } else {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(SleepDownDesignTokens.Dialog.ActionSpacing)
+                ) {
+                    QuickSheetLiquidAction(
+                        "返回", true, backdrop, config,
+                        modifier = Modifier.weight(1f),
+                        height = SleepDownDesignTokens.CenteredDialog.ActionHeight
+                    ) { page = CountdownEditorPage.DETAILS }
+                    QuickSheetLiquidAction(
+                        "确定", true, backdrop, config,
+                        modifier = Modifier.weight(1f),
+                        primary = true,
+                        height = SleepDownDesignTokens.CenteredDialog.ActionHeight
+                    ) {
+                        when (page) {
+                            CountdownEditorPage.DATE -> targetDate = pickerDate
+                            CountdownEditorPage.TIME -> Unit
+                            else -> Unit
+                        }
+                        page = CountdownEditorPage.DETAILS
+                    }
                 }
             }
         },
-        confirmButton = {
-            TextButton(
-                enabled = valid,
-                onClick = {
-                    onSave(
-                        (initial ?: CountdownEventEntity(title = "", targetDate = date.toString())).copy(
-                            title = title.trim(),
-                            targetDate = date.toString(),
-                            targetTime = if (allDay) null else timeText,
-                            repeatYearly = repeatYearly,
-                            pinned = pinned
+        contentForState = { state ->
+            when (state as CountdownEditorPage) {
+                CountdownEditorPage.DETAILS -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    DialogCapsuleField(
+                        value = title,
+                        onValueChange = { if (it.length <= 60) title = it },
+                        placeholder = "纪念什么日子",
+                        config = config,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                    )
+                    SettingsNavigationRow(
+                        title = "目标日期",
+                        subtitle = "${targetDate.year}年${targetDate.monthValue}月${targetDate.dayOfMonth}日",
+                        onClick = {
+                            pickerDate = targetDate
+                            page = CountdownEditorPage.DATE
+                        }
+                    )
+                    SettingsDivider()
+                    SettingsToggleRow(
+                        title = "全天",
+                        subtitle = "只按日期倒计时",
+                        checked = allDay,
+                        backdrop = backdrop,
+                        onCheckedChange = { allDay = it }
+                    )
+                    if (!allDay) {
+                        SettingsDivider()
+                        SettingsNavigationRow(
+                            title = "目标时间",
+                            subtitle = timeText,
+                            onClick = { page = CountdownEditorPage.TIME }
                         )
+                    }
+                    SettingsDivider()
+                    SettingsToggleRow(
+                        title = "每年重复",
+                        subtitle = "按今年的这一天重新计算",
+                        checked = repeatYearly,
+                        backdrop = backdrop,
+                        onCheckedChange = { repeatYearly = it }
+                    )
+                    SettingsDivider()
+                    SettingsToggleRow(
+                        title = "置顶",
+                        subtitle = "固定在列表最前面",
+                        checked = pinned,
+                        backdrop = backdrop,
+                        onCheckedChange = { pinned = it }
                     )
                 }
-            ) { Text("保存") }
+                CountdownEditorPage.DATE -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "${pickerDate.monthValue}月${pickerDate.dayOfMonth}日",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    SettingsDatePickerContent(
+                        year = pickerDate.year,
+                        month = pickerDate.monthValue,
+                        day = pickerDate.dayOfMonth,
+                        onYearChange = { pickerDate = pickerDate.withYear(it) },
+                        onMonthChange = { pickerDate = pickerDate.withMonth(it) },
+                        onDayChange = { day ->
+                            pickerDate = pickerDate.withDayOfMonth(
+                                day.coerceIn(1, pickerDate.lengthOfMonth())
+                            )
+                        }
+                    )
+                }
+                CountdownEditorPage.TIME -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        timeText,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    SettingsTimePickerContent(
+                        value = timeMinute,
+                        range = 0..1439
+                    ) { timeMinute = it }
+                }
+            }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        content = {}
     )
-
-    if (pickingDate) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = date.toEpochDay() * 86_400_000L)
-        DatePickerDialog(
-            onDismissRequest = { pickingDate = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    state.selectedDateMillis?.let {
-                        date = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()
-                    }
-                    pickingDate = false
-                }) { Text("确定") }
-            },
-            dismissButton = { TextButton(onClick = { pickingDate = false }) { Text("取消") } }
-        ) { DatePicker(state = state) }
-    }
 }

@@ -89,6 +89,9 @@ internal fun ParallelHomeDock(
     buttonHidden: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    // 五项里前四项（视图 / 课程表 / 待办 / 倒数日）共用同一个加号与同一套展开动效，
+    // 只有设置页收起加号。homeSelected 仍表示「首页玻璃」这一层材质语义。
+    val addCapable = selectedIndex < 4
     val homeSelected = selectedIndex < 2
     val adaptiveGlass = LocalAdaptiveGlass.current
     val light = if (homeSelected) adaptiveGlass.lightGlass else !appUsesDarkTheme(config)
@@ -101,10 +104,10 @@ internal fun ParallelHomeDock(
         tween(220), label = "ParallelDockInk")
     val plusSurface by animateColorAsState(
         homeDockImportButtonGlassColor(light), tween(220), label = "ParallelImportSurface")
-    val split = remember { Animatable(if (homeSelected) 1f else 0f) }
+    val split = remember { Animatable(if (addCapable) 1f else 0f) }
     val splitReady by remember { derivedStateOf { !split.isRunning && split.value >= 0.999f } }
-    LaunchedEffect(homeSelected) {
-        val target = if (homeSelected) 1f else 0f
+    LaunchedEffect(addCapable) {
+        val target = if (addCapable) 1f else 0f
         if (split.value == target) return@LaunchedEffect
         split.animateTo(target, tween(460, easing = HomeDropletEasing))
     }
@@ -131,7 +134,7 @@ internal fun ParallelHomeDock(
                 Rect(dockX, dockTop.toPx(), dockX + dockWidth.toPx(), dockTop.toPx() + 46.dp.toPx())
             } }
         }
-        val buttonInteractive = homeSelected && splitReady && !buttonHidden
+        val buttonInteractive = addCapable && splitReady && !buttonHidden
         Box(Modifier.align(Alignment.BottomCenter).padding(bottom = bottomInset + 8.dp)
             .width(groupWidth).height(dockTop + 46.dp).graphicsLayer { translationY = imeCompensation.toFloat() }) {
             // Keep the original LiquidButton mounted throughout the split. Its glass, shadow,

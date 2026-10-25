@@ -18,11 +18,21 @@ internal fun parseIsoTime(value: String?): LocalTime? =
  * 事件在今天的日历口径下的目标日期。每年重复按「今年的这一天」算，已经过了就顺延到明年；
  * 2 月 29 日在平年落到 2 月 28 日，不抛异常。
  */
-internal fun countdownDate(event: CountdownEventEntity, today: LocalDate): LocalDate? {
+internal fun countdownDate(
+    event: CountdownEventEntity,
+    today: LocalDate,
+    now: LocalDateTime? = null
+): LocalDate? {
     val base = parseTargetDate(event) ?: return null
     if (!event.repeatYearly) return base
     var candidate = withYearSafely(base, today.year)
-    if (candidate.isBefore(today)) candidate = withYearSafely(base, today.year + 1)
+    // 今天就是纪念日但当天那个时刻已经过去时，重复事件应顺延到明年，
+    // 否则 Hero 会一直停在 00:00:00。
+    val momentPassed = now != null && candidate == today &&
+        !countdownMoment(event, candidate).isAfter(now)
+    if (candidate.isBefore(today) || momentPassed) {
+        candidate = withYearSafely(base, today.year + 1)
+    }
     return candidate
 }
 
@@ -39,11 +49,12 @@ internal fun countdownMoment(event: CountdownEventEntity, date: LocalDate): Loca
 /** 置顶优先；其余未来事件按剩余天数升序，过期事件排最后并按最近过期优先。 */
 internal fun sortCountdownEvents(
     events: List<CountdownEventEntity>,
-    today: LocalDate
+    today: LocalDate,
+    now: LocalDateTime? = null
 ): List<CountdownEventEntity> = events.sortedWith(
     compareByDescending<CountdownEventEntity> { it.pinned }
         .thenBy { event ->
-            val date = countdownDate(event, today)
+            val date = countdownDate(event, today, now)
             val days = date?.let { ChronoUnit.DAYS.between(today, it) }
             when {
                 days == null -> 2
@@ -52,16 +63,20 @@ internal fun sortCountdownEvents(
             }
         }
         .thenBy { event ->
-            val date = countdownDate(event, today)
+            val date = countdownDate(event, today, now)
             val days = date?.let { ChronoUnit.DAYS.between(today, it) } ?: Long.MAX_VALUE
             if (days >= 0L) days else -days
         }
 )
 
 /** Hero 只显示最近一个未过期事件；全是过期事件时返回 null，让页面走空态。 */
-internal fun heroCountdownEvent(events: List<CountdownEventEntity>, today: LocalDate): CountdownEventEntity? =
+internal fun heroCountdownEvent(
+    events: List<CountdownEventEntity>,
+    today: LocalDate,
+    now: LocalDateTime? = null
+): CountdownEventEntity? =
     events
-        .mapNotNull { event -> countdownDate(event, today)?.let { date -> event to date } }
+        .mapNotNull { event -> countdownDate(event, today, now)?.let { date -> event to date } }
         .filter { (_, date) -> !date.isBefore(today) }
         .minByOrNull { (_, date) -> ChronoUnit.DAYS.between(today, date) }
         ?.first
