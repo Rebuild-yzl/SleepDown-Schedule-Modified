@@ -6,7 +6,7 @@
 
 > 先读 AGENTS.md 和 docs/AI_HANDOFF.md，核对当前分支、工作树及 PR 状态，接着完成未完事项。沿用可核实的用户授权和已有成果，按本次变化选择验证；遇到差异先查事实并更新交接。
 
-## 个人修改版当前交接（2026-10-25）
+## 个人修改版当前交接（2026-10-26）
 
 > 下面「当前分支与目标」起是上游主仓（CourseSchedule）的历史交接，仍按原样保留；本修改版的现状只看这一节。
 
@@ -19,65 +19,71 @@
 | `3eccd1e8` | 五项 Dock + 待办/倒数日页面接进首页 |
 | `b788deb3` | 修页面盖住首页页头的层级问题 |
 | `3b047b60` | 交接：记下「复用原版控件」「共用加号」两条要求 |
-| 本轮（`git log -1`） | 两页改用公共控件、加号与首页共用、完成不重排、倒数日跨年顺延 |
+| `292f8952` | 两页改用公共控件、加号与首页共用、完成不重排、倒数日跨年顺延 |
+| `57f4d34d` | 文档：实现现状、控件映射、下一步 |
+| 本轮（`git log -1`） | 待办 / 倒数日改为首页页内槽位，共用壁纸与切换动效 |
 
-**本轮已完成（`emulator-5554` / Android 17 实机验证）**
+**本轮架构调整：两页进入首页页内（2026-10-26）**
 
-1. **加号共用**：`ParallelHomeDock` 的 add-capable 扩到 0..3（视图 / 课程表 / 待办 / 倒数日）。split 动效、玻璃按钮、返回图层与首页完全一致；`ScheduleAppUi` 按当前页给 `AddMenuAction`（待办 → 新建待办，倒数日 → 新建倒数日），菜单完全收起后才挂载编辑器（`pendingTodoComposer` / `pendingCountdownComposer` + `composerRequest`）。
-2. **复用公共控件**：页头 `DetailTopBar`（`showBackButton = false`，「已完成」用 `DialogLiquidButton`）；象限卡 / 倒数卡 `SettingsGroup`；行 `SettingsSwipeDeleteRow`（左滑 → `LiquidAlertDialog` 确认）；编辑器 `SleepDownPickerDialog`（详情页 / 日期页 / 时间页，`contentTransitionKey` + `contentForState`）；字段 `DialogCapsuleField`；开关 `SettingsToggleRow`；跳转行 `SettingsNavigationRow`；按钮 `QuickSheetLiquidAction` / `LiquidAlertActions`；日期轮 `SettingsDatePickerContent`；时间轮 `SettingsTimePickerContent`。自绘 FAB、Material3 `AlertDialog` / `DatePicker` / `DropdownMenu` 已全部删除。
-3. **完成不立即重排**：`sortTodoItems` / `groupTodoItems` 新增 `settledDoneIds`。页面进入时快照已完成 id，本次新勾选的行保持原位置（只变灰字划线、计数归零），重新进入页面才按完成态归位。
-4. **倒数日跨年顺延**：`countdownDate` / `sortCountdownEvents` / `heroCountdownEvent` 接受可选 `now`。重复事件在「纪念日当天但当天时刻已过」时顺延到明年，Hero 不再停在 `00:00:00`（新增单测覆盖）。
+之前两页是 `ScheduleAppUi` 内容区里 `zIndex(90f)` 的兄弟层，自带不透明底色，所以背景与转场都和日/周视图不一致。现在改为：
+
+1. `HomeSwitchMotion` 由「布尔两槽」泛化为「整型槽位」（`initialSlot` / `animateTo(slot)` / `retains(slot)` / `cornerFraction` 按最近整数计算，`homeSwitchLayer(motion, slot)` 平移 `(slot - progress) * width`）。日↔周、首页↔设置继续走布尔重载，行为不变。
+2. 首页内容新增一层 `homePageMotion`：**槽位 0 = 课表（内部再分日/周）、槽位 1 = 待办、槽位 2 = 倒数日**，三者都挂在首页壁纸之上；Dock 仍是唯一导航，`screen` 决定槽位，**没有新增模式切换 UI**。
+3. 两页去掉不透明底色与 `DetailTopBar`：标题/日期/周条改用 `homeForegroundColor` + `HomeReadableText`（壁纸自适应字色与柔和投影），「已完成」改成玻璃胶囊；象限卡 / 倒数卡继续用 `SettingsGroup(backdrop = courseWallpaperBackdrop)`，玻璃直接采样壁纸。
+4. 首页顶栏（第1周 / 日期 / 铅笔 / 三个点）在切到待办/倒数日时随页滑动淡出：`screen is Screen.Home || homePageMotion.moving` 时保留合成、`alpha = 1 - progress`，落位后整块卸载，不会再抢页面顶部点击。
+5. 顺带修掉一个真实 bug：加号 →「新建待办」原来用累加计数，退出再进页面会重复弹出编辑器；改成一次性 `composerPending` + `onComposerShown()` 消费。
+
+**模拟器已验证（`emulator-5554` / Pixel_10a / Android 17，壁纸用 `docs/plans/壁纸.jpg`）**
+
+- 视图 / 课程表 / 待办 / 倒数日 四项切换都是同一套滑动 + 交叉淡入，三页共用同一张壁纸（截图可见壁纸透过象限卡与倒数卡）
+- 待办页：页头、周条、2×2 象限与壁纸叠合；加号菜单 → 新建待办 → 编辑器（玻璃弹层）；取消/返回后不再自动弹窗
+- 倒数日页：Hero 每秒走字（`61 天 23:54:48`）、卡片玻璃、跨年顺延（`364` / `61` 天）
+- 返回键从待办回视图；设置页与首页之间互切正常；`logcat` 无 `FATAL`/`AndroidRuntime`
 
 **下一步（按优先级）**
 
-1. 象限滚动边缘 24dp 渐隐（计划 4.1）未实现。
-2. ColorOS 原生路径：`ColorOsParallelHomeDock` 仍按 3 项渲染、`colorOsOrdinaryDockWidth()` 未同步 258dp；ColorOS 真机上索引会错位，待办 / 倒数日也不会有加号。
-3. 待办 / 倒数日直接切换，没有接 `HomeSwitchPane` 的淡入转场。
-4. 仅模拟器 + 深色主题验收过；浅色主题、横屏 / 平板、真机均未验收。带时刻的倒数日「每秒刷新」本轮没有单独截图验证。
-5. `AppDatabaseMigrationTest.migrate47To48AddsLocalTodoAndCountdownTables` 仍未跑 androidTest。
-6. `docs/plans/design-reference-todo-countdown.html` 还是改造前的低保真稿，未同步本次的控件映射。
+1. ColorOS 原生路径：`ColorOsParallelHomeDock` 仍按 3 项渲染，`colorOsOrdinaryDockWidth()` 未同步 258dp；ColorOS 真机上索引与加号会不一致。
+2. 象限滚动边缘 24dp 渐隐（计划 4.1）仍未实现。
+3. 亮壁纸上文字对比度：现在与首页一致（`HomeReadableText` 柔和投影），但极端亮部（`壁纸.jpg` 顶部白字）仍偏弱，可按需加局部压暗。
+4. `HomeMode` / `HomeStartMode` / Room 默认值**没有**扩展：用户明确不需要模式切换功能，当前页也不持久化（与日/周一致，重启回到 `defaultHomeMode`）。
+5. `AppDatabaseMigrationTest.migrate47To48` 仍未跑 androidTest；浅色主题、横屏 / 平板、真机未验收。
+6. `docs/plans/design-reference-todo-countdown.html` 还是改造前的低保真稿。
 
 **已知偏差**
 
-- 加号菜单在待办 / 倒数日上仍用首页的 `homeAnchoredOverlayBackdrop` 采样玻璃（`HomeAnchoredMorphOverlayHost` 的 `backdrop`），壁纸与页面底色差异大时可能有细微色差；若要精确可换成页面级 producer。
-- 行内删除是「左滑 + 确认弹窗」，原计划的「长按菜单」不再提供。
-- 两张新表不参与 `.sleepdown` v1 备份（按计划保留，等备份格式单独评审）。
+- 待办 / 倒数日不是 `HomeMode` 值，而是首页内容层里的独立槽位；好处是不影响 `homeMode == Week` 的大量课程逻辑（编辑器来源判定、周编辑、助手等）。
+- 行内删除仍是「左滑 + 确认弹窗」；两张新表不参与 `.sleepdown` v1 备份。
 
 **验证命令**
 
 ```powershell
 $env:JAVA_HOME='D:\JetBrains\Android Studio\jbr'
 $env:GRADLE_USER_HOME='C:\Users\TableATK\.gradle'
-.\gradlew.bat compileGithubReleaseKotlin                                  # 日常
-.\gradlew.bat assembleGithubRelease                                       # 装包（本机约 5 分钟）
+.\gradlew.bat compileGithubReleaseKotlin
+.\gradlew.bat assembleGithubRelease
 .\gradlew.bat :app:testGithubDebugUnitTest --tests '*TodoCountdownRulesTest*'
 adb -P 5038 -s emulator-5554 install -r app/build/outputs/apk/github/release/app-github-release.apk
 ```
 
-本轮实际：`compileGithubReleaseKotlin` 通过；`TodoCountdownRulesTest` 8 项全通过；`assembleGithubRelease` 4m59s 通过并覆盖安装。
-
 **代码地图**
 
-- 数据：`model/TodoModels.kt`、`data/local/TodoDaos.kt`、`data/local/AppDatabaseMigrations.kt` 的 `MIGRATION_47_48`、`AppDatabase.kt`（version 48）
-- 仓储 / VM：`data/repository/ScheduleRepository.kt`（`observeTodoItems` 等）、`app/state/ScheduleViewModel.kt`（`todoItems` / `countdownEvents` 与写操作）
-- 规则：`feature/todo/TodoRules.kt`（`settledDoneIds`）、`feature/countdown/CountdownRules.kt`（可选 `now`）
-- 页面：`feature/todo/TodoPage.kt`、`feature/countdown/CountdownPage.kt`（均复用公共控件，签名带 `config` / `composerRequest`）
-- 装配：`app/ui/AppNavigation.kt`（`Screen`）、`app/ui/AppTopBar.kt`、`app/ui/ScheduleAppUi.kt`（`todoAddActions` / `countdownAddActions`、composer 请求、页面宿主、顶栏与首页内容隐藏）
-- Dock：`feature/home/HomeDockTabs.kt`（五项 46dp）、`HomeNavigationControls.kt`（`FloatingDock`）、`ParallelHomeDock.kt`（`addCapable = selectedIndex < 4`）、`core/ui/material/HomeMaterialControls.kt`（258dp）
+- 切换器：`feature/home/HomeSwitchMotion.kt`（`HomeSwitchMotion(slot counts)`、`rememberHomeSwitchMotion(slot = …)`、`HomeSwitchPane(motion, slot = …)`、布尔重载保留）
+- 宿主：`app/ui/ScheduleAppUi.kt`（`homePageMotion`、首页页内 `Box` + 三个 `HomeSwitchPane`、顶栏淡出、`todoComposerPending` / `countdownComposerPending`）
+- 页面：`feature/todo/TodoPage.kt`、`feature/countdown/CountdownPage.kt`（`backdrop` 参数、`composerPending` + `onComposerShown`、`HomeReadableText` 页头）
+- 数据 / 规则：`model/TodoModels.kt`、`data/local/TodoDaos.kt`、`AppDatabase.kt`（version 48）、`feature/todo/TodoRules.kt`（`settledDoneIds`）、`feature/countdown/CountdownRules.kt`（可选 `now`）
+- Dock：`feature/home/HomeDockTabs.kt`（五项）、`ParallelHomeDock.kt`（`addCapable = selectedIndex < 4`）
 
 **可复用控件（本轮实际用到的入口）**
 
 | 用途 | 入口 |
 | --- | --- |
-| 页面标题栏（含右侧动作槽） | `core/ui/scaffold/DetailScaffold.kt:92 DetailTopBar`（`showBackButton = false` + `statusTopOverride = 0.dp`） |
-| 居中液态弹窗 / 确认框 | `core/ui/designsystem/SleepDownDialog.kt:534 LiquidAlertDialog`、`:722 DialogLiquidButton`、`:874 DialogCapsuleField`、`:193 CenterLiquidDialog` |
-| 编辑器 / Picker 外壳 | `core/ui/designsystem/SleepDownQuickSheet.kt:140 SleepDownPickerDialog`（分页用 `contentTransitionKey`） |
-| 弹层内按钮 | `core/ui/designsystem/SleepDownQuickSheet.kt:687 QuickSheetLiquidAction`、`SleepDownDialog.kt:501 LiquidAlertActions` |
-| 分组卡片 | `core/ui/settings/SettingsGroups.kt:32 SettingsGroup`、`:84 SettingsDivider` |
-| 行 / 开关 / 滑动删除 | `core/ui/settings/SettingsRows.kt`: `SettingsNavigationRow`、`SettingsToggleRow`、`SettingsPickerValueRow`、`:617 SettingsSwipeDeleteRow` |
-| 日期 / 时间轮 | `core/ui/settings/SettingsTimePickers.kt`: `SettingsDatePickerContent`、`SettingsTimePickerContent` |
-| 悬浮加号（Dock 共用） | `core/ui/designsystem/SleepDownFloatingAddButton.kt:25`，由 `ParallelHomeDock` + `HomeAnchoredMorphOverlayHost` 驱动 |
-| 玻璃胶囊 / 圆形按钮 | `glass/ui/GlassSurfaces.kt:233 GlassPill`、`core/ui/chrome/HomeChromeButtons.kt:173 HomeIconButton` |
+| 壁纸自适应文字 | `feature/home/day/HomeReadability.kt` `HomeReadableText` / `homeForegroundColor` |
+| 页面槽位与切换 | `feature/home/HomeSwitchMotion.kt` `rememberHomeSwitchMotion(slot)` + `HomeSwitchPane(slot)` |
+| 居中液态弹窗 / 确认框 | `SleepDownDialog.kt`: `LiquidAlertDialog`、`DialogLiquidButton`、`DialogCapsuleField` |
+| 编辑器外壳 | `SleepDownQuickSheet.kt:140 SleepDownPickerDialog`（`contentTransitionKey` 分页） |
+| 分组卡片 / 行 / 开关 / 滑动删除 | `SettingsGroups.kt SettingsGroup`、`SettingsRows.kt`（`SettingsNavigationRow` / `SettingsToggleRow` / `SettingsSwipeDeleteRow`） |
+| 日期 / 时间轮 | `SettingsTimePickers.kt` `SettingsDatePickerContent` / `SettingsTimePickerContent` |
+| Dock 加号 | `SleepDownFloatingAddButton` + `ParallelHomeDock` + `HomeAnchoredMorphOverlayHost` |
 
 ## 当前分支与目标
 

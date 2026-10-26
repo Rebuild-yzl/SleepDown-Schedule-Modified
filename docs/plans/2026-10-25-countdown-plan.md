@@ -72,6 +72,7 @@ val repeatYearly: Boolean
 ### 4.2 新建与编辑
 
 - 加号与「视图 / 课程表 / 待办」是 Dock 上的同一个控件、同一套 Morph 动效（索引 0–3 可展开），页面不再自绘 FAB。
+- 页面与待办一样是首页内容层的槽位：共用首页壁纸、页头用 `HomeReadableText`，卡片用 `SettingsGroup(backdrop = 壁纸 Backdrop)`。
 - 表单为 `SleepDownPickerDialog`，分详情页 / 日期页 / 时间页：名称 `DialogCapsuleField`、`SettingsNavigationRow`「目标日期 / 目标时间」、`SettingsToggleRow`「全天 / 每年重复 / 置顶」，日期用 `SettingsDatePickerContent`，时间用 `SettingsTimePickerContent`；分页走 `contentTransitionKey` + `contentForState`，不叠第二个弹窗。
 - 保存前校验：日期不早于今天时给"已过期"提示但不阻止（补记过去的纪念日是合理需求）。
 - 删除改为卡片左滑 → `LiquidAlertDialog` 二次确认（与待办、设置页一致），不再用长按菜单和 3 秒撤销条。
