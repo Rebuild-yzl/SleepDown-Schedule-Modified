@@ -55,12 +55,12 @@ import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalCenteredDialog
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.QuickSheetLiquidAction
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownDesignTokens
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownPickerDialog
-import com.xiaomanjun.sleepdownschedule.core.ui.scaffold.DetailTopBar
-import com.xiaomanjun.sleepdownschedule.core.ui.scaffold.settingsPageBackground
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsDatePickerContent
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsGroup
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsNavigationRow
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsSwipeDeleteRow
+import com.xiaomanjun.sleepdownschedule.feature.home.day.HomeReadableText
+import com.xiaomanjun.sleepdownschedule.feature.home.day.homeForegroundColor
 import com.xiaomanjun.sleepdownschedule.model.TodoItemEntity
 import com.xiaomanjun.sleepdownschedule.model.TodoQuadrant
 import java.time.DayOfWeek
@@ -94,8 +94,10 @@ private fun weekdayLabel(day: DayOfWeek): String = when (day) {
 internal fun TodoPage(
     items: List<TodoItemEntity>,
     config: ScheduleConfigEntity,
+    backdrop: Backdrop?,
     bottomInset: Dp,
-    composerRequest: Int,
+    composerPending: Boolean,
+    onComposerShown: () -> Unit,
     onSave: (TodoItemEntity) -> Unit,
     onToggleDone: (TodoItemEntity) -> Unit,
     onDelete: (TodoItemEntity) -> Unit,
@@ -120,8 +122,10 @@ internal fun TodoPage(
     var showCompleted by remember { mutableStateOf(false) }
 
     // Dock 上的共用加号通过菜单请求新建；菜单完全收起后才挂载编辑器。
-    LaunchedEffect(composerRequest) {
-        if (composerRequest > 0) creating = true
+    LaunchedEffect(composerPending) {
+        if (!composerPending) return@LaunchedEffect
+        creating = true
+        onComposerShown()
     }
 
     val visible = remember(items, filterDate) {
@@ -131,34 +135,39 @@ internal fun TodoPage(
     val unfinished = unfinishedCount(items)
     val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val dialogBackdrop = LocalCenteredDialogSceneBackdrop.current
+    val textColor = homeForegroundColor(config)
 
-    Box(modifier.fillMaxSize().background(settingsPageBackground(config))) {
+    // 页内页面：不铺自己的底色，壁纸与切换动效都由首页宿主提供。
+    Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            DetailTopBar(
-                title = "待办",
-                config = config,
-                backdrop = null,
-                onBack = {},
-                showBackButton = false,
-                statusTopOverride = 0.dp,
-                backButtonStartPadding = 16.dp,
-                actions = {
-                    Box(Modifier.padding(end = 10.dp)) {
-                        DialogLiquidButton(
-                            backdrop = null,
-                            label = "已完成",
-                            onClick = { showCompleted = true },
-                            role = DialogButtonRole.Neutral,
-                            height = 34.dp,
-                            horizontalPadding = 14.dp
-                        )
-                    }
-                }
-            )
-            Text(
+            Row(
+                modifier = Modifier.fillMaxWidth().height(58.dp).padding(start = 16.dp, end = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HomeReadableText(
+                    text = "待办",
+                    color = textColor,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.weight(1f))
+                DialogLiquidButton(
+                    backdrop = backdrop,
+                    label = "已完成",
+                    onClick = { showCompleted = true },
+                    role = DialogButtonRole.Neutral,
+                    monochromeNeutral = true,
+                    height = 34.dp,
+                    horizontalPadding = 14.dp,
+                    blurRadius = 8.dp,
+                    shadowEnabled = false
+                )
+            }
+            HomeReadableText(
                 text = "${today.monthValue}月${today.dayOfMonth}日 周${weekdayLabel(today.dayOfWeek)} · 共 ${unfinished} 项待办",
+                color = textColor.copy(alpha = 0.72f),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
                 modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 6.dp)
             )
             Row(
@@ -179,13 +188,18 @@ internal fun TodoPage(
                             .padding(vertical = 6.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            weekdayLabel(date.dayOfWeek), fontSize = 10.5.sp,
-                            color = if (selected) accent else MaterialTheme.colorScheme.onSurfaceVariant
+                        HomeReadableText(
+                            text = weekdayLabel(date.dayOfWeek),
+                            color = if (selected) accent else textColor.copy(alpha = 0.7f),
+                            fontSize = 10.5.sp,
+                            maxLines = 1
                         )
-                        Text(
-                            "${date.dayOfMonth}", fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-                            color = if (selected) accent else MaterialTheme.colorScheme.onSurface
+                        HomeReadableText(
+                            text = "${date.dayOfMonth}",
+                            color = if (selected) accent else textColor,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1
                         )
                         Box(
                             Modifier.padding(top = 2.dp).size(4.dp).clip(CircleShape).background(
@@ -205,24 +219,24 @@ internal fun TodoPage(
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     QuadrantCard(
                         TodoQuadrant.IMPORTANT_URGENT, grouped.getValue(TodoQuadrant.IMPORTANT_URGENT),
-                        today, zone, config, Modifier.weight(1f).fillMaxHeight(),
+                        today, zone, config, backdrop, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                     QuadrantCard(
                         TodoQuadrant.IMPORTANT_NOT_URGENT, grouped.getValue(TodoQuadrant.IMPORTANT_NOT_URGENT),
-                        today, zone, config, Modifier.weight(1f).fillMaxHeight(),
+                        today, zone, config, backdrop, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                 }
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     QuadrantCard(
                         TodoQuadrant.URGENT_NOT_IMPORTANT, grouped.getValue(TodoQuadrant.URGENT_NOT_IMPORTANT),
-                        today, zone, config, Modifier.weight(1f).fillMaxHeight(),
+                        today, zone, config, backdrop, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                     QuadrantCard(
                         TodoQuadrant.NEITHER, grouped.getValue(TodoQuadrant.NEITHER),
-                        today, zone, config, Modifier.weight(1f).fillMaxHeight(),
+                        today, zone, config, backdrop, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                 }
@@ -325,13 +339,14 @@ private fun QuadrantCard(
     today: LocalDate,
     zone: ZoneId,
     config: ScheduleConfigEntity,
+    backdrop: Backdrop?,
     modifier: Modifier,
     onToggleDone: (TodoItemEntity) -> Unit,
     onEdit: (TodoItemEntity) -> Unit,
     onDelete: (TodoItemEntity) -> Unit
 ) {
     val accent = QuadrantAccents.getValue(quadrant)
-    SettingsGroup(backdrop = null, config = config, modifier = modifier) {
+    SettingsGroup(backdrop = backdrop, config = config, modifier = modifier) {
         Column(Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 11.dp),

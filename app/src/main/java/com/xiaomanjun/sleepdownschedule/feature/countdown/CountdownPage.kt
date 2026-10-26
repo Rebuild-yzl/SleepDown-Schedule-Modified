@@ -46,8 +46,6 @@ import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalCenteredDialog
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.QuickSheetLiquidAction
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownDesignTokens
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownPickerDialog
-import com.xiaomanjun.sleepdownschedule.core.ui.scaffold.DetailTopBar
-import com.xiaomanjun.sleepdownschedule.core.ui.scaffold.settingsPageBackground
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsDatePickerContent
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsDivider
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsGroup
@@ -55,6 +53,8 @@ import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsNavigationRow
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsSwipeDeleteRow
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsTimePickerContent
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsToggleRow
+import com.xiaomanjun.sleepdownschedule.feature.home.day.HomeReadableText
+import com.xiaomanjun.sleepdownschedule.feature.home.day.homeForegroundColor
 import com.xiaomanjun.sleepdownschedule.model.CountdownEventEntity
 import java.time.Duration
 import java.time.LocalDate
@@ -71,8 +71,10 @@ import kotlinx.coroutines.delay
 internal fun CountdownPage(
     events: List<CountdownEventEntity>,
     config: ScheduleConfigEntity,
+    backdrop: Backdrop?,
     bottomInset: Dp,
-    composerRequest: Int,
+    composerPending: Boolean,
+    onComposerShown: () -> Unit,
     onSave: (CountdownEventEntity) -> Unit,
     onDelete: (Long) -> Unit,
     modifier: Modifier = Modifier
@@ -95,8 +97,10 @@ internal fun CountdownPage(
         }
     }
     // Dock 上的共用加号通过菜单请求新建；菜单完全收起后才挂载编辑器。
-    LaunchedEffect(composerRequest) {
-        if (composerRequest > 0) creating = true
+    LaunchedEffect(composerPending) {
+        if (!composerPending) return@LaunchedEffect
+        creating = true
+        onComposerShown()
     }
 
     val sorted = remember(events, today, now.hour, now.minute) {
@@ -107,18 +111,22 @@ internal fun CountdownPage(
     }
     val heroDate = hero?.let { countdownDate(it, today, now) }
     val dialogBackdrop = LocalCenteredDialogSceneBackdrop.current
+    val textColor = homeForegroundColor(config)
 
-    Box(modifier.fillMaxSize().background(settingsPageBackground(config))) {
+    // 页内页面：不铺自己的底色，壁纸与切换动效都由首页宿主提供。
+    Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            DetailTopBar(
-                title = "倒数日",
-                config = config,
-                backdrop = null,
-                onBack = {},
-                showBackButton = false,
-                statusTopOverride = 0.dp,
-                backButtonStartPadding = 16.dp
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().height(58.dp).padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HomeReadableText(
+                    text = "倒数日",
+                    color = textColor,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
@@ -130,14 +138,14 @@ internal fun CountdownPage(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 item(key = "countdown-hero") {
-                    HeroPanel(hero, heroDate, today, now, config)
+                    HeroPanel(hero, heroDate, today, now, config, backdrop)
                 }
                 if (sorted.isEmpty()) {
                     item(key = "countdown-empty") {
-                        Text(
-                            "还没有倒数日，点 Dock 上的加号添加",
+                        HomeReadableText(
+                            text = "还没有倒数日，点 Dock 上的加号添加",
+                            color = textColor.copy(alpha = 0.75f),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
                         )
@@ -150,6 +158,7 @@ internal fun CountdownPage(
                             now = now,
                             zone = zone,
                             config = config,
+                            backdrop = backdrop,
                             onEdit = { editorTarget = event },
                             onDelete = { deleteTarget = event }
                         )
@@ -199,9 +208,10 @@ private fun HeroPanel(
     date: LocalDate?,
     today: LocalDate,
     now: LocalDateTime,
-    config: ScheduleConfigEntity
+    config: ScheduleConfigEntity,
+    backdrop: Backdrop?
 ) {
-    SettingsGroup(backdrop = null, config = config, modifier = Modifier.fillMaxWidth()) {
+    SettingsGroup(backdrop = backdrop, config = config, modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -282,6 +292,7 @@ private fun CountdownCard(
     now: LocalDateTime,
     zone: ZoneId,
     config: ScheduleConfigEntity,
+    backdrop: Backdrop?,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -295,7 +306,7 @@ private fun CountdownCard(
         onRequestDelete = onDelete,
         softAppearance = true
     ) {
-        SettingsGroup(backdrop = null, config = config, modifier = Modifier.fillMaxWidth()) {
+        SettingsGroup(backdrop = backdrop, config = config, modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
