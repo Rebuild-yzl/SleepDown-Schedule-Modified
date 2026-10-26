@@ -125,6 +125,11 @@
 - 待办 / 倒数日不是 `HomeMode` 值，而是首页内容层里的独立槽位；好处是不影响 `homeMode == Week` 的大量课程逻辑（编辑器来源判定、周编辑、助手等）。
 - 行内删除仍是「左滑 + 确认弹窗」；两张新表不参与 `.sleepdown` v1 备份。
 
+**待办与倒数日的备份支持（暂缓，2026-10-26 用户决定）**
+
+- 现状：`.sleepdown` v1 的 `BackupData` 只有 schedules / widgetAppearances / sharedPeriodSchemes；`feature/backup` 包内没有任何 `todo` 引用，恢复事务也只替换课表相关表，不会删除或写入 `todo_items` / `countdown_events`。所以备份带不走这两类数据，但恢复也不会清掉它们。
+- 若之后要做：按 `docs/migration/BACKUP_FORMAT_V1.md` §8「明确定义为 optional 的新字段：v1 parser 忽略」增加两个可选列表（稳定 ID `todo_<uuid>` / `event_<uuid>`），保持 `dataVersion = 1`；恢复仍走 Replace，需要把两张表纳入替换集并在预览里写明；或者把 `dataVersion` 升到 2、新版接受 1..2，让旧版明确拒绝而不是静默丢段。测试需覆盖新包→新库、旧包→新库、脏行处理。
+
 **验证命令**
 
 ```powershell
