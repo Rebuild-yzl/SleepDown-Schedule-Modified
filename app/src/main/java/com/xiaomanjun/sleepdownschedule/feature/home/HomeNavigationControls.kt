@@ -66,7 +66,6 @@ import com.xiaomanjun.sleepdownschedule.core.ui.chrome.HomeLightGlassSurfaceColo
 import com.xiaomanjun.sleepdownschedule.core.ui.chrome.homeActionIconPainter
 import com.xiaomanjun.sleepdownschedule.core.ui.interaction.dockImeCompensationPx
 import com.xiaomanjun.sleepdownschedule.core.ui.interaction.excludeParentPullGesture
-import com.xiaomanjun.sleepdownschedule.core.ui.material.LocalHomeMaterialControls
 import com.xiaomanjun.sleepdownschedule.glass.ui.GlassLens
 import com.xiaomanjun.sleepdownschedule.glass.ui.GlassPill
 import com.xiaomanjun.sleepdownschedule.glass.ui.LocalAdaptiveGlass

@@ -1,6 +1,5 @@
 package com.xiaomanjun.sleepdownschedule.feature.countdown
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,9 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.Backdrop
 import com.xiaomanjun.sleepdownschedule.ScheduleConfigEntity
-import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.DialogButtonRole
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.DialogCapsuleField
-import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.DialogLiquidButton
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LiquidAlertAction
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LiquidAlertActionStyle
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LiquidAlertDialog
@@ -63,7 +60,6 @@ import com.xiaomanjun.sleepdownschedule.model.CountdownEventEntity
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.ZoneId
 import kotlinx.coroutines.delay
 
