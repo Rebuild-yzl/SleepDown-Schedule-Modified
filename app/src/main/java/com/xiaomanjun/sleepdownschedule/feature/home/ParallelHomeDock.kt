@@ -44,9 +44,7 @@ import com.xiaomanjun.sleepdownschedule.core.ui.material.LocalHomeMaterialStyle
 import com.xiaomanjun.sleepdownschedule.glass.ui.LocalAdaptiveGlass
 import com.xiaomanjun.sleepdownschedule.glass.ui.appUsesDarkTheme
 import com.xiaomanjun.sleepdownschedule.glass.withRecordingDensity
-import kotlin.math.PI
 import kotlin.math.roundToInt
-import kotlin.math.sin
 
 internal val HomeImportButtonColor = Color(0xFF007AFF)
 internal fun homeImportButtonGlassColor(light: Boolean): Color =
@@ -123,20 +121,23 @@ internal fun ParallelHomeDock(
     BoxWithConstraints(modifier.fillMaxSize()) {
         // COUI's expansion view uses a 12dp edge-to-edge gap. Keep the same resting
         // spacing in liquid glass, including when a narrow window reduces the dock.
-        // 五项：5×50 + 内边距 8 = 258；加号 52 + 间距 8。
-        val groupWidth = minOf(318.dp, maxWidth - 36.dp)
-        val dockWidth = minOf(258.dp, groupWidth - 52.dp - 8.dp)
+        // 条与加号共用同一套 Dock 尺寸：条高、胶囊半径与加号直径都由项数推导。
+        val metrics = remember { HomeDockMetrics.forCount(5) }
+        val plusSize = metrics.addButtonSize
+        val plusGap = 8.dp
+        val groupWidth = minOf(metrics.width + plusGap + plusSize, maxWidth - 36.dp)
+        val dockWidth = minOf(metrics.width, groupWidth - plusGap - plusSize)
         val dockTop = 24.dp
-        val dockBounds = remember(density, groupWidth, dockWidth) {
+        val dockBounds = remember(density, groupWidth, dockWidth, metrics) {
             derivedStateOf { with(density) {
                 val s = split.value.coerceIn(0f, 1f)
                 val dockX = ((groupWidth - dockWidth) / 2).toPx() * (1f - s)
-                Rect(dockX, dockTop.toPx(), dockX + dockWidth.toPx(), dockTop.toPx() + 46.dp.toPx())
+                Rect(dockX, dockTop.toPx(), dockX + dockWidth.toPx(), dockTop.toPx() + metrics.height.toPx())
             } }
         }
         val buttonInteractive = addCapable && splitReady && !buttonHidden
         Box(Modifier.align(Alignment.BottomCenter).padding(bottom = bottomInset + 8.dp)
-            .width(groupWidth).height(dockTop + 46.dp).graphicsLayer { translationY = imeCompensation.toFloat() }) {
+            .width(groupWidth).height(dockTop + metrics.height).graphicsLayer { translationY = imeCompensation.toFloat() }) {
             // Keep the original LiquidButton mounted throughout the split. Its glass, shadow,
             // refraction and press response use the same renderer at rest and while travelling.
             // Clip its returning part behind the Dock even though the Dock itself is translucent.
@@ -154,10 +155,17 @@ internal fun ParallelHomeDock(
                         val s = split.value.coerceIn(0f, 1f)
                         val body = dockBounds.value
                         IntOffset(
-                            lerp(body.right - 52.dp.toPx(), (groupWidth - 52.dp).toPx(), s).roundToInt(),
-                            (body.top - 3.dp.toPx() * sin(PI * s).toFloat()).roundToInt()
+                            lerp(body.right - plusSize.toPx(), (groupWidth - plusSize).toPx(), s).roundToInt(),
+                            body.top.roundToInt()
                         )
-                    }.size(52.dp)
+                    }.graphicsLayer {
+                        // 设置页没有加号：让它一边缩进条内、一边淡出，而不是整块贴在玻璃后面漏边。
+                        val progress = split.value.coerceIn(0f, 1f)
+                        val keep = 0.62f + 0.38f * progress
+                        scaleX = keep
+                        scaleY = keep
+                        alpha = progress
+                    }.size(plusSize)
                         .onGloballyPositioned { buttonBounds = it.boundsInRoot() }
                         .drawWithContent {
                             // Hidden disables LiquidButton's press transform. Record that resting
@@ -176,7 +184,7 @@ internal fun ParallelHomeDock(
                         .then(if (buttonInteractive) Modifier.semantics { testTag = "parallel_import_button" }
                             else Modifier.clearAndSetSemantics {}),
                     surfaceColor = plusSurface, sharedInteractiveHighlight = plusInteraction,
-                    blurRadius = homeChromeBlur(1.3.dp, config))
+                    blurRadius = homeChromeBlur(1.3.dp, config), size = plusSize)
             }
             CompositionLocalProvider(LocalContentColor provides ink) {
                 HomeDockTabs(selectedIndex, config, backdrop, light,

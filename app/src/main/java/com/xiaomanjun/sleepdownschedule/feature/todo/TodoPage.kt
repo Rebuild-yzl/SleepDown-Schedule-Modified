@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -56,11 +57,14 @@ import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.QuickSheetLiquidAct
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownDesignTokens
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownPickerDialog
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsDatePickerContent
-import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsGroup
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsNavigationRow
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsSwipeDeleteRow
+import com.xiaomanjun.sleepdownschedule.core.ui.text.CourseCardText
+import com.xiaomanjun.sleepdownschedule.feature.home.LocalHomePaneVisible
 import com.xiaomanjun.sleepdownschedule.feature.home.day.HomeReadableText
 import com.xiaomanjun.sleepdownschedule.feature.home.day.homeForegroundColor
+import com.xiaomanjun.sleepdownschedule.glass.ui.CourseGlassCard
+import com.kyant.shapes.RoundedRectangle
 import com.xiaomanjun.sleepdownschedule.model.TodoItemEntity
 import com.xiaomanjun.sleepdownschedule.model.TodoQuadrant
 import java.time.DayOfWeek
@@ -105,11 +109,15 @@ internal fun TodoPage(
     modifier: Modifier = Modifier
 ) {
     val zone = remember { ZoneId.systemDefault() }
+    // 预热中的隐藏页不走到点刷新；只在真正可见时挂载这枚分钟级时钟。
+    val paneVisible = LocalHomePaneVisible.current
     var today by remember { mutableStateOf(LocalDate.now(zone)) }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(paneVisible.value) {
+        if (!paneVisible.value) return@LaunchedEffect
+        today = LocalDate.now(zone)
         while (true) {
-            today = LocalDate.now(zone)
             delay(60_000)
+            today = LocalDate.now(zone)
         }
     }
     // 进入页面时的完成快照：本次新勾选的项仍按未完成的位置排序，行不会自己滑走。
@@ -219,24 +227,24 @@ internal fun TodoPage(
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     QuadrantCard(
                         TodoQuadrant.IMPORTANT_URGENT, grouped.getValue(TodoQuadrant.IMPORTANT_URGENT),
-                        today, zone, config, backdrop, Modifier.weight(1f).fillMaxHeight(),
+                        today, zone, config, backdrop, textColor, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                     QuadrantCard(
                         TodoQuadrant.IMPORTANT_NOT_URGENT, grouped.getValue(TodoQuadrant.IMPORTANT_NOT_URGENT),
-                        today, zone, config, backdrop, Modifier.weight(1f).fillMaxHeight(),
+                        today, zone, config, backdrop, textColor, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                 }
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     QuadrantCard(
                         TodoQuadrant.URGENT_NOT_IMPORTANT, grouped.getValue(TodoQuadrant.URGENT_NOT_IMPORTANT),
-                        today, zone, config, backdrop, Modifier.weight(1f).fillMaxHeight(),
+                        today, zone, config, backdrop, textColor, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                     QuadrantCard(
                         TodoQuadrant.NEITHER, grouped.getValue(TodoQuadrant.NEITHER),
-                        today, zone, config, backdrop, Modifier.weight(1f).fillMaxHeight(),
+                        today, zone, config, backdrop, textColor, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                 }
@@ -340,31 +348,40 @@ private fun QuadrantCard(
     zone: ZoneId,
     config: ScheduleConfigEntity,
     backdrop: Backdrop?,
+    ink: Color,
     modifier: Modifier,
     onToggleDone: (TodoItemEntity) -> Unit,
     onEdit: (TodoItemEntity) -> Unit,
     onDelete: (TodoItemEntity) -> Unit
 ) {
     val accent = QuadrantAccents.getValue(quadrant)
-    SettingsGroup(backdrop = backdrop, config = config, modifier = modifier) {
+    // 复用课程卡的玻璃：卡片颜色、透明度、模糊/折射、字体缩放都跟随首页材质设置，
+    // 也共用首页那条壁纸模糊管线，不再各自建一套面板材质。
+    CourseGlassCard(
+        backdrop = backdrop,
+        config = config,
+        modifier = modifier,
+        shape = RoundedRectangle(24.dp)
+    ) {
         Column(Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 11.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
+                CourseCardText(
                     quadrant.label,
+                    color = ink,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
-                Text(
+                CourseCardText(
                     "${unfinishedCount(items)}",
+                    color = ink.copy(alpha = 0.72f),
                     style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    fontWeight = FontWeight.SemiBold
                 )
             }
             Box(
@@ -376,10 +393,10 @@ private fun QuadrantCard(
             )
             Spacer(Modifier.height(4.dp))
             if (items.isEmpty()) {
-                Text(
+                CourseCardText(
                     "暂无待办",
+                    color = ink.copy(alpha = 0.66f),
                     fontSize = 11.5.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                 )
             } else {
@@ -388,7 +405,7 @@ private fun QuadrantCard(
                     contentPadding = PaddingValues(bottom = 6.dp)
                 ) {
                     items(items, key = { it.id }) { item ->
-                        TodoRow(item, today, zone, onToggleDone, onEdit, onDelete)
+                        TodoRow(item, today, zone, ink, onToggleDone, onEdit, onDelete)
                     }
                 }
             }
@@ -401,12 +418,14 @@ private fun TodoRow(
     item: TodoItemEntity,
     today: LocalDate,
     zone: ZoneId,
+    ink: Color,
     onToggleDone: (TodoItemEntity) -> Unit,
     onEdit: (TodoItemEntity) -> Unit,
     onDelete: (TodoItemEntity) -> Unit
 ) {
     val done = item.isDone
-    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val muted = ink.copy(alpha = 0.62f)
+    val checkOnInk = if (ink.luminance() > 0.5f) Color(0xFF1C1C1E) else Color.White
     SettingsSwipeDeleteRow(
         rowKey = item.id,
         onRequestDelete = { onDelete(item) },
@@ -427,7 +446,7 @@ private fun TodoRow(
                     .background(if (done) muted else Color.Transparent)
                     .border(
                         1.5.dp,
-                        if (done) Color.Transparent else muted.copy(alpha = 0.55f),
+                        if (done) Color.Transparent else muted.copy(alpha = 0.8f),
                         CircleShape
                     )
                     .clickable { onToggleDone(item) },
@@ -437,27 +456,27 @@ private fun TodoRow(
                     Icon(
                         Icons.Rounded.Check,
                         contentDescription = "取消完成",
-                        tint = MaterialTheme.colorScheme.surface,
+                        tint = checkOnInk,
                         modifier = Modifier.padding(3.dp)
                     )
                 }
             }
             Spacer(Modifier.width(9.dp))
             Column(Modifier.weight(1f)) {
-                Text(
+                CourseCardText(
                     text = item.title,
                     fontSize = 14.5.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     textDecoration = if (done) TextDecoration.LineThrough else null,
-                    color = if (done) muted.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurface
+                    color = if (done) muted else ink
                 )
                 val meta = if (done) item.doneAt?.let { todoDoneLabel(it, today, zone) }
                 else todoDueMeta(item, today)?.text
                 if (meta != null) {
                     val level = if (done) null else todoDueMeta(item, today)?.level
-                    Text(
+                    CourseCardText(
                         meta,
                         fontSize = 11.sp,
                         color = when (level) {

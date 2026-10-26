@@ -548,6 +548,9 @@ fun CourseScheduleAppUi(
         },
         label = "home-pages",
         animate = !rootPageMotion.landscape || !rootPageMotion.moving,
+        // A Dock page swap is one page slide; the timetable's per-card stagger stays inside
+        // the day ↔ week switch, where cards genuinely belong to different views.
+        plainSlide = true,
         renderedCardCount = { maxOf(dayRenderedCardCount, weekRenderedCardCount) }
     )
     val rootPageStateHolder = rememberSaveableStateHolder()
@@ -3105,7 +3108,7 @@ if (visualState.loaded) HomeScreen(
                                     }
                                 )
                         }
-                        HomeSwitchPane(homePageMotion, slot = 1, modifier = Modifier.fillMaxSize()) {
+                        HomeSwitchPane(homePageMotion, slot = 1, modifier = Modifier.fillMaxSize(), retainContent = true) {
                             TodoPage(
                                 items = todoItems,
                                 config = state.config,
@@ -3119,7 +3122,7 @@ if (visualState.loaded) HomeScreen(
                                 onClearCompleted = { viewModel.clearCompletedTodoItems() }
                             )
                         }
-                        HomeSwitchPane(homePageMotion, slot = 2, modifier = Modifier.fillMaxSize()) {
+                        HomeSwitchPane(homePageMotion, slot = 2, modifier = Modifier.fillMaxSize(), retainContent = true) {
                             CountdownPage(
                                 events = countdownEvents,
                                 config = state.config,

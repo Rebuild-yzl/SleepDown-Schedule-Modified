@@ -68,6 +68,8 @@ internal class HomeSwitchMotion(
     private val targetSlot: State<Int>,
     val landscape: Boolean = false,
     private val fullMotion: Boolean = false,
+    // Indexed page switches run as one non-bouncy page slide; the timetable keeps its stagger.
+    private val forcePlainSlide: Boolean = false,
     private val renderedCardCount: () -> Int = { 0 }
 ) {
     private val page = Animatable(initialSlot.toFloat())
@@ -85,7 +87,8 @@ internal class HomeSwitchMotion(
     val plainSlide: Boolean by derivedStateOf(structuralEqualityPolicy()) {
         if (running) latchedPlainSlide else shouldUsePlainSlide()
     }
-    private fun shouldUsePlainSlide() = !fullMotion && renderedCardCount() > 10
+    private fun shouldUsePlainSlide() =
+        forcePlainSlide || (!fullMotion && renderedCardCount() > 10)
     val progress: State<Float> = page.asState()
     val moving: Boolean get() = running || settledSlot != targetSlot.value
 
@@ -185,11 +188,13 @@ internal fun rememberHomeSwitchMotion(
     secondary: Boolean,
     label: String,
     animate: Boolean = true,
+    plainSlide: Boolean = false,
     renderedCardCount: () -> Int = { 0 }
 ): HomeSwitchMotion = rememberHomeSwitchMotion(
     slot = if (secondary) 1 else 0,
     label = label,
     animate = animate,
+    plainSlide = plainSlide,
     renderedCardCount = renderedCardCount
 )
 
@@ -202,6 +207,7 @@ internal fun rememberHomeSwitchMotion(
     slot: Int,
     label: String,
     animate: Boolean = true,
+    plainSlide: Boolean = false,
     renderedCardCount: () -> Int = { 0 }
 ): HomeSwitchMotion {
     val target = rememberUpdatedState(slot)
@@ -209,8 +215,8 @@ internal fun rememberHomeSwitchMotion(
     val configuration = LocalConfiguration.current
     val landscape = configuration.screenWidthDp > configuration.screenHeightDp
     val fullMotion = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode.current != null
-    val motion = remember(label, landscape, fullMotion) {
-        HomeSwitchMotion(slot, target, landscape, fullMotion) { latestCardCount.value() }
+    val motion = remember(label, landscape, fullMotion, plainSlide) {
+        HomeSwitchMotion(slot, target, landscape, fullMotion, plainSlide) { latestCardCount.value() }
     }
     LaunchedEffect(motion, slot, animate) {
         if (animate) motion.animateTo(slot) else motion.settleAt(slot)

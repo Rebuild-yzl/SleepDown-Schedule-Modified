@@ -29,6 +29,7 @@ internal fun SleepDownFloatingAddButton(
     surfaceColor: Color,
     blurRadius: Dp,
     modifier: Modifier = Modifier,
+    size: Dp = 54.dp,
     enabled: Boolean = true,
     sharedInteractiveHighlight: InteractiveHighlight? = null
 ) {
@@ -39,18 +40,18 @@ internal fun SleepDownFloatingAddButton(
     }
     val content: @Composable () -> Unit = {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Add, contentDescription, Modifier.size(24.dp), tint = Color.White)
+            Icon(Icons.Rounded.Add, contentDescription, Modifier.size(size * 0.45f), tint = Color.White)
         }
     }
     if (backdrop != null) {
         LiquidButton(
             onClick = click,
             backdrop = backdrop,
-            modifier = modifier.size(54.dp),
+            modifier = modifier.size(size),
             isInteractive = enabled,
             clickTargetEnabled = enabled,
             enabled = enabled,
-            height = 54.dp,
+            height = size,
             contentPadding = PaddingValues(0.dp),
             surfaceColor = surfaceColor,
             sharedInteractiveHighlight = sharedInteractiveHighlight,
@@ -64,7 +65,7 @@ internal fun SleepDownFloatingAddButton(
         Surface(
             onClick = click,
             enabled = enabled,
-            modifier = modifier.size(54.dp),
+            modifier = modifier.size(size),
             shape = Capsule(),
             color = surfaceColor
         ) { content() }

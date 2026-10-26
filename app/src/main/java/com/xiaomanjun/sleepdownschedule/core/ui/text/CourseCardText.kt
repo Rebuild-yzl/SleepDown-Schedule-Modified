@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -49,6 +50,7 @@ internal fun CourseCardText(
     textAlign: TextAlign? = null,
     maxLines: Int = Int.MAX_VALUE,
     overflow: TextOverflow = TextOverflow.Clip,
+    textDecoration: TextDecoration? = null,
     adaptiveContrast: Boolean = true
 ) {
     // The parent resolves the course hue once. Metadata uses the same opaque ink as the
@@ -186,6 +188,7 @@ internal fun CourseCardText(
         textAlign = textAlign,
         maxLines = maxLines,
         overflow = overflow,
+        textDecoration = textDecoration,
         onTextLayout = onLayout
     )
 }

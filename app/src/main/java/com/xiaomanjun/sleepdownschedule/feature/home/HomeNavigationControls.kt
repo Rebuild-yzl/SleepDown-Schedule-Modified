@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -263,7 +264,12 @@ fun DockBackdropContinuityPatch(config: ScheduleConfigEntity, modifier: Modifier
 }
 
 @Composable
-internal fun DockTabContent(iconRes: Int, label: String, iconSize: Dp) {
+internal fun DockTabContent(
+    iconRes: Int,
+    label: String,
+    iconSize: Dp,
+    labelFontSize: TextUnit = 9.5.sp
+) {
     Column(
         modifier = Modifier
             .fillMaxHeight()
@@ -272,20 +278,28 @@ internal fun DockTabContent(iconRes: Int, label: String, iconSize: Dp) {
         verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.CenterVertically)
     ) {
         Icon(homeActionIconPainter(iconRes), contentDescription = null, modifier = Modifier.size(iconSize))
-        Text(label, fontSize = 9.5.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(label, fontSize = labelFontSize, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }
 
 @Composable
-fun DockItem(selected: Boolean, backdrop: Backdrop?, config: ScheduleConfigEntity, iconRes: Int, label: String, onClick: () -> Unit) {
+internal fun DockItem(
+    selected: Boolean,
+    backdrop: Backdrop?,
+    config: ScheduleConfigEntity,
+    iconRes: Int,
+    label: String,
+    metrics: HomeDockMetrics = HomeDockMetrics.forCount(5),
+    onClick: () -> Unit
+) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     Box(
         modifier = Modifier
             .clip(Capsule())
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .height(38.dp)
-            .width(50.dp),
+            .height(metrics.itemHeight)
+            .width(metrics.itemWidth),
         contentAlignment = Alignment.Center
     ) {
         if (pressed) {
@@ -297,12 +311,17 @@ fun DockItem(selected: Boolean, backdrop: Backdrop?, config: ScheduleConfigEntit
             )
         }
         Column(
-            modifier = Modifier.padding(vertical = 3.dp),
+            modifier = Modifier.padding(vertical = metrics.edgePadding * 0.75f),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)
         ) {
-            Icon(homeActionIconPainter(iconRes), contentDescription = null, modifier = Modifier.size(18.dp))
-            Text(label, fontSize = 9.5.sp, maxLines = 1, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+            Icon(homeActionIconPainter(iconRes), contentDescription = null, modifier = Modifier.size(metrics.iconSize))
+            Text(
+                label,
+                fontSize = metrics.labelFontSize,
+                maxLines = 1,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+            )
         }
     }
 }

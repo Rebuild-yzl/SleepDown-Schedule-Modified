@@ -21,7 +21,39 @@
 | `3b047b60` | 交接：记下「复用原版控件」「共用加号」两条要求 |
 | `292f8952` | 两页改用公共控件、加号与首页共用、完成不重排、倒数日跨年顺延 |
 | `57f4d34d` | 文档：实现现状、控件映射、下一步 |
-| 本轮（`git log -1`） | 待办 / 倒数日改为首页页内槽位，共用壁纸与切换动效 |
+| `7479d023` | 待办 / 倒数日改为首页页内槽位，共用壁纸与切换动效 |
+| `a90805f6` | 交接：槽位架构、验证与剩余缺口 |
+| 本次提交（`git log -1`） | 卡片复用课程玻璃、Dock 尺寸随项数推导、切换性能测量 |
+
+**本次修正：材质复用、Dock 尺寸与切换性能（2026-10-26 晚）**
+
+用户指出三个问题：新页面「空间是黑色的」、没有真正复用原版材质；Dock 高度变小但加号没变、切到设置页加号从条后漏边；页面切换有明显卡顿。逐条处理：
+
+1. **材质复用**：象限卡与倒数卡原来用 `SettingsGroup` → `LiquidPanel`，它按 `appUsesDarkTheme(config)` 取固定的 0x1C1C1E / White 表面色，和首页卡片的颜色、透明度、模糊/折射、字体缩放完全无关——深色配置下看起来就是黑块。现在两页改用 `glass/ui/CourseGlassCard`（与日/周课程卡同一张玻璃、同一条壁纸模糊管线、同一个 `LocalCourseTextBackground` 投影），文字改用 `core/ui/text/CourseCardText`；`CourseCardText` 补了 `textDecoration` 参数以保留完成态划线。
+2. **Dock 与加号**：新增 `feature/home/HomeDockMetrics.kt`，按项数推导条高（5 项 46dp、每少一项 +4dp）、单元宽（50/46 比例）、圆角（=高/2）与加号直径（=条高）；`HomeDockTabs`、`ParallelHomeDock`、`DockItem`、`SleepDownFloatingAddButton(size = …)` 共用这一套。设置页没有加号时，加号按 split 缩到 0.62 并淡出，不再整块藏在半透明条后面漏边。
+3. **切换**：`homePageMotion` 改为 plain slide（页面级一次平移，不再做日/周的逐卡错位），两页 `retainContent = true` 空闲 200ms 后预热合成，隐藏页的日期/秒表时钟按 `LocalHomePaneVisible` 停走。
+
+**性能测量（模拟器 `emulator-5554`，Pixel_10a / Android 17，release 包）**
+
+- 方法：`dumpsys gfxinfo reset` 后连续切 6 次页面取汇总；再用 `gfxinfo framestats` 拆 UI 线程 / RenderThread。
+- 结果：页面切换 25%（p50 29ms、p90 81ms）；逐帧 **UI 线程均值 15.2ms（p90 47ms）、RenderThread 均值 38.6ms（p90 90.7ms）、整帧 57.6ms**。首页↔设置（跨 Activity）对照只有 6.7%。
+- 结论：瓶颈在 GPU 合成大块玻璃表面，不在重组；两页都是整屏玻璃，所以「视图↔待办」与「待办↔倒数日」几乎一样慢。
+- 已试并**撤回**：让正在离开的页冻结玻璃采样（`coordinatesFrozen` + 固定 `sampleKey`）反而更差（32.6%、p50 34ms），说明成本是每帧合成大块玻璃层，不是重算采样，这个方向不要重复。
+- 未做、需要取舍：①切换期间把两页录成 `GraphicsLayer` 快照再平移 / 交叉淡入（真正的位图合成，最可能根治）；②把四个象限 / 倒数列表合成一张玻璃面板。两者都改变视觉或交互，先不要擅自选。
+- 用户贴的「Glass 场景六阶段生命周期」与当前代码不符：`GlassRenderPhase` 只有 Preparing / Moving / Live / Closing / Released，`synchronizePhase` 只由 `startupAnimation` 驱动；页面切换根本不进这个状态机，不存在「每次切页完整拆建玻璃场景」。
+
+**备份导入（用户提供 `docs/plans/SleepDown-Backup-20261025-1826.sleepdown`）**
+
+- 备份是 `formatVersion = 1`、`sourceDatabaseVersion = 47`（1.2.7.1 导出），当前 Room 48 可迁移恢复；**不是改数据库导致的**。
+- 之前失败的真实原因：`am start` 用 `file:///sdcard/Download/...` 把 adb push 的文件直接交给应用，`ContentResolver.openInputStream` 抛 `EACCES`；改用 MediaStore 的 `content://media/external/file/103` + `--grant-read-uri-permission` 后预览正常（「来自 SleepDown 1.2.7.1」），「替换并恢复」成功，课表与设置已替换。
+- 该备份不入库：`.gitignore` 增加 `/docs/plans/*.sleepdown`。
+
+**模拟器已验证**
+
+- 视图 / 待办 / 倒数日 三页共用同一张备份壁纸，象限卡与倒数卡都呈现课程卡那层半透明玻璃（颜色/透明度跟随设置），不再是黑块
+- Dock 与加号同高（46dp）、同圆角；设置页加号平滑缩退、无漏边
+- 待办页加号菜单 → 新建待办 → 编辑器；取消后不再自动弹出；返回键从待办回视图
+- `logcat` 无 `FATAL` / `AndroidRuntime`
 
 **本轮架构调整：两页进入首页页内（2026-10-26）**
 
@@ -29,7 +61,7 @@
 
 1. `HomeSwitchMotion` 由「布尔两槽」泛化为「整型槽位」（`initialSlot` / `animateTo(slot)` / `retains(slot)` / `cornerFraction` 按最近整数计算，`homeSwitchLayer(motion, slot)` 平移 `(slot - progress) * width`）。日↔周、首页↔设置继续走布尔重载，行为不变。
 2. 首页内容新增一层 `homePageMotion`：**槽位 0 = 课表（内部再分日/周）、槽位 1 = 待办、槽位 2 = 倒数日**，三者都挂在首页壁纸之上；Dock 仍是唯一导航，`screen` 决定槽位，**没有新增模式切换 UI**。
-3. 两页去掉不透明底色与 `DetailTopBar`：标题/日期/周条改用 `homeForegroundColor` + `HomeReadableText`（壁纸自适应字色与柔和投影），「已完成」改成玻璃胶囊；象限卡 / 倒数卡继续用 `SettingsGroup(backdrop = courseWallpaperBackdrop)`，玻璃直接采样壁纸。
+3. 两页去掉不透明底色与 `DetailTopBar`：标题/日期/周条改用 `homeForegroundColor` + `HomeReadableText`（壁纸自适应字色与柔和投影），「已完成」改成玻璃胶囊；象限卡 / 倒数卡改用 `CourseGlassCard`（同一套课程材质与壁纸 Backdrop）。
 4. 首页顶栏（第1周 / 日期 / 铅笔 / 三个点）在切到待办/倒数日时随页滑动淡出：`screen is Screen.Home || homePageMotion.moving` 时保留合成、`alpha = 1 - progress`，落位后整块卸载，不会再抢页面顶部点击。
 5. 顺带修掉一个真实 bug：加号 →「新建待办」原来用累加计数，退出再进页面会重复弹出编辑器；改成一次性 `composerPending` + `onComposerShown()` 消费。
 
@@ -42,7 +74,8 @@
 
 **下一步（按优先级）**
 
-1. ColorOS 原生路径：`ColorOsParallelHomeDock` 仍按 3 项渲染，`colorOsOrdinaryDockWidth()` 未同步 258dp；ColorOS 真机上索引与加号会不一致。
+0. 切页卡顿：先和用户确认方向（快照转场 / 合并玻璃面板）再动手；模拟器 25% 抖动、RenderThread 均值 38.6ms，纯 UI 侧优化已到边界。
+1. ColorOS 原生路径：`ColorOsParallelHomeDock` 仍按 3 项渲染、`canOpen`/`expanded` 用 `selectedIndex < 2`、`select` 钳到 0..2，`colorOsOrdinaryDockWidth()` 也未同步；ColorOS 真机上「待办/倒数日」会落到错误索引。
 2. 象限滚动边缘 24dp 渐隐（计划 4.1）仍未实现。
 3. 亮壁纸上文字对比度：现在与首页一致（`HomeReadableText` 柔和投影），但极端亮部（`壁纸.jpg` 顶部白字）仍偏弱，可按需加局部压暗。
 4. `HomeMode` / `HomeStartMode` / Room 默认值**没有**扩展：用户明确不需要模式切换功能，当前页也不持久化（与日/周一致，重启回到 `defaultHomeMode`）。
@@ -71,7 +104,8 @@ adb -P 5038 -s emulator-5554 install -r app/build/outputs/apk/github/release/app
 - 宿主：`app/ui/ScheduleAppUi.kt`（`homePageMotion`、首页页内 `Box` + 三个 `HomeSwitchPane`、顶栏淡出、`todoComposerPending` / `countdownComposerPending`）
 - 页面：`feature/todo/TodoPage.kt`、`feature/countdown/CountdownPage.kt`（`backdrop` 参数、`composerPending` + `onComposerShown`、`HomeReadableText` 页头）
 - 数据 / 规则：`model/TodoModels.kt`、`data/local/TodoDaos.kt`、`AppDatabase.kt`（version 48）、`feature/todo/TodoRules.kt`（`settledDoneIds`）、`feature/countdown/CountdownRules.kt`（可选 `now`）
-- Dock：`feature/home/HomeDockTabs.kt`（五项）、`ParallelHomeDock.kt`（`addCapable = selectedIndex < 4`）
+- Dock：`feature/home/HomeDockMetrics.kt`（项数→条高/单元宽/圆角/加号直径）、`HomeDockTabs.kt`（五项）、`ParallelHomeDock.kt`（`addCapable = selectedIndex < 4`、加号随 split 缩退）
+- 材质：`glass/ui/CourseGlassCard.kt`（页面卡片复用）、`core/ui/text/CourseCardText.kt`（已补 `textDecoration`）
 
 **可复用控件（本轮实际用到的入口）**
 

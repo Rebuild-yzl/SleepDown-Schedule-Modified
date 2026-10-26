@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,13 +49,16 @@ import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownDesignToke
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownPickerDialog
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsDatePickerContent
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsDivider
-import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsGroup
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsNavigationRow
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsSwipeDeleteRow
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsTimePickerContent
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsToggleRow
+import com.xiaomanjun.sleepdownschedule.core.ui.text.CourseCardText
+import com.xiaomanjun.sleepdownschedule.feature.home.LocalHomePaneVisible
 import com.xiaomanjun.sleepdownschedule.feature.home.day.HomeReadableText
 import com.xiaomanjun.sleepdownschedule.feature.home.day.homeForegroundColor
+import com.xiaomanjun.sleepdownschedule.glass.ui.CourseGlassCard
+import com.kyant.shapes.RoundedRectangle
 import com.xiaomanjun.sleepdownschedule.model.CountdownEventEntity
 import java.time.Duration
 import java.time.LocalDate
@@ -84,16 +88,21 @@ internal fun CountdownPage(
     var editorTarget by remember { mutableStateOf<CountdownEventEntity?>(null) }
     var creating by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<CountdownEventEntity?>(null) }
-    val now by produceState(initialValue = LocalDateTime.now(zone)) {
+    // 预热中的隐藏页不走秒表；真正可见时才挂载，避免无人查看时每秒重组整页。
+    val paneVisible = LocalHomePaneVisible.current
+    val now by produceState(initialValue = LocalDateTime.now(zone), paneVisible.value) {
+        if (!paneVisible.value) return@produceState
         while (true) {
             value = LocalDateTime.now(zone)
             delay(1_000)
         }
     }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(paneVisible.value) {
+        if (!paneVisible.value) return@LaunchedEffect
+        today = LocalDate.now(zone)
         while (true) {
-            today = LocalDate.now(zone)
             delay(60_000)
+            today = LocalDate.now(zone)
         }
     }
     // Dock 上的共用加号通过菜单请求新建；菜单完全收起后才挂载编辑器。
@@ -138,7 +147,7 @@ internal fun CountdownPage(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 item(key = "countdown-hero") {
-                    HeroPanel(hero, heroDate, today, now, config, backdrop)
+                    HeroPanel(hero, heroDate, today, now, config, backdrop, textColor)
                 }
                 if (sorted.isEmpty()) {
                     item(key = "countdown-empty") {
@@ -159,6 +168,7 @@ internal fun CountdownPage(
                             zone = zone,
                             config = config,
                             backdrop = backdrop,
+                            ink = textColor,
                             onEdit = { editorTarget = event },
                             onDelete = { deleteTarget = event }
                         )
@@ -209,29 +219,37 @@ private fun HeroPanel(
     today: LocalDate,
     now: LocalDateTime,
     config: ScheduleConfigEntity,
-    backdrop: Backdrop?
+    backdrop: Backdrop?,
+    ink: Color
 ) {
-    SettingsGroup(backdrop = backdrop, config = config, modifier = Modifier.fillMaxWidth()) {
+    CourseGlassCard(
+        backdrop = backdrop,
+        config = config,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedRectangle(26.dp)
+    ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (event == null || date == null) {
-                Text(
+                CourseCardText(
                     "近期没有倒计时",
+                    color = ink,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(Modifier.height(4.dp))
-                Text(
+                CourseCardText(
                     "过去的事件在下面的列表里",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = ink.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodySmall
                 )
                 return@Column
             }
-            Text(
+            CourseCardText(
                 event.title,
+                color = ink,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -242,16 +260,16 @@ private fun HeroPanel(
             if (event.targetTime == null) {
                 val days = countdownDays(today, date)
                 Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
+                    CourseCardText(
                         "${days}",
+                        color = MaterialTheme.colorScheme.primary,
                         fontSize = 36.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        fontWeight = FontWeight.Bold
                     )
-                    Text(
+                    CourseCardText(
                         " 天",
+                        color = ink.copy(alpha = 0.7f),
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
                 }
@@ -261,25 +279,25 @@ private fun HeroPanel(
                 val h = (remaining % 86_400) / 3_600
                 val m = (remaining % 3_600) / 60
                 val s = remaining % 60
-                Text(
+                CourseCardText(
                     text = buildString {
                         if (d > 0) append("${d} 天 ")
                         append(String.format("%02d:%02d:%02d", h, m, s))
                     },
+                    color = MaterialTheme.colorScheme.primary,
                     fontSize = 30.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    fontWeight = FontWeight.Bold
                 )
             }
             Spacer(Modifier.height(6.dp))
-            Text(
+            CourseCardText(
                 text = buildString {
                     append("${date.monthValue}月${date.dayOfMonth}日")
                     event.targetTime?.let { append(" · ${it}") }
                     if (event.repeatYearly) append(" · 每年")
                 },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = ink.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.bodySmall
             )
         }
     }
@@ -293,20 +311,26 @@ private fun CountdownCard(
     zone: ZoneId,
     config: ScheduleConfigEntity,
     backdrop: Backdrop?,
+    ink: Color,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     val date = countdownDate(event, today, now)
     val days = date?.let { countdownDays(today, it) }
     val past = days != null && days < 0
-    val accent =
-        if (past) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+    val accent = if (past) ink.copy(alpha = 0.62f) else MaterialTheme.colorScheme.primary
     SettingsSwipeDeleteRow(
         rowKey = event.id,
         onRequestDelete = onDelete,
         softAppearance = true
     ) {
-        SettingsGroup(backdrop = backdrop, config = config, modifier = Modifier.fillMaxWidth()) {
+        // 与课程卡同一张玻璃，材质设置（颜色 / 透明度 / 模糊 / 折射 / 字体）随之生效。
+        CourseGlassCard(
+            backdrop = backdrop,
+            config = config,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedRectangle(22.dp)
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -317,16 +341,17 @@ private fun CountdownCard(
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (event.pinned) {
-                            Text(
+                            CourseCardText(
                                 "置顶",
+                                color = accent,
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = accent,
                                 modifier = Modifier.padding(end = 6.dp)
                             )
                         }
-                        Text(
+                        CourseCardText(
                             event.title,
+                            color = ink,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
@@ -334,33 +359,33 @@ private fun CountdownCard(
                         )
                     }
                     Spacer(Modifier.height(2.dp))
-                    Text(
+                    CourseCardText(
                         text = buildString {
                             date?.let { append("${it.monthValue}月${it.dayOfMonth}日") }
                                 ?: append("日期无效")
                             event.targetTime?.let { append(" · ${it}") }
                             if (event.repeatYearly) append(" · 每年重复")
                         },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = ink.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(
+                    CourseCardText(
                         text = when {
                             days == null -> "—"
                             past -> "${-days}"
                             else -> "${days}"
                         },
+                        color = accent,
                         fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = accent
+                        fontWeight = FontWeight.Bold
                     )
-                    Text(
+                    CourseCardText(
                         text = if (past) "已过 · 天" else "还有 · 天",
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = ink.copy(alpha = 0.7f),
+                        fontSize = 10.sp
                     )
                 }
             }
