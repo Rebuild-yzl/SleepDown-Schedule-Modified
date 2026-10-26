@@ -15,10 +15,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,6 +47,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.Backdrop
+import com.xiaomanjun.sleepdownschedule.scheduleDayNavigationRange
 import com.xiaomanjun.sleepdownschedule.ScheduleConfigEntity
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.DialogButtonRole
 import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.DialogCapsuleField
@@ -61,16 +64,14 @@ import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsNavigationRow
 import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsSwipeDeleteRow
 import com.xiaomanjun.sleepdownschedule.core.ui.text.CourseCardText
 import com.xiaomanjun.sleepdownschedule.feature.home.LocalHomePaneVisible
-import com.xiaomanjun.sleepdownschedule.feature.home.day.HomeReadableText
 import com.xiaomanjun.sleepdownschedule.feature.home.day.homeForegroundColor
 import com.xiaomanjun.sleepdownschedule.glass.ui.CourseGlassCard
 import com.kyant.shapes.RoundedRectangle
 import com.xiaomanjun.sleepdownschedule.model.TodoItemEntity
 import com.xiaomanjun.sleepdownschedule.model.TodoQuadrant
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.temporal.TemporalAdjusters
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.delay
 
 private val QuadrantAccents = mapOf(
@@ -80,28 +81,23 @@ private val QuadrantAccents = mapOf(
     TodoQuadrant.NEITHER to Color(0xFF0A84FF)
 )
 
-private fun weekdayLabel(day: DayOfWeek): String = when (day) {
-    DayOfWeek.MONDAY -> "一"
-    DayOfWeek.TUESDAY -> "二"
-    DayOfWeek.WEDNESDAY -> "三"
-    DayOfWeek.THURSDAY -> "四"
-    DayOfWeek.FRIDAY -> "五"
-    DayOfWeek.SATURDAY -> "六"
-    DayOfWeek.SUNDAY -> "日"
-}
-
 /**
- * 待办页：沿用二级页的顶栏、分组卡与居中弹层，2×2 象限均分可用高度、格内独立滚动。
- * 完成后原地灰字划线，本次刚勾选的项不会立刻沉到格尾；加号使用 Dock 上的共用控件。
+ * 待办页：内容区按日期分页，左右滑动与日视图一致；顶栏由首页宿主统一提供（日期 / 铅笔 / 更多），
+ * 「已完成」移到更多菜单。每页是当天 2×2 象限，完成态原地灰字划线。
  */
 @Composable
 internal fun TodoPage(
     items: List<TodoItemEntity>,
     config: ScheduleConfigEntity,
     backdrop: Backdrop?,
+    displayDate: LocalDate,
+    topInset: Dp,
     bottomInset: Dp,
+    onSwipeDate: (Int) -> Unit,
     composerPending: Boolean,
     onComposerShown: () -> Unit,
+    completedPending: Boolean,
+    onCompletedShown: () -> Unit,
     onSave: (TodoItemEntity) -> Unit,
     onToggleDone: (TodoItemEntity) -> Unit,
     onDelete: (TodoItemEntity) -> Unit,
@@ -126,125 +122,125 @@ internal fun TodoPage(
     var editorTarget by remember { mutableStateOf<TodoItemEntity?>(null) }
     var creating by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<TodoItemEntity?>(null) }
-    var filterDate by remember { mutableStateOf<LocalDate?>(null) }
     var showCompleted by remember { mutableStateOf(false) }
 
-    // Dock 上的共用加号通过菜单请求新建；菜单完全收起后才挂载编辑器。
+    // Dock 上的共用加号 / 顶栏菜单通过一次性请求打开新建与已完成。
     LaunchedEffect(composerPending) {
         if (!composerPending) return@LaunchedEffect
         creating = true
         onComposerShown()
     }
-
-    val visible = remember(items, filterDate) {
-        if (filterDate == null) items else items.filter { parseIsoDate(it.dueDate) == filterDate }
+    LaunchedEffect(completedPending) {
+        if (!completedPending) return@LaunchedEffect
+        showCompleted = true
+        onCompletedShown()
     }
-    val grouped = remember(visible, settledDoneIds) { groupTodoItems(visible, settledDoneIds) }
-    val unfinished = unfinishedCount(items)
-    val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-    val dialogBackdrop = LocalCenteredDialogSceneBackdrop.current
-    val textColor = homeForegroundColor(config)
 
-    // 页内页面：不铺自己的底色，壁纸与切换动效都由首页宿主提供。
-    Box(modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().height(58.dp).padding(start = 16.dp, end = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                HomeReadableText(
-                    text = "待办",
-                    color = textColor,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(Modifier.weight(1f))
-                DialogLiquidButton(
-                    backdrop = backdrop,
-                    label = "已完成",
-                    onClick = { showCompleted = true },
-                    role = DialogButtonRole.Neutral,
-                    monochromeNeutral = true,
-                    height = 34.dp,
-                    horizontalPadding = 14.dp,
-                    blurRadius = 8.dp,
-                    shadowEnabled = false
-                )
+    val dialogBackdrop = LocalCenteredDialogSceneBackdrop.current
+    val ink = homeForegroundColor(config)
+
+    // 与日视图同一套日期分页：以进入时的日期为锚点，落页后才提交日期。
+    val centerPage = 10_000
+    val anchorDate = remember { displayDate }
+    val navigationRange = remember(config) { scheduleDayNavigationRange(config) }
+    val pagerState = rememberPagerState(initialPage = centerPage, pageCount = { centerPage * 2 + 1 })
+    var programmaticDayScroll by remember { mutableStateOf(false) }
+    var gestureCommittedDate by remember { mutableStateOf<LocalDate?>(null) }
+
+    fun dateForPage(page: Int): LocalDate = anchorDate.plusDays((page - centerPage).toLong())
+    fun clampToRange(date: LocalDate): LocalDate {
+        val range = navigationRange ?: return date
+        return date.coerceIn(range.start, range.endInclusive)
+    }
+
+    LaunchedEffect(pagerState.settledPage) {
+        if (programmaticDayScroll) return@LaunchedEffect
+        val settledDate = dateForPage(pagerState.settledPage)
+        val allowedDate = clampToRange(settledDate)
+        if (settledDate != allowedDate) {
+            programmaticDayScroll = true
+            try {
+                val page = (centerPage + ChronoUnit.DAYS.between(anchorDate, allowedDate).toInt())
+                    .coerceIn(0, centerPage * 2)
+                pagerState.animateScrollToPage(page, animationSpec = tween(durationMillis = 180))
+            } finally {
+                programmaticDayScroll = false
+                gestureCommittedDate = null
             }
-            HomeReadableText(
-                text = "${today.monthValue}月${today.dayOfMonth}日 周${weekdayLabel(today.dayOfWeek)} · 共 ${unfinished} 项待办",
-                color = textColor.copy(alpha = 0.72f),
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 6.dp)
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                for (offset in 0..6) {
-                    val date = weekStart.plusDays(offset.toLong())
-                    val selected = date == filterDate
-                    val count = items.count { !it.isDone && parseIsoDate(it.dueDate) == date }
-                    val accent = MaterialTheme.colorScheme.primary
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (selected) accent.copy(alpha = 0.14f) else Color.Transparent)
-                            .clickable { filterDate = if (selected) null else date }
-                            .padding(vertical = 6.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        HomeReadableText(
-                            text = weekdayLabel(date.dayOfWeek),
-                            color = if (selected) accent else textColor.copy(alpha = 0.7f),
-                            fontSize = 10.5.sp,
-                            maxLines = 1
-                        )
-                        HomeReadableText(
-                            text = "${date.dayOfMonth}",
-                            color = if (selected) accent else textColor,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1
-                        )
-                        Box(
-                            Modifier.padding(top = 2.dp).size(4.dp).clip(CircleShape).background(
-                                if (count == 0) Color.Transparent else accent
-                            )
-                        )
-                    }
+            return@LaunchedEffect
+        }
+        if (settledDate != displayDate) {
+            gestureCommittedDate = settledDate
+            onSwipeDate(ChronoUnit.DAYS.between(displayDate, settledDate).toInt())
+        } else {
+            gestureCommittedDate = null
+        }
+    }
+    LaunchedEffect(displayDate) {
+        if (gestureCommittedDate == displayDate) return@LaunchedEffect
+        val safeDate = clampToRange(displayDate)
+        if (safeDate != displayDate) {
+            onSwipeDate(ChronoUnit.DAYS.between(displayDate, safeDate).toInt())
+            return@LaunchedEffect
+        }
+        val targetPage = (centerPage + ChronoUnit.DAYS.between(anchorDate, safeDate).toInt())
+            .coerceIn(0, centerPage * 2)
+        if (pagerState.settledPage != targetPage) {
+            programmaticDayScroll = true
+            try {
+                pagerState.animateScrollToPage(targetPage, animationSpec = tween(durationMillis = 240))
+            } finally {
+                programmaticDayScroll = false
+                gestureCommittedDate = null
+            }
+        }
+    }
+
+    // 页内页面：不铺自己的底色，顶栏、壁纸与页面切换都由首页宿主提供。
+    Box(modifier.fillMaxSize()) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+            beyondViewportPageCount = 1,
+            key = { it }
+        ) { page ->
+            val pageDate = remember(anchorDate, page) { dateForPage(page) }
+            val dayItems = remember(items, pageDate, today) {
+                items.filter { item ->
+                    val due = parseIsoDate(item.dueDate)
+                    // 没有截止日期的待办跟随「今天」这一页，不会因为按日期分页而消失。
+                    (due == null && pageDate == today) || due == pageDate
                 }
             }
+            val grouped = remember(dayItems, settledDoneIds) { groupTodoItems(dayItems, settledDoneIds) }
             Column(
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxSize()
                     .padding(horizontal = 16.dp)
-                    .padding(top = 10.dp, bottom = bottomInset + 12.dp),
+                    .padding(top = topInset + 10.dp, bottom = bottomInset + 12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     QuadrantCard(
                         TodoQuadrant.IMPORTANT_URGENT, grouped.getValue(TodoQuadrant.IMPORTANT_URGENT),
-                        today, zone, config, backdrop, textColor, Modifier.weight(1f).fillMaxHeight(),
+                        today, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                     QuadrantCard(
                         TodoQuadrant.IMPORTANT_NOT_URGENT, grouped.getValue(TodoQuadrant.IMPORTANT_NOT_URGENT),
-                        today, zone, config, backdrop, textColor, Modifier.weight(1f).fillMaxHeight(),
+                        today, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                 }
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     QuadrantCard(
                         TodoQuadrant.URGENT_NOT_IMPORTANT, grouped.getValue(TodoQuadrant.URGENT_NOT_IMPORTANT),
-                        today, zone, config, backdrop, textColor, Modifier.weight(1f).fillMaxHeight(),
+                        today, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                     QuadrantCard(
                         TodoQuadrant.NEITHER, grouped.getValue(TodoQuadrant.NEITHER),
-                        today, zone, config, backdrop, textColor, Modifier.weight(1f).fillMaxHeight(),
+                        today, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                 }

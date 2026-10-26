@@ -37,12 +37,14 @@ internal fun HomeDockTabs(
     backdrop: Backdrop?,
     lightGlass: Boolean,
     modifier: Modifier = Modifier,
+    dockMetrics: HomeDockMetrics? = null,
     containerSurfaceEnabled: Boolean = true,
     onSelect: (Int) -> Unit
 ) {
     val tabs = HomeDockEntries
-    // Height, cell ratio, icon and label scale follow the tab count; the add button reuses height.
-    val metrics = remember(tabs.size) { HomeDockMetrics.forCount(tabs.size) }
+    // Height, cell ratio, icon and label scale follow the tab count (and the caller's width budget);
+    // the add button reuses the same height.
+    val metrics = dockMetrics ?: remember(tabs.size) { HomeDockMetrics.forCount(tabs.size) }
     if (LocalHomeMaterialControls.current.Dock(tabs, selectedIndex, dark = !lightGlass,
             modifier = modifier, onSelect = onSelect)) return
     if (backdrop == null) {

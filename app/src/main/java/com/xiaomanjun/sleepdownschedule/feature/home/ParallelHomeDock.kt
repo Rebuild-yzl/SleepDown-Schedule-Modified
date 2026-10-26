@@ -121,12 +121,14 @@ internal fun ParallelHomeDock(
     BoxWithConstraints(modifier.fillMaxSize()) {
         // COUI's expansion view uses a 12dp edge-to-edge gap. Keep the same resting
         // spacing in liquid glass, including when a narrow window reduces the dock.
-        // 条与加号共用同一套 Dock 尺寸：条高、胶囊半径与加号直径都由项数推导。
-        val metrics = remember { HomeDockMetrics.forCount(5) }
+        // 条 + 间距 + 加号的总宽与页内容对齐（页内容左右各 16dp），条高与加号随之变大。
+        val metrics = remember(maxWidth) {
+            HomeDockMetrics.forCount(5, availableWidth = (maxWidth - 32.dp).coerceAtLeast(240.dp))
+        }
         val plusSize = metrics.addButtonSize
-        val plusGap = 8.dp
-        val groupWidth = minOf(metrics.width + plusGap + plusSize, maxWidth - 36.dp)
-        val dockWidth = minOf(metrics.width, groupWidth - plusGap - plusSize)
+        val plusGap = HomeDockMetrics.AddButtonGapValue.dp
+        val groupWidth = metrics.width + plusGap + plusSize
+        val dockWidth = metrics.width
         val dockTop = 24.dp
         val dockBounds = remember(density, groupWidth, dockWidth, metrics) {
             derivedStateOf { with(density) {
@@ -187,7 +189,7 @@ internal fun ParallelHomeDock(
                     blurRadius = homeChromeBlur(1.3.dp, config), size = plusSize)
             }
             CompositionLocalProvider(LocalContentColor provides ink) {
-                HomeDockTabs(selectedIndex, config, backdrop, light,
+                HomeDockTabs(selectedIndex, config, backdrop, light, dockMetrics = metrics,
                     modifier = Modifier.offset {
                         IntOffset((((groupWidth - dockWidth) / 2).toPx() * (1f - split.value)).roundToInt(), dockTop.roundToPx())
                     }.width(dockWidth).excludeParentPullGesture().semantics { testTag = "parallel_home_dock" },

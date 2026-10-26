@@ -69,8 +69,9 @@ internal fun rootTopBarLayoutHeight(
             }
         }
         Screen.Config -> detailTopOverlayHeight()
-        // 待办与倒数日自带页头，不叠系统 TopBar。
-        Screen.Todo, Screen.Countdown -> 0.dp
+        // 待办复用首页顶栏（日期 / 铅笔 / 更多），保留同样的顶部高度；倒数日仍自带页头。
+        Screen.Todo -> rememberHomeAdaptiveMetrics().topOverlayHeight
+        Screen.Countdown -> 0.dp
     }
 }
 
@@ -95,13 +96,36 @@ internal fun AppTopBar(
     onPersonalizeButtonPositioned: (androidx.compose.ui.geometry.Rect) -> Unit,
     onToggleAddMenu: (Float) -> Unit,
     onTogglePersonalize: (Float) -> Unit,
-    onBackHome: () -> Unit
+    onBackHome: () -> Unit,
+    todoDisplayDate: LocalDate = LocalDate.now(),
+    onReturnTodoToToday: () -> Unit = {}
 ) {
     val adaptiveTopBarColor = LocalAdaptiveGlass.current.contentColor
     val topBarMetrics = rememberHomeAdaptiveMetrics()
     val landscape = topBarMetrics.isTabletLandscape
     val homeTextColor = adaptiveTopBarColor
-    if (screen is Screen.Home) {
+    // 待办与首页共用同一条顶栏：只有日期来源、回到本日 / 本周的提示与返回动作不同。
+    val isTodo = screen is Screen.Todo
+    val today = LocalDate.now()
+    val dayLike = isTodo || homeMode == HomeMode.Day
+    val displayDate = when {
+        isTodo -> todoDisplayDate
+        homeMode == HomeMode.Day -> homeDisplayDate
+        else -> today
+    }
+    val displayWeek = when {
+        isTodo -> effectiveCurrentWeek(state.config, todoDisplayDate)
+        homeMode == HomeMode.Day -> effectiveCurrentWeek(state.config, homeDisplayDate)
+        else -> homeDisplayWeek
+    }
+    val showingAnotherDayOrWeek = when {
+        isTodo -> todoDisplayDate != today
+        homeMode == HomeMode.Week -> homeDisplayWeek != effectiveCurrentWeek(state.config)
+        else -> homeDisplayDate != today
+    }
+    val returnHintText = if (dayLike) "点击此处回到本日" else "点击此处回到本周"
+    val onReturnHome = if (isTodo) onReturnTodoToToday else onReturnHomeToCurrentWeek
+    if (screen is Screen.Home || isTodo) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -133,14 +157,15 @@ internal fun AppTopBar(
             ) {
                 HomeDateTitle(
                     state = state,
-                    displayDate = if (homeMode == HomeMode.Day) homeDisplayDate else LocalDate.now(),
-                    displayWeek = if (homeMode == HomeMode.Day) effectiveCurrentWeek(state.config, homeDisplayDate) else homeDisplayWeek,
+                    displayDate = displayDate,
+                    displayWeek = displayWeek,
                     showTwoDays = false,
                     beforeScheduleTerm = beforeScheduleTerm,
                     afterScheduleTerm = afterScheduleTerm,
-                    showReturnToCurrentWeekHint = homeMode == HomeMode.Week && homeDisplayWeek != effectiveCurrentWeek(state.config),
-                    showWeather = homeMode == HomeMode.Week,
-                    onReturnCurrent = onReturnHomeToCurrentWeek
+                    showReturnToCurrentWeekHint = showingAnotherDayOrWeek,
+                    returnHintText = returnHintText,
+                    showWeather = homeMode == HomeMode.Week && !isTodo,
+                    onReturnCurrent = onReturnHome
                 )
             }
             Row(
@@ -177,7 +202,7 @@ internal fun AppTopBar(
         }
         return
     }
-    // 待办与倒数日自带页头：不渲染通用 TopBar。
+    // 倒数日自带页头：不渲染通用 TopBar。
     if (screen !is Screen.Config) return
     TopAppBar(
         modifier = Modifier.windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility).height(66.dp),

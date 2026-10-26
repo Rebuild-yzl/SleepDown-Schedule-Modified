@@ -34,17 +34,30 @@ internal data class HomeDockMetrics(
         private const val ReferenceHeight = 46f
         private const val GrowthPerMissingTab = 4f
         private const val ItemAspect = 50f / 46f
+        /** 条与右边加号之间的间距。 */
+        const val AddButtonGapValue = 8f
 
-        fun forCount(count: Int): HomeDockMetrics {
+        /**
+         * [availableWidth] 是 Dock 与加号可以一起占用的宽度（页内容宽度）。给定时按
+         * 「加号直径 = 条高」解出条高，使整个「条 + 间距 + 加号」正好等于内容宽；
+         * 不给定时沿用固定的紧凑尺寸。
+         */
+        fun forCount(count: Int, availableWidth: Dp? = null): HomeDockMetrics {
             val items = count.coerceAtLeast(1)
-            val height = (
-                ReferenceHeight + GrowthPerMissingTab * (ReferenceCount - items).coerceAtLeast(0)
-                ).dp
+            val edge = 4.dp
+            val gap = AddButtonGapValue.dp
+            val height = if (availableWidth != null) {
+                val usable = (availableWidth - gap - edge * 2).value
+                val raw = (1f / ItemAspect) * usable / (items + 1f / ItemAspect)
+                raw.dp.coerceIn(46.dp, 60.dp)
+            } else {
+                (ReferenceHeight + GrowthPerMissingTab * (ReferenceCount - items).coerceAtLeast(0)).dp
+            }
             return HomeDockMetrics(
                 itemCount = items,
                 height = height,
                 itemWidth = height * ItemAspect,
-                edgePadding = 4.dp,
+                edgePadding = edge,
                 iconSize = height * (18f / 46f),
                 labelFontSize = (9.5f * height.value / 46f).sp
             )

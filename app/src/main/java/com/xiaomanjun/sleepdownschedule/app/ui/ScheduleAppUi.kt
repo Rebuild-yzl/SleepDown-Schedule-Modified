@@ -677,8 +677,10 @@ fun CourseScheduleAppUi(
     // 一次性请求：页面显示编辑器后立刻消费，离开再回来不会重复弹窗。
     var todoComposerPending by remember { mutableStateOf(false) }
     var countdownComposerPending by remember { mutableStateOf(false) }
+    var todoCompletedPending by remember { mutableStateOf(false) }
     var pendingTodoComposer by remember { mutableStateOf(false) }
     var pendingCountdownComposer by remember { mutableStateOf(false) }
+    var pendingTodoCompleted by remember { mutableStateOf(false) }
     val latestOpenTodoComposer = rememberUpdatedState<() -> Unit> {
         pendingTodoComposer = true
         homeAnchoredOverlayRequest = null
@@ -687,10 +689,19 @@ fun CourseScheduleAppUi(
         pendingCountdownComposer = true
         homeAnchoredOverlayRequest = null
     }
+    val latestOpenTodoCompleted = rememberUpdatedState<() -> Unit> {
+        pendingTodoCompleted = true
+        homeAnchoredOverlayRequest = null
+    }
     val todoAddActions = remember {
-        listOf(AddMenuAction(R.drawable.ic_todo_quadrant, "新建待办") {
-            latestOpenTodoComposer.value()
-        })
+        listOf(
+            AddMenuAction(R.drawable.ic_todo_quadrant, "新建待办") {
+                latestOpenTodoComposer.value()
+            },
+            AddMenuAction(R.drawable.ic_check, "已完成") {
+                latestOpenTodoCompleted.value()
+            }
+        )
     }
     val countdownAddActions = remember {
         listOf(AddMenuAction(R.drawable.ic_countdown_event, "新建倒数日") {
@@ -1451,6 +1462,8 @@ fun CourseScheduleAppUi(
     var pendingConflictCourseKey by remember(visualState.config.id) { mutableStateOf<String?>(null) }
     var pendingConflictWeeks by remember(visualState.config.id) { mutableStateOf<List<Int>>(emptyList()) }
     var homeDisplayDate by remember(visualState.config.id) { mutableStateOf(todayDate) }
+    // 待办自己的日期（左右滑动 / 顶栏「回到本日」），与首页日期互不影响。
+    var todoDisplayDate by remember(visualState.config.id) { mutableStateOf(todayDate) }
     LaunchedEffect(
         state.loaded,
         visualState.config.id,
@@ -2775,14 +2788,8 @@ fun CourseScheduleAppUi(
             topBar = {
                 // 待办 / 倒数日是首页页内的槽位：首页顶栏随页面滑动淡出，过渡期间保留合成，
                 // 落位后整块卸载，避免透明层继续抢页面顶部的点击。
-                if (screen is Screen.Home || homePageMotion.moving) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .graphicsLayer {
-                            alpha = (1f - homePageMotion.progress.value).coerceIn(0f, 1f)
-                        }
-                ) {
+                if (screen is Screen.Home || screen is Screen.Todo) {
+                Box(Modifier.fillMaxWidth()) {
                 HomeSwitchPane(rootPageMotion, secondary = false,
                     modifier = Modifier.fillMaxWidth().homeSidebarContentInset(homeSidebarState),
                     pageClip = HomeSwitchClip.TopBar, retainContent = true) {
@@ -2792,8 +2799,10 @@ fun CourseScheduleAppUi(
                         .fillMaxWidth()
                         .height(
                             rootTopBarLayoutHeight(
-                                Screen.Home,
-                                homeMode == HomeMode.Week && weekViewStyle == WeekViewStyle.BOUNDLESS
+                                if (screen is Screen.Todo) Screen.Todo else Screen.Home,
+                                screen is Screen.Home &&
+                                    homeMode == HomeMode.Week &&
+                                    weekViewStyle == WeekViewStyle.BOUNDLESS
                             )
                         )
                 ) {
@@ -2801,7 +2810,7 @@ fun CourseScheduleAppUi(
                     // layouts and glass nodes alive, just like the retained course pages.
                     run {
                         AnimatedVisibility(
-                            visible = homeContentUnderTopBar,
+                            visible = screen is Screen.Home && homeContentUnderTopBar,
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .zIndex(10f),
@@ -2838,7 +2847,7 @@ fun CourseScheduleAppUi(
                     ) {
                         CompositionLocalProvider(LocalToolbarBackdropBlurred provides homeContentUnderTopBar) {
                         AppTopBar(
-                            screen = Screen.Home,
+                            screen = screen,
                             state = visualState,
                             settingsPage = SettingsPage.Root,
                             backdrop = chromeBackdrop,
@@ -2862,11 +2871,13 @@ fun CourseScheduleAppUi(
                             onTogglePersonalize = { sourceScale ->
                                 toggleHomeAnchoredOverlay(HomeAnchoredOverlayKind.Personalize, sourceScale)
                             },
-                            onBackHome = { screen = Screen.Home }
+                            onBackHome = { screen = Screen.Home },
+                            todoDisplayDate = todoDisplayDate,
+                            onReturnTodoToToday = { todoDisplayDate = todayDate }
                         )
                         }
                     }
-                    if (weekViewStyle == WeekViewStyle.BOUNDLESS) {
+                    if (screen is Screen.Home && weekViewStyle == WeekViewStyle.BOUNDLESS) {
                         // Boundless week header lives on the top bar layer (above the gradient
                         // blur) so weekday labels are never covered; geometry mirrors the course
                         // grid (rowHeaderWidth slot + equal columns + weekGridEndPadding).
@@ -3018,121 +3029,132 @@ fun CourseScheduleAppUi(
                         // 三者共用首页壁纸，切换沿用日 ↔ 周那套滑动 + 交叉淡入。
                         Box(Modifier.fillMaxSize()) {
                         HomeSwitchPane(homePageMotion, slot = 0, modifier = Modifier.fillMaxSize(), retainContent = true) {
-if (visualState.loaded) HomeScreen(
-                                     state = visualState,
-                                     agentState = agentVisualState,
-                                     personalizationPreviewState = personalizationPreviewState,
-                                     mode = homeMode,
-                                     modeMotion = homeModeMotion,
-                                     onRenderedCardCountChanged = { mode, count ->
-                                         if (mode == HomeMode.Week) weekRenderedCardCount = count
-                                         else dayRenderedCardCount = count
-                                     },
-                                     dayViewMode = dayViewMode,
-                                     weekViewStyle = weekViewStyle,
-                                     adaptiveMetrics = sidebarContentMetrics,
-                                    weekCardHeight = weekCardHeight.dp,
-                                    displayWeek = homeDisplayWeek,
-                                    returnToCurrentWeekRequest = returnHomeWeekRequest,
-                                    displayDate = homeDisplayDate,
-                                    backdrop = courseWallpaperBackdrop,
-                                    dayAgentBackdrop = dayAgentBackdrop,
-                                    // Dragged week cards must not sample contentBackdrop/chromeBackdrop:
-                                    // they live inside contentBackdrop, so sampling it can recursively include themselves.
-                                    floatingCourseBackdrop = backgroundBackdrop,
-                                     weekHeaderBackdrop = backgroundBackdrop,
-                                    onSwipeWeek = { delta -> homeDisplayWeek = (homeDisplayWeek + delta).coerceIn(1, visualState.config.totalWeeks.coerceAtLeast(1)) },
-                                    onWeekHeaderPreview = { homeWeekHeaderPreview.value = it },
-                                    onWeekJumpSettled = { settledWeek ->
-                                        if (settledWeek == homeDisplayWeek) captureRenderToken++
-                                    },
-                                    onSwipeDay = { delta ->
-                                        val requested = homeDisplayDate.plusDays(delta.toLong())
-                                        val range = scheduleDayNavigationRange(visualState.config, todayDate)
-                                        homeDisplayDate = if (range == null) requested
-                                        else requested.coerceIn(range.start, range.endInclusive)
-                                    },
-                                    onContentUnderTopBarChange = { if (screen is Screen.Home) homeContentUnderTopBar = it },
-                                    dayAgentBackgroundMotionState = dayAgentBackgroundMotionState,
-                                    onAgentPagerSettledChange = { settled ->
-                                        dayAgentPagerSettled = settled
-                                    },
-                                    onAgentPrepareOpen = {
-                                        // Never open over a partially swiped day page. The background is now
-                                        // transformed live (blur + zoom), so no frozen snapshot capture is
-                                        // needed — only the pager-settled gate remains.
-                                        if (!dayAgentPagerSettled) {
-                                            snapshotFlow { dayAgentPagerSettled }.first { it }
-                                        }
-                                    },
-                                    onAgentDismissed = {},
-                                    onCourseClick = homeCourseClick,
-                                    onAddCourse = viewModel::addCourse,
-                                    onAgentAction = handleHomeAgentAction,
-                                    onAgentImportFile = { uri ->
-                                        assistantImportUri = uri
-                                        homeDialog = HomeDialog.ImportSchedule
-                                    },
-                                    onUpdateCourseSingleWeek = viewModel::updateCourseSingleWeek,
-                                    conflictFocusCourseId = pendingConflictCourseId
-                                        ?.takeIf { homeDisplayWeek in pendingConflictWeeks },
-                                    conflictFocusCourseKey = pendingConflictCourseKey
-                                        ?.takeIf { homeDisplayWeek in pendingConflictWeeks },
-                                    onResolveCourseConflict = { course, moved, week ->
-                                            viewModel.updateCourseSingleWeek(course, moved, week)
-                                        appScope.launch {
-                                            delay(180)
-                                            pendingConflictCourseId = null
-                                            pendingConflictCourseKey = null
-                                            pendingConflictWeeks = emptyList()
-                                        }
-                                    },
-                                     onDeleteCourseSingleWeek = { course, week ->
-                                         pendingCourseGroupDelete = emptyList()
-                                         homeDialog = HomeDialog.ApplyCourseDelete(course, week)
-                                     },
-                                      weekEditInteractionEnabled = pickerState.phase is CustomizeUiState.Home,
-                                      onScheduleLongPress = {
-                                        if (pickerState.phase is CustomizeUiState.Home) {
-                                            pendingHomeAnchoredOverlay = null
-                                            homeAnchoredOverlayRequest = null
-                                            if (homeAdaptiveMetrics.isLargeScreen) {
-                                                homeSidebarState.collapseOverlay()
-                                                enterCustomizePage()
-                                            } else {
-                                                pickerState.phase = CustomizeUiState.ShowingEntryButton
-                                                showScheduleEntryPill = true
-                                                prewarmCurrentScheduleSnapshot()
-                                            }
-                                        }
-                                    }
+if (visualState.loaded) HomeScreen(
+                                     state = visualState,
+                                     agentState = agentVisualState,
+                                     personalizationPreviewState = personalizationPreviewState,
+                                     mode = homeMode,
+                                     modeMotion = homeModeMotion,
+                                     onRenderedCardCountChanged = { mode, count ->
+                                         if (mode == HomeMode.Week) weekRenderedCardCount = count
+                                         else dayRenderedCardCount = count
+                                     },
+                                     dayViewMode = dayViewMode,
+                                     weekViewStyle = weekViewStyle,
+                                     adaptiveMetrics = sidebarContentMetrics,
+                                    weekCardHeight = weekCardHeight.dp,
+                                    displayWeek = homeDisplayWeek,
+                                    returnToCurrentWeekRequest = returnHomeWeekRequest,
+                                    displayDate = homeDisplayDate,
+                                    backdrop = courseWallpaperBackdrop,
+                                    dayAgentBackdrop = dayAgentBackdrop,
+                                    // Dragged week cards must not sample contentBackdrop/chromeBackdrop:
+                                    // they live inside contentBackdrop, so sampling it can recursively include themselves.
+                                    floatingCourseBackdrop = backgroundBackdrop,
+                                     weekHeaderBackdrop = backgroundBackdrop,
+                                    onSwipeWeek = { delta -> homeDisplayWeek = (homeDisplayWeek + delta).coerceIn(1, visualState.config.totalWeeks.coerceAtLeast(1)) },
+                                    onWeekHeaderPreview = { homeWeekHeaderPreview.value = it },
+                                    onWeekJumpSettled = { settledWeek ->
+                                        if (settledWeek == homeDisplayWeek) captureRenderToken++
+                                    },
+                                    onSwipeDay = { delta ->
+                                        val requested = homeDisplayDate.plusDays(delta.toLong())
+                                        val range = scheduleDayNavigationRange(visualState.config, todayDate)
+                                        homeDisplayDate = if (range == null) requested
+                                        else requested.coerceIn(range.start, range.endInclusive)
+                                    },
+                                    onContentUnderTopBarChange = { if (screen is Screen.Home) homeContentUnderTopBar = it },
+                                    dayAgentBackgroundMotionState = dayAgentBackgroundMotionState,
+                                    onAgentPagerSettledChange = { settled ->
+                                        dayAgentPagerSettled = settled
+                                    },
+                                    onAgentPrepareOpen = {
+                                        // Never open over a partially swiped day page. The background is now
+                                        // transformed live (blur + zoom), so no frozen snapshot capture is
+                                        // needed — only the pager-settled gate remains.
+                                        if (!dayAgentPagerSettled) {
+                                            snapshotFlow { dayAgentPagerSettled }.first { it }
+                                        }
+                                    },
+                                    onAgentDismissed = {},
+                                    onCourseClick = homeCourseClick,
+                                    onAddCourse = viewModel::addCourse,
+                                    onAgentAction = handleHomeAgentAction,
+                                    onAgentImportFile = { uri ->
+                                        assistantImportUri = uri
+                                        homeDialog = HomeDialog.ImportSchedule
+                                    },
+                                    onUpdateCourseSingleWeek = viewModel::updateCourseSingleWeek,
+                                    conflictFocusCourseId = pendingConflictCourseId
+                                        ?.takeIf { homeDisplayWeek in pendingConflictWeeks },
+                                    conflictFocusCourseKey = pendingConflictCourseKey
+                                        ?.takeIf { homeDisplayWeek in pendingConflictWeeks },
+                                    onResolveCourseConflict = { course, moved, week ->
+                                            viewModel.updateCourseSingleWeek(course, moved, week)
+                                        appScope.launch {
+                                            delay(180)
+                                            pendingConflictCourseId = null
+                                            pendingConflictCourseKey = null
+                                            pendingConflictWeeks = emptyList()
+                                        }
+                                    },
+                                     onDeleteCourseSingleWeek = { course, week ->
+                                         pendingCourseGroupDelete = emptyList()
+                                         homeDialog = HomeDialog.ApplyCourseDelete(course, week)
+                                     },
+                                      weekEditInteractionEnabled = pickerState.phase is CustomizeUiState.Home,
+                                      onScheduleLongPress = {
+                                        if (pickerState.phase is CustomizeUiState.Home) {
+                                            pendingHomeAnchoredOverlay = null
+                                            homeAnchoredOverlayRequest = null
+                                            if (homeAdaptiveMetrics.isLargeScreen) {
+                                                homeSidebarState.collapseOverlay()
+                                                enterCustomizePage()
+                                            } else {
+                                                pickerState.phase = CustomizeUiState.ShowingEntryButton
+                                                showScheduleEntryPill = true
+                                                prewarmCurrentScheduleSnapshot()
+                                            }
+                                        }
+                                    }
                                 )
                         }
-                        HomeSwitchPane(homePageMotion, slot = 1, modifier = Modifier.fillMaxSize(), retainContent = true) {
-                            TodoPage(
-                                items = todoItems,
-                                config = state.config,
-                                backdrop = courseWallpaperBackdrop,
-                                bottomInset = 88.dp,
+                        HomeSwitchPane(homePageMotion, slot = 1, modifier = Modifier.fillMaxSize(), retainContent = true) {
+                            TodoPage(
+                                items = todoItems,
+                                config = state.config,
+                                backdrop = courseWallpaperBackdrop,
+                                displayDate = todoDisplayDate,
+                                // 与日视图相同的顶部留白：顶栏是叠在页面上的，内容从它下面开始。
+                                topInset = homeAdaptiveMetrics.dayContentTopPadding,
+                                bottomInset = 88.dp,
+                                onSwipeDate = { delta ->
+                                    val requested = todoDisplayDate.plusDays(delta.toLong())
+                                    val range = scheduleDayNavigationRange(state.config, todayDate)
+                                    todoDisplayDate = if (range == null) requested
+                                    else requested.coerceIn(range.start, range.endInclusive)
+                                },
                                 composerPending = todoComposerPending,
-                                onComposerShown = { todoComposerPending = false },
-                                onSave = { viewModel.saveTodoItem(it) },
-                                onToggleDone = { viewModel.toggleTodoDone(it) },
-                                onDelete = { viewModel.deleteTodoItem(it) },
-                                onClearCompleted = { viewModel.clearCompletedTodoItems() }
-                            )
-                        }
-                        HomeSwitchPane(homePageMotion, slot = 2, modifier = Modifier.fillMaxSize(), retainContent = true) {
-                            CountdownPage(
-                                events = countdownEvents,
-                                config = state.config,
-                                backdrop = courseWallpaperBackdrop,
-                                bottomInset = 88.dp,
+                                onComposerShown = { todoComposerPending = false },
+                                completedPending = todoCompletedPending,
+                                onCompletedShown = { todoCompletedPending = false },
+                                onSave = { viewModel.saveTodoItem(it) },
+                                onToggleDone = { viewModel.toggleTodoDone(it) },
+                                onDelete = { viewModel.deleteTodoItem(it) },
+                                onClearCompleted = { viewModel.clearCompletedTodoItems() }
+                            )
+                        }
+                        HomeSwitchPane(homePageMotion, slot = 2, modifier = Modifier.fillMaxSize(), retainContent = true) {
+                            CountdownPage(
+                                events = countdownEvents,
+                                config = state.config,
+                                backdrop = courseWallpaperBackdrop,
+                                bottomInset = 88.dp,
                                 composerPending = countdownComposerPending,
-                                onComposerShown = { countdownComposerPending = false },
-                                onSave = { viewModel.saveCountdownEvent(it) },
-                                onDelete = { viewModel.deleteCountdownEvent(it) }
-                            )
+                                onComposerShown = { countdownComposerPending = false },
+                                onSave = { viewModel.saveCountdownEvent(it) },
+                                onDelete = { viewModel.deleteCountdownEvent(it) }
+                            )
                         }
                         }
                         }
@@ -3768,6 +3790,13 @@ if (visualState.loaded) HomeScreen(
         if (homeAnchoredMorphState.phase != HomeAnchoredOverlayPhase.Idle) return@LaunchedEffect
         pendingCountdownComposer = false
         countdownComposerPending = true
+    }
+    // 顶栏「更多 → 已完成」同样等菜单完全收起后再打开弹窗。
+    LaunchedEffect(pendingTodoCompleted, homeAnchoredMorphState.phase, screen) {
+        if (!pendingTodoCompleted || screen !is Screen.Todo) return@LaunchedEffect
+        if (homeAnchoredMorphState.phase != HomeAnchoredOverlayPhase.Idle) return@LaunchedEffect
+        pendingTodoCompleted = false
+        todoCompletedPending = true
     }
 
     LaunchedEffect(sourceButtonFollowThrough) {

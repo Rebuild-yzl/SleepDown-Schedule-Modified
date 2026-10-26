@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -92,6 +93,14 @@ fun FloatingDock(
         !appUsesDarkTheme(config)
     }
     val density = LocalDensity.current
+    // 无加号的普通 Dock 也按页内容宽度取尺寸，保证与首页胶囊、卡片同宽。
+    val configuration = LocalConfiguration.current
+    val dockMetrics = remember(configuration.screenWidthDp) {
+        HomeDockMetrics.forCount(
+            5,
+            availableWidth = (configuration.screenWidthDp.dp - 32.dp).coerceAtLeast(240.dp)
+        )
+    }
     // MIUI reports the IME-sized bottom edge through safeDrawing for the underlying Activity
     // while a transparent Compose Dialog owns the keyboard. That makes a bottom-aligned Dock jump
     // above the keyboard even though the Activity itself uses adjustNothing. Use the stable
@@ -144,7 +153,8 @@ fun FloatingDock(
             HomeDockTabs(
                 selectedIndex = selectedIndex,
                 config = config, backdrop = backdrop, lightGlass = lightGlass,
-                modifier = Modifier.width(LocalHomeMaterialControls.current.ordinaryDockWidth()).excludeParentPullGesture(),
+                modifier = Modifier.width(dockMetrics.width).excludeParentPullGesture(),
+                dockMetrics = dockMetrics,
                 onSelect = onSelect
             )
         }
