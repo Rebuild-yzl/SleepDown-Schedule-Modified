@@ -25,8 +25,8 @@
 
 | 计划 | 状态 | 正式设计参考 |
 | --- | --- | --- |
-| [待办（四象限）](2026-10-25-todo-quadrant-plan.md) | 草案 | [计划页设计参考](design-reference-todo-countdown.html) |
-| [事件倒计时](2026-10-25-countdown-plan.md) | 草案 | 同上 |
+| [待办（四象限）](2026-10-25-todo-quadrant-plan.md) | 已完成 | [计划页设计参考](design-reference-todo-countdown.html) |
+| [事件倒计时](2026-10-25-countdown-plan.md) | 已完成 | 同上 |
 
 两个功能都作为首页 Dock 的一级页（统一 5 项：视图 / 课程表 / 待办 / 倒数日 / 设置；原「今日」项隐藏保留），不新建 Activity、不做页内分段；导航与 Dock 尺寸只写在待办计划第 3 节，倒计时计划引用它。
 

@@ -100,9 +100,15 @@
 **模拟器已验证（`emulator-5554` / Pixel_10a / Android 17，壁纸用 `docs/plans/壁纸.jpg`）**
 
 - 视图 / 课程表 / 待办 / 倒数日 四项切换都是同一套滑动 + 交叉淡入，三页共用同一张壁纸（截图可见壁纸透过象限卡与倒数卡）
-- 待办页：页头、周条、2×2 象限与壁纸叠合；加号菜单 → 新建待办 → 编辑器（玻璃弹层）；取消/返回后不再自动弹窗
+- 待办页：2×2 象限与壁纸叠合（页头与周条在后续批次已删除，改为复用首页顶栏 + 左右滑动切日）；加号菜单 → 新建待办 → 编辑器（玻璃弹层）；取消/返回后不再自动弹窗
 - 倒数日页：Hero 每秒走字（`61 天 23:54:48`）、卡片玻璃、跨年顺延（`364` / `61` 天）
 - 返回键从待办回视图；设置页与首页之间互切正常；`logcat` 无 `FATAL`/`AndroidRuntime`
+
+**分支收尾（2026-10-26 晚）**
+
+- 分支 `dev/todo-and-countdown-events` 已整理成可提交状态：功能与文档提交线性排列，工作树干净，`tmp/` 已加入 `.gitignore`。
+- 最终验证：`TodoCountdownRulesTest` 通过；`assembleGithubRelease` 成功并在 `emulator-5554` 覆盖安装。
+- PR 目标为 `modified`；PR 正文已生成，等待用户手动提交，**不自行合并**。
 
 **下一步（按优先级）**
 
@@ -112,7 +118,7 @@
 3. 亮壁纸上文字对比度：现在与首页一致（`HomeReadableText` 柔和投影），但极端亮部（`壁纸.jpg` 顶部白字）仍偏弱，可按需加局部压暗。
 4. `HomeMode` / `HomeStartMode` / Room 默认值**没有**扩展：用户明确不需要模式切换功能，当前页也不持久化（与日/周一致，重启回到 `defaultHomeMode`）。
 5. `AppDatabaseMigrationTest.migrate47To48` 仍未跑 androidTest；浅色主题、横屏 / 平板、真机未验收。
-6. `docs/plans/design-reference-todo-countdown.html` 还是改造前的低保真稿。
+6. `docs/plans/design-reference-todo-countdown.html` 仍是改造前的低保真稿（页头 / 周条已删、改为日期分页），稿内已加勘误说明，正式同步待办。
 
 **已知偏差**
 

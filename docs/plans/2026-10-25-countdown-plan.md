@@ -1,6 +1,6 @@
 # 事件倒计时改造计划
 
-- 状态：已实现（P0/P1，模拟器验收；见 `docs/AI_HANDOFF.md` 本轮记录）
+- 状态：已完成（P0/P1 已在模拟器验收；页面保留自带页头，其余与原计划一致；记录见 `docs/AI_HANDOFF.md`）
 - 日期：2026-10-25
 - 参考稿：[待办与倒数日设计参考](design-reference-todo-countdown.html)（原始参考图由用户在本地放入本目录，未纳入版本库）
 - 涉及：新增 `feature/plan` 倒数日页、`data/local`、`data/repository`、Room 迁移
