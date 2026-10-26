@@ -205,12 +205,9 @@ internal fun TodoPage(
             key = { it }
         ) { page ->
             val pageDate = remember(anchorDate, page) { dateForPage(page) }
-            val dayItems = remember(items, pageDate, today) {
-                items.filter { item ->
-                    val due = parseIsoDate(item.dueDate)
-                    // 没有截止日期的待办跟随「今天」这一页，不会因为按日期分页而消失。
-                    (due == null && pageDate == today) || due == pageDate
-                }
+            val dayItems = remember(items, pageDate, zone) {
+                // 创建日 → 截止日之间每天出现；逾期未完成的继续每天出现，直到完成。
+                items.filter { todoVisibleOn(it, pageDate, zone) }
             }
             val grouped = remember(dayItems, settledDoneIds) { groupTodoItems(dayItems, settledDoneIds) }
             Column(
@@ -223,24 +220,24 @@ internal fun TodoPage(
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     QuadrantCard(
                         TodoQuadrant.IMPORTANT_URGENT, grouped.getValue(TodoQuadrant.IMPORTANT_URGENT),
-                        today, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
+                        today, pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                     QuadrantCard(
                         TodoQuadrant.IMPORTANT_NOT_URGENT, grouped.getValue(TodoQuadrant.IMPORTANT_NOT_URGENT),
-                        today, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
+                        today, pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                 }
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     QuadrantCard(
                         TodoQuadrant.URGENT_NOT_IMPORTANT, grouped.getValue(TodoQuadrant.URGENT_NOT_IMPORTANT),
-                        today, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
+                        today, pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                     QuadrantCard(
                         TodoQuadrant.NEITHER, grouped.getValue(TodoQuadrant.NEITHER),
-                        today, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
+                        today, pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                 }
@@ -341,6 +338,7 @@ private fun QuadrantCard(
     quadrant: TodoQuadrant,
     items: List<TodoItemEntity>,
     today: LocalDate,
+    pageDate: LocalDate,
     zone: ZoneId,
     config: ScheduleConfigEntity,
     backdrop: Backdrop?,
@@ -401,7 +399,7 @@ private fun QuadrantCard(
                     contentPadding = PaddingValues(bottom = 6.dp)
                 ) {
                     items(items, key = { it.id }) { item ->
-                        TodoRow(item, today, zone, ink, onToggleDone, onEdit, onDelete)
+                        TodoRow(item, today, pageDate, zone, ink, onToggleDone, onEdit, onDelete)
                     }
                 }
             }
@@ -413,6 +411,7 @@ private fun QuadrantCard(
 private fun TodoRow(
     item: TodoItemEntity,
     today: LocalDate,
+    pageDate: LocalDate,
     zone: ZoneId,
     ink: Color,
     onToggleDone: (TodoItemEntity) -> Unit,
@@ -469,9 +468,9 @@ private fun TodoRow(
                     color = if (done) muted else ink
                 )
                 val meta = if (done) item.doneAt?.let { todoDoneLabel(it, today, zone) }
-                else todoDueMeta(item, today)?.text
+                else todoDueMeta(item, pageDate)?.text
                 if (meta != null) {
-                    val level = if (done) null else todoDueMeta(item, today)?.level
+                    val level = if (done) null else todoDueMeta(item, pageDate)?.level
                     CourseCardText(
                         meta,
                         fontSize = 11.sp,
@@ -501,7 +500,10 @@ private fun TodoEditorDialog(
     var title by remember(initial) { mutableStateOf(initial?.title.orEmpty()) }
     var note by remember(initial) { mutableStateOf(initial?.note.orEmpty()) }
     var quadrant by remember(initial) { mutableStateOf(initial?.quadrantValue ?: TodoQuadrant.IMPORTANT_URGENT) }
-    var dueDate by remember(initial) { mutableStateOf(parseIsoDate(initial?.dueDate)) }
+    // 新建待办默认截止到今天；编辑已有项时保留原来的「无截止日期」。
+    var dueDate by remember(initial) {
+        mutableStateOf(parseIsoDate(initial?.dueDate) ?: if (initial == null) today else null)
+    }
     var page by remember { mutableStateOf(TodoEditorPage.DETAILS) }
     var pickerDate by remember { mutableStateOf(dueDate ?: today) }
     val contentColor = MaterialTheme.colorScheme.onSurfaceVariant

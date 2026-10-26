@@ -8,6 +8,7 @@ import com.xiaomanjun.sleepdownschedule.feature.todo.groupTodoItems
 import com.xiaomanjun.sleepdownschedule.feature.todo.sortTodoItems
 import com.xiaomanjun.sleepdownschedule.feature.todo.todoDoneLabel
 import com.xiaomanjun.sleepdownschedule.feature.todo.todoDueMeta
+import com.xiaomanjun.sleepdownschedule.feature.todo.todoVisibleOn
 import com.xiaomanjun.sleepdownschedule.model.CountdownEventEntity
 import com.xiaomanjun.sleepdownschedule.model.TodoItemEntity
 import com.xiaomanjun.sleepdownschedule.model.TodoQuadrant
@@ -16,6 +17,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -76,14 +78,38 @@ class TodoCountdownRulesTest {
     }
 
     @Test
-    fun todoDueMetaCoversOverdueTodayTomorrowAndNone() {
-        assertEquals("已逾期 5 天", todoDueMeta(todo(1, due = "2026-10-20"), today)?.text)
+    fun todoDueMetaCountsDownFromPageDate() {
+        assertEquals("已逾期 5天", todoDueMeta(todo(1, due = "2026-10-20"), today)?.text)
         assertEquals(TodoDueLevel.OVERDUE, todoDueMeta(todo(1, due = "2026-10-20"), today)?.level)
-        assertEquals("今天到期", todoDueMeta(todo(2, due = "2026-10-25"), today)?.text)
-        assertEquals("明天 · 还有 1 天", todoDueMeta(todo(3, due = "2026-10-26"), today)?.text)
-        assertEquals("10月30日 · 还有 5 天", todoDueMeta(todo(4, due = "2026-10-30"), today)?.text)
-        assertNull(todoDueMeta(todo(5), today))
-        assertNull(todoDueMeta(todo(6, due = "2026-10-20", doneAt = 9L), today))
+        assertEquals("今天 到期", todoDueMeta(todo(2, due = "2026-10-25"), today)?.text)
+        assertEquals("明天 还有一天", todoDueMeta(todo(3, due = "2026-10-26"), today)?.text)
+        assertEquals("后天 还有两天", todoDueMeta(todo(4, due = "2026-10-27"), today)?.text)
+        assertEquals("本月 还有五天", todoDueMeta(todo(5, due = "2026-10-30"), today)?.text)
+        assertEquals("下个月 还有26天", todoDueMeta(todo(6, due = "2026-11-20"), today)?.text)
+        assertNull(todoDueMeta(todo(7), today))
+        assertNull(todoDueMeta(todo(8, due = "2026-10-20", doneAt = 9L), today))
+    }
+
+    @Test
+    fun todoVisibleFromCreationThroughDueDateAndKeepsOverdueOpen() {
+        val zone = ZoneId.of("Asia/Shanghai")
+        val created = LocalDate.of(2026, 10, 20).atStartOfDay(zone).toInstant().toEpochMilli()
+        val open = todo(1, due = "2026-10-25", createdAt = created)
+
+        assertFalse(todoVisibleOn(open, LocalDate.of(2026, 10, 19), zone))
+        assertTrue(todoVisibleOn(open, LocalDate.of(2026, 10, 20), zone))
+        assertTrue(todoVisibleOn(open, LocalDate.of(2026, 10, 25), zone))
+        // 逾期未完成：接下来每天继续出现。
+        assertTrue(todoVisibleOn(open, LocalDate.of(2027, 1, 1), zone))
+
+        // 逾期已完成：停在截止日，不再往后出现；截止日当天仍然可见。
+        val done = open.copy(doneAt = 1L)
+        assertTrue(todoVisibleOn(done, LocalDate.of(2026, 10, 25), zone))
+        assertFalse(todoVisibleOn(done, LocalDate.of(2026, 10, 26), zone))
+
+        // 没有截止日期：创建后每天出现。
+        val undated = todo(2, createdAt = created)
+        assertTrue(todoVisibleOn(undated, LocalDate.of(2027, 1, 1), zone))
     }
 
     @Test
@@ -92,8 +118,9 @@ class TodoCountdownRulesTest {
         val yesterday = LocalDate.of(2026, 10, 24).atTime(22, 0).atZone(zone).toInstant().toEpochMilli()
         val earlier = Instant.parse("2026-10-20T02:00:00Z").toEpochMilli()
 
-        assertEquals("已完成 · 昨天", todoDoneLabel(yesterday, today, zone))
-        assertEquals("已完成 · 5 天前", todoDoneLabel(earlier, today, zone))
+        assertEquals("已完成 昨天", todoDoneLabel(yesterday, today, zone))
+        assertEquals("已完成 5天前", todoDoneLabel(earlier, today, zone))
+        assertEquals("已完成 今天", todoDoneLabel(LocalDate.of(2026, 10, 25).atTime(8, 0).atZone(zone).toInstant().toEpochMilli(), today, zone))
     }
 
     @Test

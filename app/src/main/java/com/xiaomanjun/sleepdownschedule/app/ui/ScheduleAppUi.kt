@@ -693,15 +693,16 @@ fun CourseScheduleAppUi(
         pendingTodoCompleted = true
         homeAnchoredOverlayRequest = null
     }
-    val todoAddActions = remember {
-        listOf(
-            AddMenuAction(R.drawable.ic_todo_quadrant, "新建待办") {
-                latestOpenTodoComposer.value()
-            },
-            AddMenuAction(R.drawable.ic_check, "已完成") {
-                latestOpenTodoCompleted.value()
-            }
-        )
+    // 加号只负责新建；已完成收在顶栏「更多」里，两个入口不再互相混入。
+    val todoNewActions = remember {
+        listOf(AddMenuAction(R.drawable.ic_todo_quadrant, "新建待办") {
+            latestOpenTodoComposer.value()
+        })
+    }
+    val todoOverflowActions = remember {
+        listOf(AddMenuAction(R.drawable.ic_check, "已完成") {
+            latestOpenTodoCompleted.value()
+        })
     }
     val countdownAddActions = remember {
         listOf(AddMenuAction(R.drawable.ic_countdown_event, "新建倒数日") {
@@ -3817,7 +3818,7 @@ if (visualState.loaded) HomeScreen(
         backdrop = homeAnchoredOverlayBackdrop,
         config = state.config,
         addActions = when {
-            screen is Screen.Todo -> todoAddActions
+            screen is Screen.Todo -> if (homeMenuFromDock) todoNewActions else todoOverflowActions
             screen is Screen.Countdown -> countdownAddActions
             homeMenuFromDock -> homeAddActions.take(3)
             parallelPhoneNavigation -> homeAddActions.drop(3)
