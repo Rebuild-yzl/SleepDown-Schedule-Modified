@@ -28,6 +28,8 @@ import com.xiaomanjun.sleepdownschedule.domain.schedule.projectCourseArrangement
 import com.xiaomanjun.sleepdownschedule.domain.schedule.schemeConfig
 import com.xiaomanjun.sleepdownschedule.domain.schedule.withEffectiveCourseArrangements
 import com.xiaomanjun.sleepdownschedule.model.PeriodAlignmentMode
+import com.xiaomanjun.sleepdownschedule.model.CountdownEventEntity
+import com.xiaomanjun.sleepdownschedule.model.TodoItemEntity
 import com.xiaomanjun.sleepdownschedule.model.agent.AgentActionScope
 import com.xiaomanjun.sleepdownschedule.model.agent.AgentValidatedAction
 import com.xiaomanjun.sleepdownschedule.model.agent.AgentValidatedActionType
@@ -36,6 +38,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 private data class MultiScheduleSnapshot(
@@ -60,6 +63,8 @@ class ScheduleRepository(private val database: AppDatabase) {
     private val configDao = database.configDao()
     private val profileDao = database.scheduleProfileDao()
     private val periodSchemeDao = database.periodSchemeDao()
+    private val todoDao = database.todoDao()
+    private val countdownDao = database.countdownDao()
 
     suspend fun previewPeriodSchemeSwitch(scheduleId: Int, schemeId: Long,
         mode: PeriodAlignmentMode = PeriodAlignmentMode.INDEX): PeriodSchemeSwitchPreview = database.withTransaction {
@@ -1189,6 +1194,47 @@ class ScheduleRepository(private val database: AppDatabase) {
                 ordered.drop(1).forEach { courseDao.deleteCourse(it.id) }
             }
     }
+
+    // 待办与倒数日：本地功能。数据只在本机，不进入 .sleepdown v1 备份格式。
+    fun observeTodoItems(): Flow<List<TodoItemEntity>> = todoDao.observeAll()
+
+    suspend fun saveTodoItem(item: TodoItemEntity) {
+        val now = System.currentTimeMillis()
+        todoDao.upsert(
+            item.copy(
+                title = item.title.trim(),
+                note = item.note.trim(),
+                createdAt = if (item.id == 0L) now else item.createdAt,
+                updatedAt = now
+            )
+        )
+    }
+
+    /** 完成时只写 doneAt，行留在原象限；撤销写回 null。 */
+    suspend fun setTodoDone(id: Long, done: Boolean) {
+        val now = System.currentTimeMillis()
+        todoDao.setDone(id, if (done) now else null, now)
+    }
+
+    suspend fun deleteTodoItem(id: Long) = todoDao.delete(id)
+
+    suspend fun clearCompletedTodoItems() = todoDao.deleteCompleted()
+
+    fun observeCountdownEvents(): Flow<List<CountdownEventEntity>> = countdownDao.observeAll()
+
+    suspend fun saveCountdownEvent(event: CountdownEventEntity) {
+        val now = System.currentTimeMillis()
+        countdownDao.upsert(
+            event.copy(
+                title = event.title.trim(),
+                note = event.note.trim(),
+                createdAt = if (event.id == 0L) now else event.createdAt,
+                updatedAt = now
+            )
+        )
+    }
+
+    suspend fun deleteCountdownEvent(id: Long) = countdownDao.delete(id)
 }
 
 private fun CourseEntity.hasSameOccurrenceSlot(other: CourseEntity): Boolean {

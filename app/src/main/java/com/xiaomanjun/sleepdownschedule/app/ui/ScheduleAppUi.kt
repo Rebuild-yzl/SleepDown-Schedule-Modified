@@ -211,6 +211,8 @@ import com.xiaomanjun.sleepdownschedule.feature.agent.LocalHomeAssistant
 import com.xiaomanjun.sleepdownschedule.feature.agent.TodayAgentHost
 import com.xiaomanjun.sleepdownschedule.feature.agent.assistantPullGesture
 import com.xiaomanjun.sleepdownschedule.feature.agent.homeCountdownShockwave
+import com.xiaomanjun.sleepdownschedule.feature.countdown.CountdownPage
+import com.xiaomanjun.sleepdownschedule.feature.todo.TodoPage
 import com.xiaomanjun.sleepdownschedule.feature.agent.rememberDayAgentBackgroundMotionState
 import com.xiaomanjun.sleepdownschedule.feature.course.editor.CourseEditorCloseDurationMillis
 import com.xiaomanjun.sleepdownschedule.feature.course.editor.CourseEditorContainerOverlayHost
@@ -440,6 +442,8 @@ fun CourseScheduleAppUi(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val allSchedulesState by viewModel.allSchedulesState.collectAsStateWithLifecycle()
     val message by viewModel.snackbar.collectAsStateWithLifecycle()
+    val todoItems by viewModel.todoItems.collectAsStateWithLifecycle()
+    val countdownEvents by viewModel.countdownEvents.collectAsStateWithLifecycle()
     val pickerState = rememberSchedulePickerState()
     var previewScheduleId by remember { mutableStateOf<Int?>(null) }
     var pendingPickerEditorScheduleId by remember { mutableStateOf<Int?>(null) }
@@ -534,6 +538,21 @@ fun CourseScheduleAppUi(
             animate = !rootPageMotion.landscape || !rootPageMotion.moving,
             renderedCardCount = { maxOf(dayRenderedCardCount, weekRenderedCardCount) })
     }
+    // 首页内容自己还有一层页面槽位：课表（日/周）/ 待办 / 倒数日。
+    // 三者叠在同一张壁纸上，切换沿用日 ↔ 周那套滑动 + 交叉淡入，Dock 直接驱动槽位。
+    val homePageMotion = rememberHomeSwitchMotion(
+        slot = when (screen) {
+            is Screen.Todo -> 1
+            is Screen.Countdown -> 2
+            else -> 0
+        },
+        label = "home-pages",
+        animate = !rootPageMotion.landscape || !rootPageMotion.moving,
+        // A Dock page swap is one page slide; the timetable's per-card stagger stays inside
+        // the day ↔ week switch, where cards genuinely belong to different views.
+        plainSlide = true,
+        renderedCardCount = { maxOf(dayRenderedCardCount, weekRenderedCardCount) }
+    )
     val rootPageStateHolder = rememberSaveableStateHolder()
     var homeDialog by remember { mutableStateOf<HomeDialog?>(null) }
     val aiHistorySelection by AiEduImportProgressSession.historySelection.collectAsStateWithLifecycle()
@@ -652,6 +671,44 @@ fun CourseScheduleAppUi(
     var homeMenuFromDock by remember { mutableStateOf(false) }
     var dockImportButtonBounds by remember { mutableStateOf<Rect?>(null) }
     var dockImportReturnLayer by remember { mutableStateOf<androidx.compose.ui.graphics.layer.GraphicsLayer?>(null) }
+
+    // 待办 / 倒数日与「视图 / 课程表」共用 Dock 上的同一个加号与同一套 Morph；
+    // 只把菜单内容换成当前页面自己的新建动作。
+    // 一次性请求：页面显示编辑器后立刻消费，离开再回来不会重复弹窗。
+    var todoComposerPending by remember { mutableStateOf(false) }
+    var countdownComposerPending by remember { mutableStateOf(false) }
+    var todoCompletedPending by remember { mutableStateOf(false) }
+    var pendingTodoComposer by remember { mutableStateOf(false) }
+    var pendingCountdownComposer by remember { mutableStateOf(false) }
+    var pendingTodoCompleted by remember { mutableStateOf(false) }
+    val latestOpenTodoComposer = rememberUpdatedState<() -> Unit> {
+        pendingTodoComposer = true
+        homeAnchoredOverlayRequest = null
+    }
+    val latestOpenCountdownComposer = rememberUpdatedState<() -> Unit> {
+        pendingCountdownComposer = true
+        homeAnchoredOverlayRequest = null
+    }
+    val latestOpenTodoCompleted = rememberUpdatedState<() -> Unit> {
+        pendingTodoCompleted = true
+        homeAnchoredOverlayRequest = null
+    }
+    // 加号只负责新建；已完成收在顶栏「更多」里，两个入口不再互相混入。
+    val todoNewActions = remember {
+        listOf(AddMenuAction(R.drawable.ic_todo_quadrant, "新建待办") {
+            latestOpenTodoComposer.value()
+        })
+    }
+    val todoOverflowActions = remember {
+        listOf(AddMenuAction(R.drawable.ic_check, "已完成") {
+            latestOpenTodoCompleted.value()
+        })
+    }
+    val countdownAddActions = remember {
+        listOf(AddMenuAction(R.drawable.ic_countdown_event, "新建倒数日") {
+            latestOpenCountdownComposer.value()
+        })
+    }
     var jumpWeekDialogMounted by remember { mutableStateOf(false) }
     var jumpWeekDialogVisible by remember { mutableStateOf(false) }
     var pendingJumpWeekDialog by remember { mutableStateOf(false) }
@@ -891,6 +948,9 @@ fun CourseScheduleAppUi(
     }
     BackHandler(enabled = screen is Screen.Config && settingsExitInterceptionRequired) {
         requestSettingsExit { context.findActivity()?.finish() }
+    }
+    BackHandler(enabled = screen is Screen.Todo || screen is Screen.Countdown) {
+        screen = Screen.Home
     }
     var showManagedFreeAiOffer by remember(context) { mutableStateOf(false) }
     LaunchedEffect(remoteExperience) {
@@ -1403,6 +1463,8 @@ fun CourseScheduleAppUi(
     var pendingConflictCourseKey by remember(visualState.config.id) { mutableStateOf<String?>(null) }
     var pendingConflictWeeks by remember(visualState.config.id) { mutableStateOf<List<Int>>(emptyList()) }
     var homeDisplayDate by remember(visualState.config.id) { mutableStateOf(todayDate) }
+    // 待办自己的日期（左右滑动 / 顶栏「回到本日」），与首页日期互不影响。
+    var todoDisplayDate by remember(visualState.config.id) { mutableStateOf(todayDate) }
     LaunchedEffect(
         state.loaded,
         visualState.config.id,
@@ -2172,12 +2234,17 @@ fun CourseScheduleAppUi(
     // Keep callback identity independent of overlay state. The latest guards and navigation
     // inputs are read only when the user acts, not while a shortcut animates its background.
     val currentDockSelect = rememberUpdatedState<(Int) -> Unit> { index ->
-        if (index == 2) {
-            sidebarPage = HomeSidebarDestination.Settings
-            screen = Screen.Config
-        } else requestSettingsExit {
-            homeMode = if (index == 0) HomeMode.Day else HomeMode.Week
-            screen = Screen.Home
+        when (index) {
+            0, 1 -> requestSettingsExit {
+                homeMode = if (index == 0) HomeMode.Day else HomeMode.Week
+                screen = Screen.Home
+            }
+            2 -> requestSettingsExit { screen = Screen.Todo }
+            3 -> requestSettingsExit { screen = Screen.Countdown }
+            else -> {
+                sidebarPage = HomeSidebarDestination.Settings
+                screen = Screen.Config
+            }
         }
     }
     val dockSelect = remember { { index: Int -> currentDockSelect.value(index) } }
@@ -2623,8 +2690,14 @@ fun CourseScheduleAppUi(
             }
     ) {
         val nativeHomeDockAvailable = nativeVisuals
-        val dockVisible = !homeAdaptiveMetrics.isLargeScreen && (screen is Screen.Home || screen is Screen.Config)
-        val dockSelectedIndex = if (screen is Screen.Config) 2 else if (homeMode == HomeMode.Day) 0 else 1
+        val dockVisible = !homeAdaptiveMetrics.isLargeScreen && (screen is Screen.Home || screen is Screen.Config || screen is Screen.Todo || screen is Screen.Countdown)
+        val dockSelectedIndex = when {
+            screen is Screen.Config -> 4
+            screen is Screen.Todo -> 2
+            screen is Screen.Countdown -> 3
+            homeMode == HomeMode.Day -> 0
+            else -> 1
+        }
         val dockConfig = if (screen is Screen.Home) visualState.config else state.config
         val dockButtonHidden = homeMenuFromDock && addButtonHidden
         Box(
@@ -2703,7 +2776,9 @@ fun CourseScheduleAppUi(
             LocalHomePagerStartOverflow provides homeSidebarState.targetContentInset,
             LocalSettingsSharedGradient provides tabletAboutGradient,
             LocalHomeBackgroundFrozen provides rememberUpdatedState(homeBackgroundFreezeActive),
-            LocalHomeTextContrastFrozen provides rememberUpdatedState(rootPageMotion.moving || homeModeMotion.moving || homeSidebarState.moving),
+            LocalHomeTextContrastFrozen provides rememberUpdatedState(
+                rootPageMotion.moving || homeModeMotion.moving || homePageMotion.moving || homeSidebarState.moving
+            ),
             com.xiaomanjun.sleepdownschedule.glass.LocalGlassCoordinatesFrozen provides
                 freezeHomeGlassCoordinates,
             com.xiaomanjun.sleepdownschedule.glass.LocalGlassSampleRecordKey provides homeGlassSampleRecordKey
@@ -2712,6 +2787,10 @@ fun CourseScheduleAppUi(
             containerColor = ComposeColor.Transparent,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
+                // 待办 / 倒数日是首页页内的槽位：首页顶栏随页面滑动淡出，过渡期间保留合成，
+                // 落位后整块卸载，避免透明层继续抢页面顶部的点击。
+                if (screen is Screen.Home || screen is Screen.Todo) {
+                Box(Modifier.fillMaxWidth()) {
                 HomeSwitchPane(rootPageMotion, secondary = false,
                     modifier = Modifier.fillMaxWidth().homeSidebarContentInset(homeSidebarState),
                     pageClip = HomeSwitchClip.TopBar, retainContent = true) {
@@ -2721,8 +2800,10 @@ fun CourseScheduleAppUi(
                         .fillMaxWidth()
                         .height(
                             rootTopBarLayoutHeight(
-                                Screen.Home,
-                                homeMode == HomeMode.Week && weekViewStyle == WeekViewStyle.BOUNDLESS
+                                if (screen is Screen.Todo) Screen.Todo else Screen.Home,
+                                screen is Screen.Home &&
+                                    homeMode == HomeMode.Week &&
+                                    weekViewStyle == WeekViewStyle.BOUNDLESS
                             )
                         )
                 ) {
@@ -2730,7 +2811,7 @@ fun CourseScheduleAppUi(
                     // layouts and glass nodes alive, just like the retained course pages.
                     run {
                         AnimatedVisibility(
-                            visible = homeContentUnderTopBar,
+                            visible = screen is Screen.Home && homeContentUnderTopBar,
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .zIndex(10f),
@@ -2767,7 +2848,7 @@ fun CourseScheduleAppUi(
                     ) {
                         CompositionLocalProvider(LocalToolbarBackdropBlurred provides homeContentUnderTopBar) {
                         AppTopBar(
-                            screen = Screen.Home,
+                            screen = screen,
                             state = visualState,
                             settingsPage = SettingsPage.Root,
                             backdrop = chromeBackdrop,
@@ -2791,11 +2872,13 @@ fun CourseScheduleAppUi(
                             onTogglePersonalize = { sourceScale ->
                                 toggleHomeAnchoredOverlay(HomeAnchoredOverlayKind.Personalize, sourceScale)
                             },
-                            onBackHome = { screen = Screen.Home }
+                            onBackHome = { screen = Screen.Home },
+                            todoDisplayDate = todoDisplayDate,
+                            onReturnTodoToToday = { todoDisplayDate = todayDate }
                         )
                         }
                     }
-                    if (weekViewStyle == WeekViewStyle.BOUNDLESS) {
+                    if (screen is Screen.Home && weekViewStyle == WeekViewStyle.BOUNDLESS) {
                         // Boundless week header lives on the top bar layer (above the gradient
                         // blur) so weekday labels are never covered; geometry mirrors the course
                         // grid (rowHeaderWidth slot + equal columns + weekGridEndPadding).
@@ -2833,7 +2916,9 @@ fun CourseScheduleAppUi(
                     }
                 }
                 }
-            }
+                }
+                }
+                }
         ) { padding ->
             val transitionBackground = settingsPageBackground(settingsVisualConfig(state.config))
             Box(
@@ -2941,7 +3026,11 @@ fun CourseScheduleAppUi(
                             },
                             pageClip = HomeSwitchClip.Page, retainContent = true) {
                             rootPageStateHolder.SaveableStateProvider("home") {
-                                 if (visualState.loaded) HomeScreen(
+                        // 槽位 0 = 课表（内部再分日 / 周），槽位 1 = 待办，槽位 2 = 倒数日。
+                        // 三者共用首页壁纸，切换沿用日 ↔ 周那套滑动 + 交叉淡入。
+                        Box(Modifier.fillMaxSize()) {
+                        HomeSwitchPane(homePageMotion, slot = 0, modifier = Modifier.fillMaxSize(), retainContent = true) {
+if (visualState.loaded) HomeScreen(
                                      state = visualState,
                                      agentState = agentVisualState,
                                      personalizationPreviewState = personalizationPreviewState,
@@ -3030,13 +3119,52 @@ fun CourseScheduleAppUi(
                                         }
                                     }
                                 )
-                            }
-                            if (!homeAdaptiveMetrics.isLargeScreen) {
-                                DockBackdropContinuityPatch(
-                                    config = visualState.config,
-                                    modifier = Modifier.align(Alignment.BottomCenter)
-                                )
-                            }
+                        }
+                        HomeSwitchPane(homePageMotion, slot = 1, modifier = Modifier.fillMaxSize(), retainContent = true) {
+                            TodoPage(
+                                items = todoItems,
+                                config = state.config,
+                                backdrop = courseWallpaperBackdrop,
+                                displayDate = todoDisplayDate,
+                                // 与日视图相同的顶部留白：顶栏是叠在页面上的，内容从它下面开始。
+                                topInset = homeAdaptiveMetrics.dayContentTopPadding,
+                                bottomInset = 88.dp,
+                                onSwipeDate = { delta ->
+                                    val requested = todoDisplayDate.plusDays(delta.toLong())
+                                    val range = scheduleDayNavigationRange(state.config, todayDate)
+                                    todoDisplayDate = if (range == null) requested
+                                    else requested.coerceIn(range.start, range.endInclusive)
+                                },
+                                composerPending = todoComposerPending,
+                                onComposerShown = { todoComposerPending = false },
+                                completedPending = todoCompletedPending,
+                                onCompletedShown = { todoCompletedPending = false },
+                                onSave = { viewModel.saveTodoItem(it) },
+                                onToggleDone = { viewModel.toggleTodoDone(it) },
+                                onDelete = { viewModel.deleteTodoItem(it) },
+                                onClearCompleted = { viewModel.clearCompletedTodoItems() }
+                            )
+                        }
+                        HomeSwitchPane(homePageMotion, slot = 2, modifier = Modifier.fillMaxSize(), retainContent = true) {
+                            CountdownPage(
+                                events = countdownEvents,
+                                config = state.config,
+                                backdrop = courseWallpaperBackdrop,
+                                bottomInset = 88.dp,
+                                composerPending = countdownComposerPending,
+                                onComposerShown = { countdownComposerPending = false },
+                                onSave = { viewModel.saveCountdownEvent(it) },
+                                onDelete = { viewModel.deleteCountdownEvent(it) }
+                            )
+                        }
+                        }
+                        }
+                        if (!homeAdaptiveMetrics.isLargeScreen) {
+                            DockBackdropContinuityPatch(
+                                config = visualState.config,
+                                modifier = Modifier.align(Alignment.BottomCenter)
+                            )
+                        }
                         }
                         HomeSwitchPane(rootPageMotion, secondary = true,
                             modifier = Modifier.fillMaxSize().padding(top = homeSidebarState.targetContentTopInset),
@@ -3122,7 +3250,6 @@ fun CourseScheduleAppUi(
                 phase = startupPhase,
                 buttonHidden = dockButtonHidden,
                 onSelect = dockSelect,
-                onOrdinaryHome = ordinaryDockHome,
                 onOpenMenu = dockOpenMenu,
                 modifier = Modifier.align(Alignment.BottomStart).zIndex(100f)
             )
@@ -3138,7 +3265,7 @@ fun CourseScheduleAppUi(
     // Keep that changing closure behind State, so it cannot invalidate the native host.
     val nativeDockFallback = rememberUpdatedState<@Composable () -> Unit> {
         HomeDockChrome(dockVisible, parallelPhoneNavigation, dockSelectedIndex, dockConfig,
-            chromeBackdrop, startupPhase, dockButtonHidden, dockSelect, ordinaryDockHome, dockOpenMenu)
+            chromeBackdrop, startupPhase, dockButtonHidden, dockSelect, dockOpenMenu)
     }
     if (nativeHomeDockAvailable) com.xiaomanjun.sleepdownschedule.feature.home.NativeHomeDockChrome(
         visible = dockVisible,
@@ -3652,6 +3779,26 @@ fun CourseScheduleAppUi(
         jumpWeekDialogMounted = true
         jumpWeekDialogVisible = true
     }
+    // 菜单完全收起后再挂载编辑器，避免两个弹层叠在一起。
+    LaunchedEffect(pendingTodoComposer, homeAnchoredMorphState.phase, screen) {
+        if (!pendingTodoComposer || screen !is Screen.Todo) return@LaunchedEffect
+        if (homeAnchoredMorphState.phase != HomeAnchoredOverlayPhase.Idle) return@LaunchedEffect
+        pendingTodoComposer = false
+        todoComposerPending = true
+    }
+    LaunchedEffect(pendingCountdownComposer, homeAnchoredMorphState.phase, screen) {
+        if (!pendingCountdownComposer || screen !is Screen.Countdown) return@LaunchedEffect
+        if (homeAnchoredMorphState.phase != HomeAnchoredOverlayPhase.Idle) return@LaunchedEffect
+        pendingCountdownComposer = false
+        countdownComposerPending = true
+    }
+    // 顶栏「更多 → 已完成」同样等菜单完全收起后再打开弹窗。
+    LaunchedEffect(pendingTodoCompleted, homeAnchoredMorphState.phase, screen) {
+        if (!pendingTodoCompleted || screen !is Screen.Todo) return@LaunchedEffect
+        if (homeAnchoredMorphState.phase != HomeAnchoredOverlayPhase.Idle) return@LaunchedEffect
+        pendingTodoCompleted = false
+        todoCompletedPending = true
+    }
 
     LaunchedEffect(sourceButtonFollowThrough) {
         val follow = sourceButtonFollowThrough ?: return@LaunchedEffect
@@ -3664,13 +3811,21 @@ fun CourseScheduleAppUi(
     }
 
     HomeAnchoredMorphOverlayHost(
-        request = if (screen is Screen.Home) homeAnchoredOverlayRequest else null,
+        request = if (screen is Screen.Home || screen is Screen.Todo || screen is Screen.Countdown) {
+            homeAnchoredOverlayRequest
+        } else null,
         motionState = homeAnchoredMorphState,
         backdrop = homeAnchoredOverlayBackdrop,
         config = state.config,
-        addActions = if (homeMenuFromDock) homeAddActions.take(3)
-            else if (parallelPhoneNavigation) homeAddActions.drop(3) else homeAddActions,
-        showModeSwitch = !parallelPhoneNavigation,
+        addActions = when {
+            screen is Screen.Todo -> if (homeMenuFromDock) todoNewActions else todoOverflowActions
+            screen is Screen.Countdown -> countdownAddActions
+            homeMenuFromDock -> homeAddActions.take(3)
+            parallelPhoneNavigation -> homeAddActions.drop(3)
+            else -> homeAddActions
+        },
+        showModeSwitch = !parallelPhoneNavigation &&
+            screen !is Screen.Todo && screen !is Screen.Countdown,
         homeMode = homeMode,
         onHomeModeChange = { homeMode = it },
         adaptiveMetrics = homeAdaptiveMetrics,

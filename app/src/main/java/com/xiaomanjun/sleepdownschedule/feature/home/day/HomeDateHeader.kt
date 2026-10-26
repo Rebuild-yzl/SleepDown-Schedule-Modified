@@ -64,6 +64,7 @@ fun HomeDateTitle(
     beforeScheduleTerm: Boolean,
     afterScheduleTerm: Boolean,
     showReturnToCurrentWeekHint: Boolean,
+    returnHintText: String = "点击此处回到本周",
     showWeather: Boolean = false,
     onReturnCurrent: () -> Unit
 ) {
@@ -80,7 +81,7 @@ fun HomeDateTitle(
                 when {
                     beforeScheduleTerm -> "当前暂未开学"
                     afterScheduleTerm -> "学期已结束"
-                    showReturnToCurrentWeekHint -> "点击此处回到本周"
+                    showReturnToCurrentWeekHint -> returnHintText
                     else -> "第${displayWeek}周"
                 },
                 style = MaterialTheme.typography.labelMedium.copy(

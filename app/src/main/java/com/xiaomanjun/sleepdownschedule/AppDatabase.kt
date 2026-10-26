@@ -4,7 +4,7 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
-internal const val APP_DATABASE_VERSION = 47
+internal const val APP_DATABASE_VERSION = 48
 
 @Database(
     entities = [
@@ -17,7 +17,9 @@ internal const val APP_DATABASE_VERSION = 47
         com.xiaomanjun.sleepdownschedule.model.PeriodSchemeLibraryMigrationEntity::class,
         com.xiaomanjun.sleepdownschedule.model.AgentDailySessionEntity::class,
         com.xiaomanjun.sleepdownschedule.model.AgentMessageEntity::class,
-        com.xiaomanjun.sleepdownschedule.feature.widget.WidgetAppearanceEntity::class
+        com.xiaomanjun.sleepdownschedule.feature.widget.WidgetAppearanceEntity::class,
+        com.xiaomanjun.sleepdownschedule.model.TodoItemEntity::class,
+        com.xiaomanjun.sleepdownschedule.model.CountdownEventEntity::class
     ],
     version = APP_DATABASE_VERSION,
     exportSchema = true
@@ -30,4 +32,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun scheduleProfileDao(): com.xiaomanjun.sleepdownschedule.data.local.ScheduleProfileDao
     abstract fun widgetAppearanceDao(): com.xiaomanjun.sleepdownschedule.feature.widget.WidgetAppearanceDao
     abstract fun agentDao(): com.xiaomanjun.sleepdownschedule.data.local.AgentDao
+    abstract fun todoDao(): com.xiaomanjun.sleepdownschedule.data.local.TodoDao
+    abstract fun countdownDao(): com.xiaomanjun.sleepdownschedule.data.local.CountdownDao
 }

@@ -6,6 +6,162 @@
 
 > 先读 AGENTS.md 和 docs/AI_HANDOFF.md，核对当前分支、工作树及 PR 状态，接着完成未完事项。沿用可核实的用户授权和已有成果，按本次变化选择验证；遇到差异先查事实并更新交接。
 
+## 个人修改版当前交接（2026-10-26）
+
+> 下面「当前分支与目标」起是上游主仓（CourseSchedule）的历史交接，仍按原样保留；本修改版的现状只看这一节。
+
+**分支**：`dev/todo-and-countdown-events`，从 `modified` 派生的线性历史，**尚未合并回 `modified`**（按 AGENTS.md：等用户明确要 PR 或合并再动）。
+
+| 提交 | 内容 |
+| --- | --- |
+| `edf94f23` | 计划文档：五项 Dock、完成态灰划线、象限内滚动 |
+| `f70eb4b9` | 数据层：`todo_items` / `countdown_events`、Room 47→48、规则与单测 |
+| `3eccd1e8` | 五项 Dock + 待办/倒数日页面接进首页 |
+| `b788deb3` | 修页面盖住首页页头的层级问题 |
+| `3b047b60` | 交接：记下「复用原版控件」「共用加号」两条要求 |
+| `292f8952` | 两页改用公共控件、加号与首页共用、完成不重排、倒数日跨年顺延 |
+| `57f4d34d` | 文档：实现现状、控件映射、下一步 |
+| `7479d023` | 待办 / 倒数日改为首页页内槽位，共用壁纸与切换动效 |
+| `a90805f6` | 交接：槽位架构、验证与剩余缺口 |
+| `238a2df6` | 卡片复用课程玻璃、Dock 尺寸随项数推导 |
+| `7b4c1437` | 待办日期分页、共用首页顶栏、Dock 与页内容同宽 |
+| `c8c06884` | 待办逐日显示、状态文案、创建默认今天、菜单拆分 |
+| 本次提交（`git log -1`） | 可见性终点改为 max(截止日, 今天/完成日)，已完成按当页回溯并标「当时逾期」，截止日不得早于创建日 |
+
+**本次修正：材质复用、Dock 尺寸与切换性能（2026-10-26 晚）**
+
+用户指出三个问题：新页面「空间是黑色的」、没有真正复用原版材质；Dock 高度变小但加号没变、切到设置页加号从条后漏边；页面切换有明显卡顿。逐条处理：
+
+1. **材质复用**：象限卡与倒数卡原来用 `SettingsGroup` → `LiquidPanel`，它按 `appUsesDarkTheme(config)` 取固定的 0x1C1C1E / White 表面色，和首页卡片的颜色、透明度、模糊/折射、字体缩放完全无关——深色配置下看起来就是黑块。现在两页改用 `glass/ui/CourseGlassCard`（与日/周课程卡同一张玻璃、同一条壁纸模糊管线、同一个 `LocalCourseTextBackground` 投影），文字改用 `core/ui/text/CourseCardText`；`CourseCardText` 补了 `textDecoration` 参数以保留完成态划线。
+2. **Dock 与加号**：新增 `feature/home/HomeDockMetrics.kt`，按项数推导条高（5 项 46dp、每少一项 +4dp）、单元宽（50/46 比例）、圆角（=高/2）与加号直径（=条高）；`HomeDockTabs`、`ParallelHomeDock`、`DockItem`、`SleepDownFloatingAddButton(size = …)` 共用这一套。设置页没有加号时，加号按 split 缩到 0.62 并淡出，不再整块藏在半透明条后面漏边。
+3. **切换**：`homePageMotion` 改为 plain slide（页面级一次平移，不再做日/周的逐卡错位），两页 `retainContent = true` 空闲 200ms 后预热合成，隐藏页的日期/秒表时钟按 `LocalHomePaneVisible` 停走。
+
+**性能测量（模拟器 `emulator-5554`，Pixel_10a / Android 17，release 包）**
+
+- 方法：`dumpsys gfxinfo reset` 后连续切 6 次页面取汇总；再用 `gfxinfo framestats` 拆 UI 线程 / RenderThread。
+- 结果：页面切换 25%（p50 29ms、p90 81ms）；逐帧 **UI 线程均值 15.2ms（p90 47ms）、RenderThread 均值 38.6ms（p90 90.7ms）、整帧 57.6ms**。首页↔设置（跨 Activity）对照只有 6.7%。
+- 结论：瓶颈在 GPU 合成大块玻璃表面，不在重组；两页都是整屏玻璃，所以「视图↔待办」与「待办↔倒数日」几乎一样慢。
+- 已试并**撤回**：让正在离开的页冻结玻璃采样（`coordinatesFrozen` + 固定 `sampleKey`）反而更差（32.6%、p50 34ms），说明成本是每帧合成大块玻璃层，不是重算采样，这个方向不要重复。
+- 未做、需要取舍：①切换期间把两页录成 `GraphicsLayer` 快照再平移 / 交叉淡入（真正的位图合成，最可能根治）；②把四个象限 / 倒数列表合成一张玻璃面板。两者都改变视觉或交互，先不要擅自选。
+- 用户贴的「Glass 场景六阶段生命周期」与当前代码不符：`GlassRenderPhase` 只有 Preparing / Moving / Live / Closing / Released，`synchronizePhase` 只由 `startupAnimation` 驱动；页面切换根本不进这个状态机，不存在「每次切页完整拆建玻璃场景」。
+
+**备份导入（用户提供 `docs/plans/SleepDown-Backup-20261025-1826.sleepdown`）**
+
+- 备份是 `formatVersion = 1`、`sourceDatabaseVersion = 47`（1.2.7.1 导出），当前 Room 48 可迁移恢复；**不是改数据库导致的**。
+- 之前失败的真实原因：`am start` 用 `file:///sdcard/Download/...` 把 adb push 的文件直接交给应用，`ContentResolver.openInputStream` 抛 `EACCES`；改用 MediaStore 的 `content://media/external/file/103` + `--grant-read-uri-permission` 后预览正常（「来自 SleepDown 1.2.7.1」），「替换并恢复」成功，课表与设置已替换。
+- 该备份不入库：`.gitignore` 增加 `/docs/plans/*.sleepdown`。
+
+**模拟器已验证**
+
+- 视图 / 待办 / 倒数日 三页共用同一张备份壁纸，象限卡与倒数卡都呈现课程卡那层半透明玻璃（颜色/透明度跟随设置），不再是黑块
+- Dock 与加号同高（46dp）、同圆角；设置页加号平滑缩退、无漏边
+- 待办页加号菜单 → 新建待办 → 编辑器；取消后不再自动弹出；返回键从待办回视图
+- `logcat` 无 `FATAL` / `AndroidRuntime`
+
+**待办的周期显示与状态文案（2026-10-26 晚，第三批）**
+
+- 日期页可见性 `todoVisibleOn`：创建日到截止日（含）每天出现，已完成也出现；逾期未完成的继续每天出现，直到完成；逾期已完成的停在截止日之后。创建日取 `createdAt` 的本地日期，缺失（旧数据）时不做前置限制。
+- 文案：未完成按当前页日期倒数（`今天 到期` / `明天 还有一天` / `后天 还有两天` / `本周` / `本月` / `下个月` / `M月 还有N天`，1–9 用中文数字）；已完成显示真实经过时间（`已完成 今天` / `已完成 昨天` / `已完成 15天前`）；逾期显示 `已逾期 N天`。
+- 新建待办默认截止到今天；编辑已有项仍可保留「无截止日期」。
+- 入口拆分：Dock 加号只放「新建待办」，顶栏三点只放「已完成」，按 `homeMenuFromDock` 选择 `todoNewActions` / `todoOverflowActions`。
+- 顺手把陈旧单测 `HomeSwitchMotionTest` 从布尔两槽改成整型槽位 API；`TodoCountdownRulesTest` 增加逐日可见性与新文案断言。
+- 模拟器验证：10/26 今天的 `今天 到期`、`已完成 今天`；10/27 出现 `已逾期 1天 / 2天`；10/25 仍能看到创建于更早、截止在 10/25 的已完成项；加号菜单只剩新建，三点菜单只剩已完成。
+
+**待办可见性与状态文案定稿（2026-10-26 晚，第四批）**
+
+用户逐条确认后的规则，实现以 `todoVisibleOn` + `todoDueMeta` / `todoDoneMeta` 为准：
+
+- **可见性**：起点是创建日，终点分两种——未完成取 `max(截止日, 今天)`（逾期项延续到今天，未来的页不显示，直到勾选完成；无截止日则一直显示）；已完成取 `max(截止日, 完成日)`（按期完成的看到截止日，逾期完成的看到完成日）。已完成项在创建日…截止日之间照常出现，不因完成而提前消失。
+- **已完成文案以当页为基准**：`e = 页日期 − 完成日`，`e<0` → `已完成 N天后`，`e=0` → `已完成 今天`，`e=1` → `已完成 昨天`，`e≥2` → `已完成 N天前`；页日期晚于截止日时追加 ` 当时逾期`（例：`已完成 1天后 当时逾期`）。已完成列表没有页日期，基准取今天，「当时逾期」看完成那一刻是否已过截止日。
+- **未完成文案仍以当页倒数**：`今天 到期` / `明天 还有一天` / `后天 还有两天` / `本周|本月|下个月|明年X月|YYYY年M月 还有N天` / 逾期页 `已逾期 N天`。1–9 天用中文数字，10 天以上以及所有逾期、完成天数用阿拉伯数字。
+- **跨年**：次年写 `明年X月 还有N天`，相差 ≥ 2 年写完整年份 `2028年1月 还有N天`。
+- **换行**：状态副标题允许软换行（`maxLines = 2`），不再单行截断。
+- **创建侧约束**：截止日不得早于创建日——新建时最小可选日是今天，编辑时是该待办原来的创建日；选到更早的日期时「确定」不可用并提示 `不能早于创建日 X月Y日`。
+- 单测 `TodoCountdownRulesTest` 覆盖六种可见性分支、`已完成 N天后` 与 `当时逾期` 文案、跨年月份写法。
+
+**待办页日期分页与共用顶栏（2026-10-26 晚，第二批）**
+
+- 待办内容改为 `HorizontalPager`（锚点 10_000、落页后才提交日期、`scheduleDayNavigationRange` 夹取），与日视图同一套左右滑动；没有截止日期的待办固定留在「今天」这一页，不会因为分页消失。
+- 顶栏直接复用 `AppTopBar` / `HomeDateTitle`：`Screen.Todo` 走与首页相同的分支，日期取 `todoDisplayDate`，不是今天时显示「点击此处回到本日」，点一下回今天；铅笔（个性化）与更多菜单原样沿用；倒数日仍保留自带页头。
+- 「已完成」从页头按钮移到更多菜单：`todoAddActions` 增加 `ic_check` 项，用一次性 `todoCompletedPending` 在菜单收起后打开弹窗；页头标题、日期行、7 天周条全部删除。
+- Dock：`HomeDockMetrics.forCount(count, availableWidth)` 按「条 + 8dp 间距 + 加号 = 页内容宽（屏宽 − 32dp）」反解条高（411dp 宽机型约 56.5dp），项宽、图标、字号与加号直径一起放大；`ParallelHomeDock` 与 `FloatingDock` 都传宽度预算，窄窗口自动缩回。
+- 模拟器验证：左右滑动切换日期、顶栏「点击此处回到本日 / 10月27日 周二」可点击返回；更多菜单「新建待办 / 已完成」、已完成弹窗；Dock 与象限卡左右对齐（各 16dp），加号与条同高。
+
+**本轮架构调整：两页进入首页页内（2026-10-26）**
+
+之前两页是 `ScheduleAppUi` 内容区里 `zIndex(90f)` 的兄弟层，自带不透明底色，所以背景与转场都和日/周视图不一致。现在改为：
+
+1. `HomeSwitchMotion` 由「布尔两槽」泛化为「整型槽位」（`initialSlot` / `animateTo(slot)` / `retains(slot)` / `cornerFraction` 按最近整数计算，`homeSwitchLayer(motion, slot)` 平移 `(slot - progress) * width`）。日↔周、首页↔设置继续走布尔重载，行为不变。
+2. 首页内容新增一层 `homePageMotion`：**槽位 0 = 课表（内部再分日/周）、槽位 1 = 待办、槽位 2 = 倒数日**，三者都挂在首页壁纸之上；Dock 仍是唯一导航，`screen` 决定槽位，**没有新增模式切换 UI**。
+3. 两页去掉不透明底色与 `DetailTopBar`：标题/日期/周条改用 `homeForegroundColor` + `HomeReadableText`（壁纸自适应字色与柔和投影），「已完成」改成玻璃胶囊；象限卡 / 倒数卡改用 `CourseGlassCard`（同一套课程材质与壁纸 Backdrop）。
+4. 首页顶栏（第1周 / 日期 / 铅笔 / 三个点）在切到待办/倒数日时随页滑动淡出：`screen is Screen.Home || homePageMotion.moving` 时保留合成、`alpha = 1 - progress`，落位后整块卸载，不会再抢页面顶部点击。
+5. 顺带修掉一个真实 bug：加号 →「新建待办」原来用累加计数，退出再进页面会重复弹出编辑器；改成一次性 `composerPending` + `onComposerShown()` 消费。
+
+**模拟器已验证（`emulator-5554` / Pixel_10a / Android 17，壁纸用 `docs/plans/壁纸.jpg`）**
+
+- 视图 / 课程表 / 待办 / 倒数日 四项切换都是同一套滑动 + 交叉淡入，三页共用同一张壁纸（截图可见壁纸透过象限卡与倒数卡）
+- 待办页：2×2 象限与壁纸叠合（页头与周条在后续批次已删除，改为复用首页顶栏 + 左右滑动切日）；加号菜单 → 新建待办 → 编辑器（玻璃弹层）；取消/返回后不再自动弹窗
+- 倒数日页：Hero 每秒走字（`61 天 23:54:48`）、卡片玻璃、跨年顺延（`364` / `61` 天）
+- 返回键从待办回视图；设置页与首页之间互切正常；`logcat` 无 `FATAL`/`AndroidRuntime`
+
+**分支收尾（2026-10-26 晚）**
+
+- 分支 `dev/todo-and-countdown-events` 已整理成可提交状态：功能与文档提交线性排列，工作树干净，`tmp/` 已加入 `.gitignore`。
+- 最终验证：`TodoCountdownRulesTest` 通过；`assembleGithubRelease` 成功并在 `emulator-5554` 覆盖安装。
+- PR 目标为 `modified`；PR 正文已生成，等待用户手动提交，**不自行合并**。
+
+**下一步（按优先级）**
+
+0. 切页卡顿：先和用户确认方向（快照转场 / 合并玻璃面板）再动手；模拟器 25% 抖动、RenderThread 均值 38.6ms，纯 UI 侧优化已到边界。
+1. ColorOS 原生路径：`ColorOsParallelHomeDock` 仍按 3 项渲染、`canOpen`/`expanded` 用 `selectedIndex < 2`、`select` 钳到 0..2，`colorOsOrdinaryDockWidth()` 也未同步；ColorOS 真机上「待办/倒数日」会落到错误索引。
+2. 象限滚动边缘 24dp 渐隐（计划 4.1）仍未实现。
+3. 亮壁纸上文字对比度：现在与首页一致（`HomeReadableText` 柔和投影），但极端亮部（`壁纸.jpg` 顶部白字）仍偏弱，可按需加局部压暗。
+4. `HomeMode` / `HomeStartMode` / Room 默认值**没有**扩展：用户明确不需要模式切换功能，当前页也不持久化（与日/周一致，重启回到 `defaultHomeMode`）。
+5. `AppDatabaseMigrationTest.migrate47To48` 仍未跑 androidTest；浅色主题、横屏 / 平板、真机未验收。
+6. `docs/plans/design-reference-todo-countdown.html` 仍是改造前的低保真稿（页头 / 周条已删、改为日期分页），稿内已加勘误说明，正式同步待办。
+
+**已知偏差**
+
+- 待办 / 倒数日不是 `HomeMode` 值，而是首页内容层里的独立槽位；好处是不影响 `homeMode == Week` 的大量课程逻辑（编辑器来源判定、周编辑、助手等）。
+- 行内删除仍是「左滑 + 确认弹窗」；两张新表不参与 `.sleepdown` v1 备份。
+
+**待办与倒数日的备份支持（暂缓，2026-10-26 用户决定）**
+
+- 现状：`.sleepdown` v1 的 `BackupData` 只有 schedules / widgetAppearances / sharedPeriodSchemes；`feature/backup` 包内没有任何 `todo` 引用，恢复事务也只替换课表相关表，不会删除或写入 `todo_items` / `countdown_events`。所以备份带不走这两类数据，但恢复也不会清掉它们。
+- 若之后要做：按 `docs/migration/BACKUP_FORMAT_V1.md` §8「明确定义为 optional 的新字段：v1 parser 忽略」增加两个可选列表（稳定 ID `todo_<uuid>` / `event_<uuid>`），保持 `dataVersion = 1`；恢复仍走 Replace，需要把两张表纳入替换集并在预览里写明；或者把 `dataVersion` 升到 2、新版接受 1..2，让旧版明确拒绝而不是静默丢段。测试需覆盖新包→新库、旧包→新库、脏行处理。
+
+**验证命令**
+
+```powershell
+$env:JAVA_HOME='D:\JetBrains\Android Studio\jbr'
+$env:GRADLE_USER_HOME='C:\Users\TableATK\.gradle'
+.\gradlew.bat compileGithubReleaseKotlin
+.\gradlew.bat assembleGithubRelease
+.\gradlew.bat :app:testGithubDebugUnitTest --tests '*TodoCountdownRulesTest*'
+adb -P 5038 -s emulator-5554 install -r app/build/outputs/apk/github/release/app-github-release.apk
+```
+
+**代码地图**
+
+- 切换器：`feature/home/HomeSwitchMotion.kt`（`HomeSwitchMotion(slot counts)`、`rememberHomeSwitchMotion(slot = …)`、`HomeSwitchPane(motion, slot = …)`、布尔重载保留）
+- 宿主：`app/ui/ScheduleAppUi.kt`（`homePageMotion`、首页页内 `Box` + 三个 `HomeSwitchPane`、顶栏淡出、`todoComposerPending` / `countdownComposerPending`）
+- 页面：`feature/todo/TodoPage.kt`、`feature/countdown/CountdownPage.kt`（`backdrop` 参数、`composerPending` + `onComposerShown`、`HomeReadableText` 页头）
+- 数据 / 规则：`model/TodoModels.kt`、`data/local/TodoDaos.kt`、`AppDatabase.kt`（version 48）、`feature/todo/TodoRules.kt`（`settledDoneIds`）、`feature/countdown/CountdownRules.kt`（可选 `now`）
+- Dock：`feature/home/HomeDockMetrics.kt`（项数→条高/单元宽/圆角/加号直径）、`HomeDockTabs.kt`（五项）、`ParallelHomeDock.kt`（`addCapable = selectedIndex < 4`、加号随 split 缩退）
+- 材质：`glass/ui/CourseGlassCard.kt`（页面卡片复用）、`core/ui/text/CourseCardText.kt`（已补 `textDecoration`）
+
+**可复用控件（本轮实际用到的入口）**
+
+| 用途 | 入口 |
+| --- | --- |
+| 壁纸自适应文字 | `feature/home/day/HomeReadability.kt` `HomeReadableText` / `homeForegroundColor` |
+| 页面槽位与切换 | `feature/home/HomeSwitchMotion.kt` `rememberHomeSwitchMotion(slot)` + `HomeSwitchPane(slot)` |
+| 居中液态弹窗 / 确认框 | `SleepDownDialog.kt`: `LiquidAlertDialog`、`DialogLiquidButton`、`DialogCapsuleField` |
+| 编辑器外壳 | `SleepDownQuickSheet.kt:140 SleepDownPickerDialog`（`contentTransitionKey` 分页） |
+| 分组卡片 / 行 / 开关 / 滑动删除 | `SettingsGroups.kt SettingsGroup`、`SettingsRows.kt`（`SettingsNavigationRow` / `SettingsToggleRow` / `SettingsSwipeDeleteRow`） |
+| 日期 / 时间轮 | `SettingsTimePickers.kt` `SettingsDatePickerContent` / `SettingsTimePickerContent` |
+| Dock 加号 | `SleepDownFloatingAddButton` + `ParallelHomeDock` + `HomeAnchoredMorphOverlayHost` |
+
 ## 当前分支与目标
 
 | 对象 | 核对结果 |

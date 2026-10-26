@@ -46,11 +46,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.catalog.components.LiquidButton
@@ -63,7 +66,6 @@ import com.xiaomanjun.sleepdownschedule.core.ui.chrome.HomeLightGlassSurfaceColo
 import com.xiaomanjun.sleepdownschedule.core.ui.chrome.homeActionIconPainter
 import com.xiaomanjun.sleepdownschedule.core.ui.interaction.dockImeCompensationPx
 import com.xiaomanjun.sleepdownschedule.core.ui.interaction.excludeParentPullGesture
-import com.xiaomanjun.sleepdownschedule.core.ui.material.LocalHomeMaterialControls
 import com.xiaomanjun.sleepdownschedule.glass.ui.GlassLens
 import com.xiaomanjun.sleepdownschedule.glass.ui.GlassPill
 import com.xiaomanjun.sleepdownschedule.glass.ui.LocalAdaptiveGlass
@@ -76,12 +78,12 @@ import kotlinx.coroutines.delay
 @Composable
 fun FloatingDock(
     selected: Screen,
+    selectedIndex: Int,
     backdrop: Backdrop?,
     config: ScheduleConfigEntity,
     modifier: Modifier = Modifier,
     previewMode: Boolean = false,
-    onHome: () -> Unit,
-    onConfig: () -> Unit
+    onSelect: (Int) -> Unit
 ) {
     val adaptiveGlass = LocalAdaptiveGlass.current
     val lightGlass = if (selected is Screen.Home) {
@@ -90,6 +92,14 @@ fun FloatingDock(
         !appUsesDarkTheme(config)
     }
     val density = LocalDensity.current
+    // 无加号的普通 Dock 也按页内容宽度取尺寸，保证与首页胶囊、卡片同宽。
+    val configuration = LocalConfiguration.current
+    val dockMetrics = remember(configuration.screenWidthDp) {
+        HomeDockMetrics.forCount(
+            5,
+            availableWidth = (configuration.screenWidthDp.dp - 32.dp).coerceAtLeast(240.dp)
+        )
+    }
     // MIUI reports the IME-sized bottom edge through safeDrawing for the underlying Activity
     // while a transparent Compose Dialog owns the keyboard. That makes a bottom-aligned Dock jump
     // above the keyboard even though the Activity itself uses adjustNothing. Use the stable
@@ -109,7 +119,7 @@ fun FloatingDock(
     )
     val bottomOffset = (bottomInset + 8.dp).coerceAtLeast(8.dp)
     val dockTextColor by animateColorAsState(
-        targetValue = if (selected is Screen.Home) {
+        targetValue = if (selected is Screen.Home && selectedIndex < 2) {
             adaptiveGlass.contentColor
         } else if (appUsesDarkTheme(config)) {
             ComposeColor.White
@@ -140,10 +150,11 @@ fun FloatingDock(
     ) {
         CompositionLocalProvider(LocalContentColor provides dockTextColor) {
             HomeDockTabs(
-                selectedIndex = if (selected is Screen.Home) 0 else 1, parallel = false,
+                selectedIndex = selectedIndex,
                 config = config, backdrop = backdrop, lightGlass = lightGlass,
-                modifier = Modifier.width(LocalHomeMaterialControls.current.ordinaryDockWidth()).excludeParentPullGesture(),
-                onSelect = { index -> if (index == 0) onHome() else onConfig() }
+                modifier = Modifier.width(dockMetrics.width).excludeParentPullGesture(),
+                dockMetrics = dockMetrics,
+                onSelect = onSelect
             )
         }
     }
@@ -262,7 +273,12 @@ fun DockBackdropContinuityPatch(config: ScheduleConfigEntity, modifier: Modifier
 }
 
 @Composable
-internal fun DockTabContent(iconRes: Int, label: String, iconSize: Dp) {
+internal fun DockTabContent(
+    iconRes: Int,
+    label: String,
+    iconSize: Dp,
+    labelFontSize: TextUnit = 9.5.sp
+) {
     Column(
         modifier = Modifier
             .fillMaxHeight()
@@ -271,20 +287,28 @@ internal fun DockTabContent(iconRes: Int, label: String, iconSize: Dp) {
         verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.CenterVertically)
     ) {
         Icon(homeActionIconPainter(iconRes), contentDescription = null, modifier = Modifier.size(iconSize))
-        Text(label, style = MaterialTheme.typography.labelSmall)
+        Text(label, fontSize = labelFontSize, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }
 
 @Composable
-fun DockItem(selected: Boolean, backdrop: Backdrop?, config: ScheduleConfigEntity, iconRes: Int, label: String, onClick: () -> Unit) {
+internal fun DockItem(
+    selected: Boolean,
+    backdrop: Backdrop?,
+    config: ScheduleConfigEntity,
+    iconRes: Int,
+    label: String,
+    metrics: HomeDockMetrics = HomeDockMetrics.forCount(5),
+    onClick: () -> Unit
+) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     Box(
         modifier = Modifier
             .clip(Capsule())
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .height(60.dp)
-            .width(78.dp),
+            .height(metrics.itemHeight)
+            .width(metrics.itemWidth),
         contentAlignment = Alignment.Center
     ) {
         if (pressed) {
@@ -296,12 +320,17 @@ fun DockItem(selected: Boolean, backdrop: Backdrop?, config: ScheduleConfigEntit
             )
         }
         Column(
-            modifier = Modifier.padding(vertical = 7.dp),
+            modifier = Modifier.padding(vertical = metrics.edgePadding * 0.75f),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)
         ) {
-            Icon(homeActionIconPainter(iconRes), contentDescription = null, modifier = Modifier.size(22.dp))
-            Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+            Icon(homeActionIconPainter(iconRes), contentDescription = null, modifier = Modifier.size(metrics.iconSize))
+            Text(
+                label,
+                fontSize = metrics.labelFontSize,
+                maxLines = 1,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+            )
         }
     }
 }

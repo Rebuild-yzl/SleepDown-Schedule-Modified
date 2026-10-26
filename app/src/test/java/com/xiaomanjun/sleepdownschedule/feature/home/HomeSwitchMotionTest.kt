@@ -1,7 +1,6 @@
 package com.xiaomanjun.sleepdownschedule.feature.home
 
 import androidx.compose.runtime.BroadcastFrameClock
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.cancelAndJoin
@@ -18,10 +17,10 @@ class HomeSwitchMotionTest {
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     @Test fun nativeMaterialKeepsDensePageFollowersAndRebound() = runTest {
         val frames = Frames()
-        val target = mutableStateOf(true)
-        val motion = HomeSwitchMotion(false, target, fullMotion = true, renderedCardCount = { 30 })
+        val target = mutableIntStateOf(1)
+        val motion = HomeSwitchMotion(0, target, fullMotion = true, renderedCardCount = { 30 })
         assertFalse(motion.plainSlide)
-        val job = launch(frames.clock, start = CoroutineStart.UNDISPATCHED) { motion.animateTo(true) }
+        val job = launch(frames.clock, start = CoroutineStart.UNDISPATCHED) { motion.animateTo(1) }
         var sawStagger = false
         var sawRebound = false
         repeat(120) {
@@ -44,7 +43,7 @@ class HomeSwitchMotionTest {
 
     @Test fun densePagesSelectPlainSlideBeforeTheFirstTransitionFrame() {
         val count = mutableIntStateOf(0)
-        val motion = HomeSwitchMotion(false, mutableStateOf(false), renderedCardCount = { count.intValue })
+        val motion = HomeSwitchMotion(0, mutableIntStateOf(0), renderedCardCount = { count.intValue })
         assertFalse(motion.plainSlide)
         count.intValue = 20
         assertTrue(motion.plainSlide)
@@ -65,9 +64,9 @@ class HomeSwitchMotionTest {
     @Test fun tenCardsKeepStaggerWhileElevenMoveTogetherWithoutOvershoot() = runBlocking {
         for (count in listOf(10, 11)) {
             val frames = Frames()
-            val target = mutableStateOf(true)
-            val motion = HomeSwitchMotion(false, target, renderedCardCount = { count })
-            val job = launch(frames.clock, start = CoroutineStart.UNDISPATCHED) { motion.animateTo(true) }
+            val target = mutableIntStateOf(1)
+            val motion = HomeSwitchMotion(0, target, renderedCardCount = { count })
+            val job = launch(frames.clock, start = CoroutineStart.UNDISPATCHED) { motion.animateTo(1) }
             var sawStagger = false
             var previous = 0f
             repeat(90) {
@@ -92,17 +91,17 @@ class HomeSwitchMotionTest {
 
     @Test fun reversalKeepsItsStyleAndPositionThenNextSwitchRechecksCount() = runBlocking {
         val frames = Frames()
-        val target = mutableStateOf(true)
+        val target = mutableIntStateOf(1)
         var count = 11
-        val motion = HomeSwitchMotion(false, target, renderedCardCount = { count })
-        val outgoing = launch(frames.clock, start = CoroutineStart.UNDISPATCHED) { motion.animateTo(true) }
+        val motion = HomeSwitchMotion(0, target, renderedCardCount = { count })
+        val outgoing = launch(frames.clock, start = CoroutineStart.UNDISPATCHED) { motion.animateTo(1) }
         repeat(7) { frames.next() }
         assertTrue(motion.progress.value in 0.01f..0.99f)
         val interruptedPosition = motion.progress.value
         outgoing.cancelAndJoin()
         count = 10
-        target.value = false
-        val returning = launch(frames.clock, start = CoroutineStart.UNDISPATCHED) { motion.animateTo(false) }
+        target.value = 0
+        val returning = launch(frames.clock, start = CoroutineStart.UNDISPATCHED) { motion.animateTo(0) }
         assertEquals(interruptedPosition, motion.progress.value, 0f)
         assertTrue(motion.plainSlide)
         repeat(90) {
@@ -113,26 +112,26 @@ class HomeSwitchMotionTest {
         assertFalse(motion.moving)
         assertFalse(motion.retains(true))
 
-        target.value = true
-        val next = launch(frames.clock, start = CoroutineStart.UNDISPATCHED) { motion.animateTo(true) }
+        target.value = 1
+        val next = launch(frames.clock, start = CoroutineStart.UNDISPATCHED) { motion.animateTo(1) }
         assertFalse(motion.plainSlide)
         next.cancelAndJoin()
-        motion.settleAt(true)
+        motion.settleAt(1)
         assertFalse(motion.moving)
         for (group in 0 until 6) assertEquals(1f, motion.groupProgress(group), 0f)
     }
 
     @Test fun denseLandscapeAlsoUsesPlainSlideAndSettleClearsInterruptedMotion() = runBlocking {
         val frames = Frames()
-        val target = mutableStateOf(true)
-        val motion = HomeSwitchMotion(false, target, landscape = true, renderedCardCount = { 11 })
-        val job = launch(frames.clock, start = CoroutineStart.UNDISPATCHED) { motion.animateTo(true) }
+        val target = mutableIntStateOf(1)
+        val motion = HomeSwitchMotion(0, target, landscape = true, renderedCardCount = { 11 })
+        val job = launch(frames.clock, start = CoroutineStart.UNDISPATCHED) { motion.animateTo(1) }
         repeat(7) { frames.next() }
         assertTrue(motion.plainSlide)
         assertTrue(motion.moving)
         job.cancelAndJoin()
-        target.value = false
-        motion.settleAt(false)
+        target.value = 0
+        motion.settleAt(0)
         assertFalse(motion.moving)
         assertFalse(motion.retains(true))
         assertEquals(0f, motion.progress.value, 0f)

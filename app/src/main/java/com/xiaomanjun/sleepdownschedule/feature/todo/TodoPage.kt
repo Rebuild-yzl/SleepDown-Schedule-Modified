@@ -1,0 +1,682 @@
+package com.xiaomanjun.sleepdownschedule.feature.todo
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.kyant.backdrop.Backdrop
+import com.xiaomanjun.sleepdownschedule.scheduleDayNavigationRange
+import com.xiaomanjun.sleepdownschedule.ScheduleConfigEntity
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.DialogButtonRole
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.DialogCapsuleField
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.DialogLiquidButton
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LiquidAlertAction
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LiquidAlertActionStyle
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LiquidAlertDialog
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalCenteredDialogSceneBackdrop
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.QuickSheetLiquidAction
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownDesignTokens
+import com.xiaomanjun.sleepdownschedule.core.ui.designsystem.SleepDownPickerDialog
+import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsDatePickerContent
+import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsNavigationRow
+import com.xiaomanjun.sleepdownschedule.core.ui.settings.SettingsSwipeDeleteRow
+import com.xiaomanjun.sleepdownschedule.core.ui.text.CourseCardText
+import com.xiaomanjun.sleepdownschedule.feature.home.LocalHomePaneVisible
+import com.xiaomanjun.sleepdownschedule.feature.home.day.homeForegroundColor
+import com.xiaomanjun.sleepdownschedule.glass.ui.CourseGlassCard
+import com.kyant.shapes.RoundedRectangle
+import com.xiaomanjun.sleepdownschedule.model.TodoItemEntity
+import com.xiaomanjun.sleepdownschedule.model.TodoQuadrant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
+import kotlinx.coroutines.delay
+
+private val QuadrantAccents = mapOf(
+    TodoQuadrant.IMPORTANT_URGENT to Color(0xFFFF453A),
+    TodoQuadrant.IMPORTANT_NOT_URGENT to Color(0xFFF5A524),
+    TodoQuadrant.URGENT_NOT_IMPORTANT to Color(0xFF2FB344),
+    TodoQuadrant.NEITHER to Color(0xFF0A84FF)
+)
+
+/**
+ * 待办页：内容区按日期分页，左右滑动与日视图一致；顶栏由首页宿主统一提供（日期 / 铅笔 / 更多），
+ * 「已完成」移到更多菜单。每页是当天 2×2 象限，完成态原地灰字划线。
+ */
+@Composable
+internal fun TodoPage(
+    items: List<TodoItemEntity>,
+    config: ScheduleConfigEntity,
+    backdrop: Backdrop?,
+    displayDate: LocalDate,
+    topInset: Dp,
+    bottomInset: Dp,
+    onSwipeDate: (Int) -> Unit,
+    composerPending: Boolean,
+    onComposerShown: () -> Unit,
+    completedPending: Boolean,
+    onCompletedShown: () -> Unit,
+    onSave: (TodoItemEntity) -> Unit,
+    onToggleDone: (TodoItemEntity) -> Unit,
+    onDelete: (TodoItemEntity) -> Unit,
+    onClearCompleted: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val zone = remember { ZoneId.systemDefault() }
+    // 预热中的隐藏页不走到点刷新；只在真正可见时挂载这枚分钟级时钟。
+    val paneVisible = LocalHomePaneVisible.current
+    var today by remember { mutableStateOf(LocalDate.now(zone)) }
+    LaunchedEffect(paneVisible.value) {
+        if (!paneVisible.value) return@LaunchedEffect
+        today = LocalDate.now(zone)
+        while (true) {
+            delay(60_000)
+            today = LocalDate.now(zone)
+        }
+    }
+    // 进入页面时的完成快照：本次新勾选的项仍按未完成的位置排序，行不会自己滑走。
+    val settledDoneIds = remember { items.filter { it.isDone }.mapTo(HashSet()) { it.id } }
+
+    var editorTarget by remember { mutableStateOf<TodoItemEntity?>(null) }
+    var creating by remember { mutableStateOf(false) }
+    var deleteTarget by remember { mutableStateOf<TodoItemEntity?>(null) }
+    var showCompleted by remember { mutableStateOf(false) }
+
+    // Dock 上的共用加号 / 顶栏菜单通过一次性请求打开新建与已完成。
+    LaunchedEffect(composerPending) {
+        if (!composerPending) return@LaunchedEffect
+        creating = true
+        onComposerShown()
+    }
+    LaunchedEffect(completedPending) {
+        if (!completedPending) return@LaunchedEffect
+        showCompleted = true
+        onCompletedShown()
+    }
+
+    val dialogBackdrop = LocalCenteredDialogSceneBackdrop.current
+    val ink = homeForegroundColor(config)
+
+    // 与日视图同一套日期分页：以进入时的日期为锚点，落页后才提交日期。
+    val centerPage = 10_000
+    val anchorDate = remember { displayDate }
+    val navigationRange = remember(config) { scheduleDayNavigationRange(config) }
+    val pagerState = rememberPagerState(initialPage = centerPage, pageCount = { centerPage * 2 + 1 })
+    var programmaticDayScroll by remember { mutableStateOf(false) }
+    var gestureCommittedDate by remember { mutableStateOf<LocalDate?>(null) }
+
+    fun dateForPage(page: Int): LocalDate = anchorDate.plusDays((page - centerPage).toLong())
+    fun clampToRange(date: LocalDate): LocalDate {
+        val range = navigationRange ?: return date
+        return date.coerceIn(range.start, range.endInclusive)
+    }
+
+    LaunchedEffect(pagerState.settledPage) {
+        if (programmaticDayScroll) return@LaunchedEffect
+        val settledDate = dateForPage(pagerState.settledPage)
+        val allowedDate = clampToRange(settledDate)
+        if (settledDate != allowedDate) {
+            programmaticDayScroll = true
+            try {
+                val page = (centerPage + ChronoUnit.DAYS.between(anchorDate, allowedDate).toInt())
+                    .coerceIn(0, centerPage * 2)
+                pagerState.animateScrollToPage(page, animationSpec = tween(durationMillis = 180))
+            } finally {
+                programmaticDayScroll = false
+                gestureCommittedDate = null
+            }
+            return@LaunchedEffect
+        }
+        if (settledDate != displayDate) {
+            gestureCommittedDate = settledDate
+            onSwipeDate(ChronoUnit.DAYS.between(displayDate, settledDate).toInt())
+        } else {
+            gestureCommittedDate = null
+        }
+    }
+    LaunchedEffect(displayDate) {
+        if (gestureCommittedDate == displayDate) return@LaunchedEffect
+        val safeDate = clampToRange(displayDate)
+        if (safeDate != displayDate) {
+            onSwipeDate(ChronoUnit.DAYS.between(displayDate, safeDate).toInt())
+            return@LaunchedEffect
+        }
+        val targetPage = (centerPage + ChronoUnit.DAYS.between(anchorDate, safeDate).toInt())
+            .coerceIn(0, centerPage * 2)
+        if (pagerState.settledPage != targetPage) {
+            programmaticDayScroll = true
+            try {
+                pagerState.animateScrollToPage(targetPage, animationSpec = tween(durationMillis = 240))
+            } finally {
+                programmaticDayScroll = false
+                gestureCommittedDate = null
+            }
+        }
+    }
+
+    // 页内页面：不铺自己的底色，顶栏、壁纸与页面切换都由首页宿主提供。
+    Box(modifier.fillMaxSize()) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+            beyondViewportPageCount = 1,
+            key = { it }
+        ) { page ->
+            val pageDate = remember(anchorDate, page) { dateForPage(page) }
+            val dayItems = remember(items, pageDate, today, zone) {
+                // 未完成的起点是创建日、终点是 max(截止日, 今天)；已完成看到 max(截止日, 完成日)。
+                items.filter { todoVisibleOn(it, pageDate, today, zone) }
+            }
+            val grouped = remember(dayItems, settledDoneIds) { groupTodoItems(dayItems, settledDoneIds) }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = topInset + 10.dp, bottom = bottomInset + 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    QuadrantCard(
+                        TodoQuadrant.IMPORTANT_URGENT, grouped.getValue(TodoQuadrant.IMPORTANT_URGENT),
+                        pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
+                        onToggleDone, { editorTarget = it }, { deleteTarget = it }
+                    )
+                    QuadrantCard(
+                        TodoQuadrant.IMPORTANT_NOT_URGENT, grouped.getValue(TodoQuadrant.IMPORTANT_NOT_URGENT),
+                        pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
+                        onToggleDone, { editorTarget = it }, { deleteTarget = it }
+                    )
+                }
+                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    QuadrantCard(
+                        TodoQuadrant.URGENT_NOT_IMPORTANT, grouped.getValue(TodoQuadrant.URGENT_NOT_IMPORTANT),
+                        pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
+                        onToggleDone, { editorTarget = it }, { deleteTarget = it }
+                    )
+                    QuadrantCard(
+                        TodoQuadrant.NEITHER, grouped.getValue(TodoQuadrant.NEITHER),
+                        pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
+                        onToggleDone, { editorTarget = it }, { deleteTarget = it }
+                    )
+                }
+            }
+        }
+    }
+
+    val editing = editorTarget
+    if (creating || editing != null) {
+        TodoEditorDialog(
+            initial = editing,
+            today = today,
+            zone = zone,
+            backdrop = dialogBackdrop,
+            config = config,
+            onDismiss = { creating = false; editorTarget = null },
+            onSave = { item ->
+                onSave(item)
+                creating = false
+                editorTarget = null
+            }
+        )
+    }
+
+    deleteTarget?.let { target ->
+        LiquidAlertDialog(
+            title = "删除待办",
+            message = "确定要删除「${target.title}」吗？",
+            actions = listOf(
+                LiquidAlertAction("取消", LiquidAlertActionStyle.Cancel) { deleteTarget = null },
+                LiquidAlertAction("删除", LiquidAlertActionStyle.Destructive) {
+                    deleteTarget = null
+                    onDelete(target)
+                }
+            ),
+            backdrop = dialogBackdrop,
+            config = config,
+            onDismissRequest = { deleteTarget = null }
+        )
+    }
+
+    if (showCompleted) {
+        val completed = items.filter { it.isDone }.sortedByDescending { it.doneAt }
+        LiquidAlertDialog(
+            title = "已完成",
+            message = "还没有完成的待办",
+            actions = listOf(
+                LiquidAlertAction("清空已完成", LiquidAlertActionStyle.Destructive) {
+                    showCompleted = false
+                    onClearCompleted()
+                },
+                LiquidAlertAction("关闭", LiquidAlertActionStyle.Cancel) { showCompleted = false }
+            ),
+            backdrop = dialogBackdrop,
+            config = config,
+            onDismissRequest = { showCompleted = false },
+            scrollableMessageContent = true,
+            messageContent = if (completed.isEmpty()) null else {
+                {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for (item in completed) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        item.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textDecoration = TextDecoration.LineThrough,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    todoDoneListMeta(item, today, zone)?.let { meta ->
+                                        Text(
+                                            meta.text,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                                DialogLiquidButton(
+                                    backdrop = null,
+                                    label = "恢复",
+                                    onClick = { onToggleDone(item) },
+                                    role = DialogButtonRole.Neutral,
+                                    height = 32.dp,
+                                    horizontalPadding = 12.dp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun QuadrantCard(
+    quadrant: TodoQuadrant,
+    items: List<TodoItemEntity>,
+    pageDate: LocalDate,
+    zone: ZoneId,
+    config: ScheduleConfigEntity,
+    backdrop: Backdrop?,
+    ink: Color,
+    modifier: Modifier,
+    onToggleDone: (TodoItemEntity) -> Unit,
+    onEdit: (TodoItemEntity) -> Unit,
+    onDelete: (TodoItemEntity) -> Unit
+) {
+    val accent = QuadrantAccents.getValue(quadrant)
+    // 复用课程卡的玻璃：卡片颜色、透明度、模糊/折射、字体缩放都跟随首页材质设置，
+    // 也共用首页那条壁纸模糊管线，不再各自建一套面板材质。
+    CourseGlassCard(
+        backdrop = backdrop,
+        config = config,
+        modifier = modifier,
+        shape = RoundedRectangle(24.dp)
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 11.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CourseCardText(
+                    quadrant.label,
+                    color = ink,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                CourseCardText(
+                    "${unfinishedCount(items)}",
+                    color = ink.copy(alpha = 0.72f),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Box(
+                Modifier.padding(start = 14.dp, top = 6.dp)
+                    .width(22.dp)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(accent)
+            )
+            Spacer(Modifier.height(4.dp))
+            if (items.isEmpty()) {
+                CourseCardText(
+                    "暂无待办",
+                    color = ink.copy(alpha = 0.66f),
+                    fontSize = 11.5.sp,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentPadding = PaddingValues(bottom = 6.dp)
+                ) {
+                    items(items, key = { it.id }) { item ->
+                        TodoRow(item, pageDate, zone, ink, onToggleDone, onEdit, onDelete)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TodoRow(
+    item: TodoItemEntity,
+    pageDate: LocalDate,
+    zone: ZoneId,
+    ink: Color,
+    onToggleDone: (TodoItemEntity) -> Unit,
+    onEdit: (TodoItemEntity) -> Unit,
+    onDelete: (TodoItemEntity) -> Unit
+) {
+    val done = item.isDone
+    val muted = ink.copy(alpha = 0.62f)
+    val checkOnInk = if (ink.luminance() > 0.5f) Color(0xFF1C1C1E) else Color.White
+    SettingsSwipeDeleteRow(
+        rowKey = item.id,
+        onRequestDelete = { onDelete(item) },
+        softAppearance = true
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onEdit(item) }
+                .padding(start = 14.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(top = 1.dp)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(if (done) muted else Color.Transparent)
+                    .border(
+                        1.5.dp,
+                        if (done) Color.Transparent else muted.copy(alpha = 0.8f),
+                        CircleShape
+                    )
+                    .clickable { onToggleDone(item) },
+                contentAlignment = Alignment.Center
+            ) {
+                if (done) {
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = "取消完成",
+                        tint = checkOnInk,
+                        modifier = Modifier.padding(3.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.width(9.dp))
+            Column(Modifier.weight(1f)) {
+                CourseCardText(
+                    text = item.title,
+                    fontSize = 14.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textDecoration = if (done) TextDecoration.LineThrough else null,
+                    color = if (done) muted else ink
+                )
+                // 已完成按当页回溯（「还有几天才完成 / 完成当天 / 几天前」），未完成按当页倒数。
+                val meta = if (done) todoDoneMeta(item, pageDate, zone) else todoDueMeta(item, pageDate)
+                if (meta != null) {
+                    CourseCardText(
+                        meta.text,
+                        fontSize = 11.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        color = if (done) {
+                            muted
+                        } else {
+                            when (meta.level) {
+                                TodoDueLevel.OVERDUE -> Color(0xFFFF453A)
+                                TodoDueLevel.TODAY -> MaterialTheme.colorScheme.primary
+                                else -> muted
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private enum class TodoEditorPage { DETAILS, DATE }
+
+@Composable
+private fun TodoEditorDialog(
+    initial: TodoItemEntity?,
+    today: LocalDate,
+    zone: ZoneId,
+    backdrop: Backdrop?,
+    config: ScheduleConfigEntity,
+    onDismiss: () -> Unit,
+    onSave: (TodoItemEntity) -> Unit
+) {
+    var title by remember(initial) { mutableStateOf(initial?.title.orEmpty()) }
+    var note by remember(initial) { mutableStateOf(initial?.note.orEmpty()) }
+    var quadrant by remember(initial) { mutableStateOf(initial?.quadrantValue ?: TodoQuadrant.IMPORTANT_URGENT) }
+    // 新建待办默认截止到今天；编辑已有项时保留原来的「无截止日期」。
+    var dueDate by remember(initial) {
+        mutableStateOf(parseIsoDate(initial?.dueDate) ?: if (initial == null) today else null)
+    }
+    // 截止日不能早于创建日：新建时创建日就是今天，编辑时沿用原来的创建日。
+    val minDueDate = remember(initial, today, zone) {
+        initial?.let { todoCreatedDate(it, zone) } ?: today
+    }
+    var page by remember { mutableStateOf(TodoEditorPage.DETAILS) }
+    var pickerDate by remember { mutableStateOf((dueDate ?: today).coerceAtLeast(minDueDate)) }
+    val contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+
+    SleepDownPickerDialog(
+        show = true,
+        title = when (page) {
+            TodoEditorPage.DETAILS -> if (initial == null) "新建待办" else "编辑待办"
+            TodoEditorPage.DATE -> "选择截止日期"
+        },
+        onDismissRequest = {
+            if (page == TodoEditorPage.DETAILS) onDismiss() else page = TodoEditorPage.DETAILS
+        },
+        backdrop = backdrop,
+        config = config,
+        contentPadding = PaddingValues(SleepDownDesignTokens.QuickSheet.PickerContentPadding),
+        contentTransitionKey = page,
+        scrollableContent = true,
+        smoothContentResize = true,
+        bottomActions = {
+            if (page == TodoEditorPage.DETAILS) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(SleepDownDesignTokens.Dialog.ActionSpacing)
+                ) {
+                    QuickSheetLiquidAction(
+                        "取消", true, backdrop, config,
+                        modifier = Modifier.weight(1f),
+                        height = SleepDownDesignTokens.CenteredDialog.ActionHeight
+                    ) { onDismiss() }
+                    QuickSheetLiquidAction(
+                        "保存", title.isNotBlank(), backdrop, config,
+                        modifier = Modifier.weight(1f),
+                        primary = true,
+                        height = SleepDownDesignTokens.CenteredDialog.ActionHeight
+                    ) {
+                        onSave(
+                            (initial ?: TodoItemEntity(title = title)).copy(
+                                title = title.trim(),
+                                note = note.trim(),
+                                quadrant = quadrant.name,
+                                dueDate = dueDate?.toString()
+                            )
+                        )
+                    }
+                }
+            } else {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(SleepDownDesignTokens.Dialog.ActionSpacing)
+                ) {
+                    QuickSheetLiquidAction(
+                        "清除", dueDate != null, backdrop, config,
+                        modifier = Modifier.weight(1f),
+                        height = SleepDownDesignTokens.CenteredDialog.ActionHeight
+                    ) {
+                        dueDate = null
+                        page = TodoEditorPage.DETAILS
+                    }
+                    QuickSheetLiquidAction(
+                        "返回", true, backdrop, config,
+                        modifier = Modifier.weight(1f),
+                        height = SleepDownDesignTokens.CenteredDialog.ActionHeight
+                    ) { page = TodoEditorPage.DETAILS }
+                    QuickSheetLiquidAction(
+                        "确定", !pickerDate.isBefore(minDueDate), backdrop, config,
+                        modifier = Modifier.weight(1f),
+                        // 早于创建日时保持中性外观，和不可点击的状态一致。
+                        primary = !pickerDate.isBefore(minDueDate),
+                        height = SleepDownDesignTokens.CenteredDialog.ActionHeight
+                    ) {
+                        dueDate = maxOf(pickerDate, minDueDate)
+                        page = TodoEditorPage.DETAILS
+                    }
+                }
+            }
+        },
+        contentForState = { state ->
+            when (state as TodoEditorPage) {
+                TodoEditorPage.DETAILS -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    DialogCapsuleField(
+                        value = title,
+                        onValueChange = { if (it.length <= 80) title = it },
+                        placeholder = "要做什么",
+                        config = config,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text("象限", style = MaterialTheme.typography.labelMedium, color = contentColor)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for (row in TodoQuadrant.entries.chunked(2)) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                for (value in row) {
+                                    QuickSheetLiquidAction(
+                                        label = value.label,
+                                        enabled = true,
+                                        backdrop = backdrop,
+                                        config = config,
+                                        modifier = Modifier.weight(1f),
+                                        primary = quadrant == value,
+                                        height = 38.dp
+                                    ) { quadrant = value }
+                                }
+                            }
+                        }
+                    }
+                    SettingsNavigationRow(
+                        title = "截止日期",
+                        subtitle = dueDate?.let { date ->
+                            "${date.monthValue}月${date.dayOfMonth}日 · " +
+                                (todoDueMeta(
+                                    (initial ?: TodoItemEntity(title = "", dueDate = date.toString()))
+                                        .copy(dueDate = date.toString()),
+                                    today
+                                )?.text.orEmpty())
+                        } ?: "无截止日期",
+                        onClick = {
+                            pickerDate = (dueDate ?: today).coerceAtLeast(minDueDate)
+                            page = TodoEditorPage.DATE
+                        }
+                    )
+                    DialogCapsuleField(
+                        value = note,
+                        onValueChange = { if (it.length <= 500) note = it },
+                        placeholder = "备注（可选）",
+                        config = config,
+                        minLines = 2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                TodoEditorPage.DATE -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "${pickerDate.monthValue}月${pickerDate.dayOfMonth}日",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (pickerDate.isBefore(minDueDate)) {
+                        Text(
+                            "不能早于创建日 ${minDueDate.monthValue}月${minDueDate.dayOfMonth}日",
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    SettingsDatePickerContent(
+                        year = pickerDate.year,
+                        month = pickerDate.monthValue,
+                        day = pickerDate.dayOfMonth,
+                        onYearChange = { pickerDate = pickerDate.withYear(it) },
+                        onMonthChange = { pickerDate = pickerDate.withMonth(it) },
+                        onDayChange = { day ->
+                            pickerDate = pickerDate.withDayOfMonth(
+                                day.coerceIn(1, pickerDate.lengthOfMonth())
+                            )
+                        }
+                    )
+                }
+            }
+        },
+        content = {}
+    )
+}

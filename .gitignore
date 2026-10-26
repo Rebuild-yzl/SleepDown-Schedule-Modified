@@ -27,3 +27,7 @@ sleepdown_log_*.txt
 /docs/plans/*.jpeg
 /docs/plans/*.png
 /docs/plans/*.webp
+# 用户导出的备份文件（含个人课表与设置，不进入版本库）
+/docs/plans/*.sleepdown
+# 会话临时文件（截图、dump、提交说明草稿），不进入版本库
+/tmp/

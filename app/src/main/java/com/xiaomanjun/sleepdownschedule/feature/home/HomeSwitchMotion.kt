@@ -45,7 +45,7 @@ import androidx.compose.ui.unit.dp
 import com.xiaomanjun.sleepdownschedule.glass.LocalGlassCoordinatesFrozen
 import com.xiaomanjun.sleepdownschedule.glass.LocalGlassSampleRecordKey
 import kotlin.math.abs
-import kotlin.math.min
+import kotlin.math.round
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -64,18 +64,20 @@ internal enum class HomeSwitchClip { None, Page, TopBar }
 /** ColorOS retains every follow track; legacy dense glass can use its existing page slide. */
 @Stable
 internal class HomeSwitchMotion(
-    initialSecondary: Boolean,
-    private val target: State<Boolean>,
+    initialSlot: Int,
+    private val targetSlot: State<Int>,
     val landscape: Boolean = false,
     private val fullMotion: Boolean = false,
+    // Indexed page switches run as one non-bouncy page slide; the timetable keeps its stagger.
+    private val forcePlainSlide: Boolean = false,
     private val renderedCardCount: () -> Int = { 0 }
 ) {
-    private val page = Animatable(if (initialSecondary) 1f else 0f)
-    private val tracks = List(SwitchGroupCount) { Animatable(if (initialSecondary) 1f else 0f) }
+    private val page = Animatable(initialSlot.toFloat())
+    private val tracks = List(SwitchGroupCount) { Animatable(initialSlot.toFloat()) }
     // Animatable resets velocity on cancellation. Keep the last frame for a continuous reversal.
     private var pageVelocity = 0f
     private val velocities = FloatArray(SwitchGroupCount)
-    private var settledSecondary by mutableStateOf(initialSecondary)
+    private var settledSlot by mutableStateOf(initialSlot)
     private var running by mutableStateOf(false)
     // Latch once per switch (including reversals), so a count update cannot jump live cards.
     private var latchedPlainSlide by mutableStateOf(false)
@@ -85,9 +87,10 @@ internal class HomeSwitchMotion(
     val plainSlide: Boolean by derivedStateOf(structuralEqualityPolicy()) {
         if (running) latchedPlainSlide else shouldUsePlainSlide()
     }
-    private fun shouldUsePlainSlide() = !fullMotion && renderedCardCount() > 10
+    private fun shouldUsePlainSlide() =
+        forcePlainSlide || (!fullMotion && renderedCardCount() > 10)
     val progress: State<Float> = page.asState()
-    val moving: Boolean get() = running || settledSecondary != target.value
+    val moving: Boolean get() = running || settledSlot != targetSlot.value
 
     // Keep sampling throughout the stagger and the spring's overshoot/settling frames.
     // All glass consumers share one immutable key per frame instead of rebuilding the same
@@ -98,41 +101,43 @@ internal class HomeSwitchMotion(
     val pageSampleKey: Any by derivedStateOf { Triple(page.value, cornerFraction, moving) }
 
     val cornerFraction: Float by derivedStateOf {
-            // Follow the whole motion envelope. Clamping progress to 0..1 erased the corners
-            // at the first endpoint crossing, exactly when the spring started rebounding.
-            fun edgeDistance(value: Float) = min(abs(value), abs(1f - value))
+            // Follow the whole motion envelope. Clamping progress erased the corners at the
+            // first endpoint crossing, exactly when the spring started rebounding. Slots are
+            // indexed, so the resting positions are the integers.
+            fun edgeDistance(value: Float) = abs(value - round(value))
             val distance = if (plainSlide) edgeDistance(page.value)
                 else maxOf(edgeDistance(page.value), tracks.maxOf { edgeDistance(it.value) })
             val fraction = (distance / 0.06f).coerceIn(0f, 1f)
             fraction * fraction * (3f - 2f * fraction)
         }
 
-    fun retains(secondary: Boolean): Boolean = moving || settledSecondary == secondary
+    fun retains(slot: Int): Boolean = moving || settledSlot == slot
+    fun retains(secondary: Boolean): Boolean = retains(if (secondary) 1 else 0)
     fun groupProgress(group: Int): Float = if (plainSlide) page.value
         else tracks[group.coerceIn(0, SwitchGroupCount - 1)].value
 
-    suspend fun settleAt(secondary: Boolean) {
+    suspend fun settleAt(slot: Int) {
         latchedPlainSlide = shouldUsePlainSlide()
-        val destination = if (secondary) 1f else 0f
+        val destination = slot.toFloat()
         page.snapTo(destination)
         tracks.forEach { it.snapTo(destination) }
         pageVelocity = 0f
         velocities.fill(0f)
-        settledSecondary = secondary
+        settledSlot = slot
         running = false
     }
 
-    suspend fun animateTo(secondary: Boolean) {
+    suspend fun animateTo(slot: Int) {
         if (!running) latchedPlainSlide = shouldUsePlainSlide()
-        val destination = if (secondary) 1f else 0f
+        val destination = slot.toFloat()
         if (page.value == destination && pageVelocity == 0f &&
             tracks.all { it.value == destination } && velocities.all { it == 0f }) {
-            settledSecondary = secondary
+            settledSlot = slot
             running = false
             return
         }
         // On reversal keep every group's current position, without another initial pause.
-        val settledPosition = if (settledSecondary) 1f else 0f
+        val settledPosition = settledSlot.toFloat()
         val interrupted = page.value != settledPosition || pageVelocity != 0f ||
             tracks.any { it.value != settledPosition } || velocities.any { it != 0f }
         val durationScale = currentCoroutineContext()[MotionDurationScale]?.scaleFactor ?: 1f
@@ -146,7 +151,7 @@ internal class HomeSwitchMotion(
                 pageVelocity = 0f
                 tracks.forEach { it.snapTo(destination) }
                 velocities.fill(0f)
-                settledSecondary = secondary
+                settledSlot = slot
                 completed = true
                 return
             }
@@ -168,7 +173,7 @@ internal class HomeSwitchMotion(
                     }
                 }
             }
-            settledSecondary = secondary
+            settledSlot = slot
             completed = true
         } finally {
             // An interrupted LaunchedEffect is replaced with a new target. Clearing this flag
@@ -178,24 +183,43 @@ internal class HomeSwitchMotion(
         }
     }
 }
-
 @Composable
 internal fun rememberHomeSwitchMotion(
     secondary: Boolean,
     label: String,
     animate: Boolean = true,
+    plainSlide: Boolean = false,
+    renderedCardCount: () -> Int = { 0 }
+): HomeSwitchMotion = rememberHomeSwitchMotion(
+    slot = if (secondary) 1 else 0,
+    label = label,
+    animate = animate,
+    plainSlide = plainSlide,
+    renderedCardCount = renderedCardCount
+)
+
+/**
+ * Indexed variant used by the home host itself: home schedule / 待办 / 倒数日 are three slots of
+ * one switch, so every page keeps the wallpaper underneath and the same slide + fade envelope.
+ */
+@Composable
+internal fun rememberHomeSwitchMotion(
+    slot: Int,
+    label: String,
+    animate: Boolean = true,
+    plainSlide: Boolean = false,
     renderedCardCount: () -> Int = { 0 }
 ): HomeSwitchMotion {
-    val target = rememberUpdatedState(secondary)
+    val target = rememberUpdatedState(slot)
     val latestCardCount = rememberUpdatedState(renderedCardCount)
     val configuration = LocalConfiguration.current
     val landscape = configuration.screenWidthDp > configuration.screenHeightDp
     val fullMotion = com.xiaomanjun.sleepdownschedule.core.ui.designsystem.LocalNativeCourseCardMode.current != null
-    val motion = remember(label, landscape, fullMotion) {
-        HomeSwitchMotion(secondary, target, landscape, fullMotion) { latestCardCount.value() }
+    val motion = remember(label, landscape, fullMotion, plainSlide) {
+        HomeSwitchMotion(slot, target, landscape, fullMotion, plainSlide) { latestCardCount.value() }
     }
-    LaunchedEffect(motion, secondary, animate) {
-        if (animate) motion.animateTo(secondary) else motion.settleAt(secondary)
+    LaunchedEffect(motion, slot, animate) {
+        if (animate) motion.animateTo(slot) else motion.settleAt(slot)
     }
     return motion
 }
@@ -203,14 +227,14 @@ internal fun rememberHomeSwitchMotion(
 @Composable
 internal fun Modifier.homeSwitchLayer(
     motion: HomeSwitchMotion,
-    secondary: Boolean,
+    slot: Int,
     pageClip: HomeSwitchClip = HomeSwitchClip.None
 ): Modifier {
     val direction = if (LocalLayoutDirection.current == LayoutDirection.Rtl) -1f else 1f
     return graphicsLayer {
         if (motion.landscape && !motion.plainSlide) {
             translationX = 0f
-            val visibility = (if (secondary) motion.progress.value else 1f - motion.progress.value).coerceIn(0f, 1f)
+            val visibility = (1f - abs(slot - motion.progress.value)).coerceIn(0f, 1f)
             alpha = visibility
             scaleX = 0.96f + 0.04f * visibility
             scaleY = scaleX
@@ -223,7 +247,7 @@ internal fun Modifier.homeSwitchLayer(
             scaleX = 1f
             scaleY = 1f
             renderEffect = null
-            translationX = direction * size.width * ((if (secondary) 1f else 0f) - motion.progress.value)
+            translationX = direction * size.width * (slot - motion.progress.value)
             // Both motion styles keep the original rounded page clip while moving.
             clip = pageClip != HomeSwitchClip.None && motion.moving
             shape = if (clip) {
@@ -234,6 +258,14 @@ internal fun Modifier.homeSwitchLayer(
         }
     }
 }
+
+/** Two-slot callers (home ↔ settings) keep the original boolean wording. */
+@Composable
+internal fun Modifier.homeSwitchLayer(
+    motion: HomeSwitchMotion,
+    secondary: Boolean,
+    pageClip: HomeSwitchClip = HomeSwitchClip.None
+): Modifier = homeSwitchLayer(motion, if (secondary) 1 else 0, pageClip)
 
 private class SwitchPageScope(val motion: HomeSwitchMotion, val width: State<Int>, val direction: Float)
 private val LocalSwitchPages = staticCompositionLocalOf<List<SwitchPageScope>> { emptyList() }
@@ -273,14 +305,14 @@ internal fun Modifier.homeSwitchGroup(cardOrderFraction: Float? = null): Modifie
 @Composable
 internal fun HomeSwitchPane(
     motion: HomeSwitchMotion,
-    secondary: Boolean,
+    slot: Int,
     modifier: Modifier = Modifier,
     pageClip: HomeSwitchClip = HomeSwitchClip.None,
     retainContent: Boolean = false,
     contentAlignment: Alignment = Alignment.TopStart,
     content: @Composable BoxScope.() -> Unit
 ) {
-    val visible = motion.retains(secondary)
+    val visible = motion.retains(slot)
     // Keep expensive timetable composition ready after the first idle interval. Hidden pages
     // do not draw, sample glass, tick their minute clocks or publish accessibility content.
     var warmed by remember { mutableStateOf(false) }
@@ -316,7 +348,7 @@ internal fun HomeSwitchPane(
             }
             .drawWithContent { if (visible) drawContent() }
             .onSizeChanged { width.intValue = it.width }
-            .homeSwitchLayer(motion, secondary, pageClip).then(inputModifier),
+            .homeSwitchLayer(motion, slot, pageClip).then(inputModifier),
         contentAlignment = contentAlignment
     ) {
         val parentFrozen = LocalGlassCoordinatesFrozen.current
@@ -351,6 +383,18 @@ internal fun HomeSwitchPane(
         ) { content() }
     }
 }
+
+/** Two-slot callers keep the original boolean wording. */
+@Composable
+internal fun HomeSwitchPane(
+    motion: HomeSwitchMotion,
+    secondary: Boolean,
+    modifier: Modifier = Modifier,
+    pageClip: HomeSwitchClip = HomeSwitchClip.None,
+    retainContent: Boolean = false,
+    contentAlignment: Alignment = Alignment.TopStart,
+    content: @Composable BoxScope.() -> Unit
+) = HomeSwitchPane(motion, if (secondary) 1 else 0, modifier, pageClip, retainContent, contentAlignment, content)
 
 /** A retained day page must not leak neighbouring cards through the outer page's rebound. */
 @Composable
