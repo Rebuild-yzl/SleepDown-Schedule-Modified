@@ -205,9 +205,9 @@ internal fun TodoPage(
             key = { it }
         ) { page ->
             val pageDate = remember(anchorDate, page) { dateForPage(page) }
-            val dayItems = remember(items, pageDate, zone) {
-                // 创建日 → 截止日之间每天出现；逾期未完成的继续每天出现，直到完成。
-                items.filter { todoVisibleOn(it, pageDate, zone) }
+            val dayItems = remember(items, pageDate, today, zone) {
+                // 未完成的起点是创建日、终点是 max(截止日, 今天)；已完成看到 max(截止日, 完成日)。
+                items.filter { todoVisibleOn(it, pageDate, today, zone) }
             }
             val grouped = remember(dayItems, settledDoneIds) { groupTodoItems(dayItems, settledDoneIds) }
             Column(
@@ -220,24 +220,24 @@ internal fun TodoPage(
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     QuadrantCard(
                         TodoQuadrant.IMPORTANT_URGENT, grouped.getValue(TodoQuadrant.IMPORTANT_URGENT),
-                        today, pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
+                        pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                     QuadrantCard(
                         TodoQuadrant.IMPORTANT_NOT_URGENT, grouped.getValue(TodoQuadrant.IMPORTANT_NOT_URGENT),
-                        today, pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
+                        pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                 }
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     QuadrantCard(
                         TodoQuadrant.URGENT_NOT_IMPORTANT, grouped.getValue(TodoQuadrant.URGENT_NOT_IMPORTANT),
-                        today, pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
+                        pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                     QuadrantCard(
                         TodoQuadrant.NEITHER, grouped.getValue(TodoQuadrant.NEITHER),
-                        today, pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
+                        pageDate, zone, config, backdrop, ink, Modifier.weight(1f).fillMaxHeight(),
                         onToggleDone, { editorTarget = it }, { deleteTarget = it }
                     )
                 }
@@ -250,6 +250,7 @@ internal fun TodoPage(
         TodoEditorDialog(
             initial = editing,
             today = today,
+            zone = zone,
             backdrop = dialogBackdrop,
             config = config,
             onDismiss = { creating = false; editorTarget = null },
@@ -308,9 +309,9 @@ internal fun TodoPage(
                                         textDecoration = TextDecoration.LineThrough,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    item.doneAt?.let { doneAt ->
+                                    todoDoneListMeta(item, today, zone)?.let { meta ->
                                         Text(
-                                            todoDoneLabel(doneAt, today, zone),
+                                            meta.text,
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                         )
@@ -337,7 +338,6 @@ internal fun TodoPage(
 private fun QuadrantCard(
     quadrant: TodoQuadrant,
     items: List<TodoItemEntity>,
-    today: LocalDate,
     pageDate: LocalDate,
     zone: ZoneId,
     config: ScheduleConfigEntity,
@@ -399,7 +399,7 @@ private fun QuadrantCard(
                     contentPadding = PaddingValues(bottom = 6.dp)
                 ) {
                     items(items, key = { it.id }) { item ->
-                        TodoRow(item, today, pageDate, zone, ink, onToggleDone, onEdit, onDelete)
+                        TodoRow(item, pageDate, zone, ink, onToggleDone, onEdit, onDelete)
                     }
                 }
             }
@@ -410,7 +410,6 @@ private fun QuadrantCard(
 @Composable
 private fun TodoRow(
     item: TodoItemEntity,
-    today: LocalDate,
     pageDate: LocalDate,
     zone: ZoneId,
     ink: Color,
@@ -467,17 +466,22 @@ private fun TodoRow(
                     textDecoration = if (done) TextDecoration.LineThrough else null,
                     color = if (done) muted else ink
                 )
-                val meta = if (done) item.doneAt?.let { todoDoneLabel(it, today, zone) }
-                else todoDueMeta(item, pageDate)?.text
+                // 已完成按当页回溯（「还有几天才完成 / 完成当天 / 几天前」），未完成按当页倒数。
+                val meta = if (done) todoDoneMeta(item, pageDate, zone) else todoDueMeta(item, pageDate)
                 if (meta != null) {
-                    val level = if (done) null else todoDueMeta(item, pageDate)?.level
                     CourseCardText(
-                        meta,
+                        meta.text,
                         fontSize = 11.sp,
-                        color = when (level) {
-                            TodoDueLevel.OVERDUE -> Color(0xFFFF453A)
-                            TodoDueLevel.TODAY -> MaterialTheme.colorScheme.primary
-                            else -> muted
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        color = if (done) {
+                            muted
+                        } else {
+                            when (meta.level) {
+                                TodoDueLevel.OVERDUE -> Color(0xFFFF453A)
+                                TodoDueLevel.TODAY -> MaterialTheme.colorScheme.primary
+                                else -> muted
+                            }
                         }
                     )
                 }
@@ -492,6 +496,7 @@ private enum class TodoEditorPage { DETAILS, DATE }
 private fun TodoEditorDialog(
     initial: TodoItemEntity?,
     today: LocalDate,
+    zone: ZoneId,
     backdrop: Backdrop?,
     config: ScheduleConfigEntity,
     onDismiss: () -> Unit,
@@ -504,8 +509,12 @@ private fun TodoEditorDialog(
     var dueDate by remember(initial) {
         mutableStateOf(parseIsoDate(initial?.dueDate) ?: if (initial == null) today else null)
     }
+    // 截止日不能早于创建日：新建时创建日就是今天，编辑时沿用原来的创建日。
+    val minDueDate = remember(initial, today, zone) {
+        initial?.let { todoCreatedDate(it, zone) } ?: today
+    }
     var page by remember { mutableStateOf(TodoEditorPage.DETAILS) }
-    var pickerDate by remember { mutableStateOf(dueDate ?: today) }
+    var pickerDate by remember { mutableStateOf((dueDate ?: today).coerceAtLeast(minDueDate)) }
     val contentColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     SleepDownPickerDialog(
@@ -569,12 +578,13 @@ private fun TodoEditorDialog(
                         height = SleepDownDesignTokens.CenteredDialog.ActionHeight
                     ) { page = TodoEditorPage.DETAILS }
                     QuickSheetLiquidAction(
-                        "确定", true, backdrop, config,
+                        "确定", !pickerDate.isBefore(minDueDate), backdrop, config,
                         modifier = Modifier.weight(1f),
-                        primary = true,
+                        // 早于创建日时保持中性外观，和不可点击的状态一致。
+                        primary = !pickerDate.isBefore(minDueDate),
                         height = SleepDownDesignTokens.CenteredDialog.ActionHeight
                     ) {
-                        dueDate = pickerDate
+                        dueDate = maxOf(pickerDate, minDueDate)
                         page = TodoEditorPage.DETAILS
                     }
                 }
@@ -622,7 +632,7 @@ private fun TodoEditorDialog(
                                 )?.text.orEmpty())
                         } ?: "无截止日期",
                         onClick = {
-                            pickerDate = dueDate ?: today
+                            pickerDate = (dueDate ?: today).coerceAtLeast(minDueDate)
                             page = TodoEditorPage.DATE
                         }
                     )
@@ -643,6 +653,15 @@ private fun TodoEditorDialog(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
+                    if (pickerDate.isBefore(minDueDate)) {
+                        Text(
+                            "不能早于创建日 ${minDueDate.monthValue}月${minDueDate.dayOfMonth}日",
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                     SettingsDatePickerContent(
                         year = pickerDate.year,
                         month = pickerDate.monthValue,

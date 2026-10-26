@@ -55,21 +55,36 @@ private fun elapsedDays(days: Long): String = days.toString()
 internal fun todoCreatedDate(item: TodoItemEntity, zone: ZoneId): LocalDate? =
     item.createdAt.takeIf { it > 0L }?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
 
+internal fun todoDoneDate(item: TodoItemEntity, zone: ZoneId): LocalDate? =
+    item.doneAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
+
 /**
- * 待办在某个日期页是否出现：创建日到截止日之间每天出现（已完成也出现）；
- * 逾期未完成的继续每天出现，直到完成；逾期已完成的停在下一次截止日之后。
+ * 待办在某个日期页是否出现：起点是创建日，终点分两种。
+ *
+ * - 未完成：max(截止日, 今天)。当天页显示逾期项，未来页不显示；无截止日则一直显示。
+ * - 已完成：max(截止日, 完成日)。按期完成的看到截止日，逾期完成的看到完成日。
  */
-internal fun todoVisibleOn(item: TodoItemEntity, pageDate: LocalDate, zone: ZoneId): Boolean {
+internal fun todoVisibleOn(
+    item: TodoItemEntity,
+    pageDate: LocalDate,
+    today: LocalDate,
+    zone: ZoneId
+): Boolean {
     val created = todoCreatedDate(item, zone)
     if (created != null && pageDate.isBefore(created)) return false
-    val due = parseIsoDate(item.dueDate) ?: return true
-    if (!pageDate.isAfter(due)) return true
-    return !item.isDone
+    val due = parseIsoDate(item.dueDate)
+    val done = todoDoneDate(item, zone)
+    val end = when {
+        done != null -> if (due != null) maxOf(due, done) else done
+        due != null -> maxOf(due, today)
+        else -> return true
+    }
+    return !pageDate.isAfter(end)
 }
 
 /**
- * 某一天页面上的副标题：未完成显示距离截止日还有多久（相对当前页），逾期显示已过天数；
- * 已完成显示距离完成日的真实天数（相对今天）。
+ * 未完成项在某一天页面上的副标题：以当页为基准倒数（还有几天 / 今天到期 / 已逾期几天）。
+ * 已完成项走 [todoDoneMeta]，两者不会同时出现在同一行。
  */
 internal fun todoDueMeta(item: TodoItemEntity, pageDate: LocalDate): TodoDueMeta? {
     if (item.isDone) return null
@@ -86,7 +101,13 @@ internal fun todoDueMeta(item: TodoItemEntity, pageDate: LocalDate): TodoDueMeta
             TodoDueMeta("本月 还有${todoDayCount(days)}天", TodoDueLevel.DATED)
         date.year == pageDate.plusMonths(1).year && date.month == pageDate.plusMonths(1).month ->
             TodoDueMeta("下个月 还有${todoDayCount(days)}天", TodoDueLevel.DATED)
-        else -> TodoDueMeta("${date.monthValue}月 还有${todoDayCount(days)}天", TodoDueLevel.DATED)
+        // 跨年只在次年写「明年」，再远就写完整年份，免得「1月」看不出是哪一年。
+        date.year == pageDate.year ->
+            TodoDueMeta("${date.monthValue}月 还有${todoDayCount(days)}天", TodoDueLevel.DATED)
+        date.year == pageDate.year + 1 ->
+            TodoDueMeta("明年${date.monthValue}月 还有${todoDayCount(days)}天", TodoDueLevel.DATED)
+        else ->
+            TodoDueMeta("${date.year}年${date.monthValue}月 还有${todoDayCount(days)}天", TodoDueLevel.DATED)
     }
 }
 
@@ -95,14 +116,37 @@ private fun sameIsoWeek(a: LocalDate, b: LocalDate): Boolean {
     return weekStart(a) == weekStart(b)
 }
 
-internal fun todoDoneLabel(doneAtMillis: Long, today: LocalDate, zone: ZoneId): String {
-    val doneDate = Instant.ofEpochMilli(doneAtMillis).atZone(zone).toLocalDate()
-    val days = ChronoUnit.DAYS.between(doneDate, today)
-    return when {
-        days <= 0L -> "已完成 今天"
+/**
+ * 已完成行的副标题：以 [basis] 为基准（日期页传页日期，已完成列表传今天）。
+ *
+ * e = basis - 完成日：负数表示「还有几天才完成」，0 是完成当天，正数按天前回溯。
+ * [overdueMoment] 只影响「当时逾期」后缀——日期页传页日期（那一页是否已过截止日），
+ * 已完成列表传完成日（完成那一刻是否已逾期）。
+ */
+internal fun todoDoneMeta(
+    item: TodoItemEntity,
+    basis: LocalDate,
+    zone: ZoneId,
+    overdueMoment: LocalDate = basis
+): TodoDueMeta? {
+    val done = todoDoneDate(item, zone) ?: return null
+    val days = ChronoUnit.DAYS.between(done, basis)
+    val text = when {
+        days < 0L -> "已完成 ${-days}天后"
+        days == 0L -> "已完成 今天"
         days == 1L -> "已完成 昨天"
         else -> "已完成 ${elapsedDays(days)}天前"
     }
+    val due = parseIsoDate(item.dueDate)
+    val late = due != null && overdueMoment.isAfter(due)
+    return TodoDueMeta(
+        text = if (late) "$text 当时逾期" else text,
+        level = if (late) TodoDueLevel.OVERDUE else TodoDueLevel.DATED
+    )
 }
+
+/** 已完成列表没有页日期，基准取今天；「当时逾期」看完成那一刻是否已过截止日。 */
+internal fun todoDoneListMeta(item: TodoItemEntity, today: LocalDate, zone: ZoneId): TodoDueMeta? =
+    todoDoneMeta(item, today, zone, overdueMoment = todoDoneDate(item, zone) ?: today)
 
 internal fun unfinishedCount(items: List<TodoItemEntity>): Int = items.count { !it.isDone }

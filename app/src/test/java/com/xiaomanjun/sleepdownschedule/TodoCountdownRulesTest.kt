@@ -6,7 +6,8 @@ import com.xiaomanjun.sleepdownschedule.feature.countdown.sortCountdownEvents
 import com.xiaomanjun.sleepdownschedule.feature.todo.TodoDueLevel
 import com.xiaomanjun.sleepdownschedule.feature.todo.groupTodoItems
 import com.xiaomanjun.sleepdownschedule.feature.todo.sortTodoItems
-import com.xiaomanjun.sleepdownschedule.feature.todo.todoDoneLabel
+import com.xiaomanjun.sleepdownschedule.feature.todo.todoDoneListMeta
+import com.xiaomanjun.sleepdownschedule.feature.todo.todoDoneMeta
 import com.xiaomanjun.sleepdownschedule.feature.todo.todoDueMeta
 import com.xiaomanjun.sleepdownschedule.feature.todo.todoVisibleOn
 import com.xiaomanjun.sleepdownschedule.model.CountdownEventEntity
@@ -16,6 +17,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -86,41 +88,80 @@ class TodoCountdownRulesTest {
         assertEquals("后天 还有两天", todoDueMeta(todo(4, due = "2026-10-27"), today)?.text)
         assertEquals("本月 还有五天", todoDueMeta(todo(5, due = "2026-10-30"), today)?.text)
         assertEquals("下个月 还有26天", todoDueMeta(todo(6, due = "2026-11-20"), today)?.text)
+        // 跨年：次年写「明年」，再远写完整年份。
+        val dec = LocalDate.of(2026, 12, 20)
+        assertEquals("下个月 还有16天", todoDueMeta(todo(9, due = "2027-01-05"), dec)?.text)
+        assertEquals("明年3月 还有71天", todoDueMeta(todo(10, due = "2027-03-01"), dec)?.text)
+        val far = ChronoUnit.DAYS.between(dec, LocalDate.of(2028, 1, 10))
+        assertEquals("2028年1月 还有${far}天", todoDueMeta(todo(11, due = "2028-01-10"), dec)?.text)
         assertNull(todoDueMeta(todo(7), today))
         assertNull(todoDueMeta(todo(8, due = "2026-10-20", doneAt = 9L), today))
     }
 
     @Test
-    fun todoVisibleFromCreationThroughDueDateAndKeepsOverdueOpen() {
+    fun todoVisibleFromCreationToDueOrTodayWithOverdueCarryOver() {
         val zone = ZoneId.of("Asia/Shanghai")
-        val created = LocalDate.of(2026, 10, 20).atStartOfDay(zone).toInstant().toEpochMilli()
-        val open = todo(1, due = "2026-10-25", createdAt = created)
+        fun at(month: Int, day: Int) =
+            LocalDate.of(2026, month, day).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
 
-        assertFalse(todoVisibleOn(open, LocalDate.of(2026, 10, 19), zone))
-        assertTrue(todoVisibleOn(open, LocalDate.of(2026, 10, 20), zone))
-        assertTrue(todoVisibleOn(open, LocalDate.of(2026, 10, 25), zone))
-        // 逾期未完成：接下来每天继续出现。
-        assertTrue(todoVisibleOn(open, LocalDate.of(2027, 1, 1), zone))
+        val open = todo(1, due = "2026-10-25", createdAt = at(10, 20))
+        assertFalse(todoVisibleOn(open, LocalDate.of(2026, 10, 19), today, zone))
+        assertTrue(todoVisibleOn(open, LocalDate.of(2026, 10, 20), today, zone))
+        assertTrue(todoVisibleOn(open, LocalDate.of(2026, 10, 25), today, zone))
+        // 逾期未完成：延续到实际今天，未来的页不显示。
+        assertTrue(todoVisibleOn(open, LocalDate.of(2026, 10, 27), LocalDate.of(2026, 10, 27), zone))
+        assertFalse(todoVisibleOn(open, LocalDate.of(2026, 10, 28), LocalDate.of(2026, 10, 27), zone))
 
-        // 逾期已完成：停在截止日，不再往后出现；截止日当天仍然可见。
-        val done = open.copy(doneAt = 1L)
-        assertTrue(todoVisibleOn(done, LocalDate.of(2026, 10, 25), zone))
-        assertFalse(todoVisibleOn(done, LocalDate.of(2026, 10, 26), zone))
+        // 未到期：创建日到截止日之间都显示，未来页也显示。
+        val later = todo(2, due = "2026-10-30", createdAt = at(10, 20))
+        assertTrue(todoVisibleOn(later, LocalDate.of(2026, 10, 28), today, zone))
 
-        // 没有截止日期：创建后每天出现。
-        val undated = todo(2, createdAt = created)
-        assertTrue(todoVisibleOn(undated, LocalDate.of(2027, 1, 1), zone))
+        // 逾期完成：看到完成日为止。
+        val doneLate = open.copy(doneAt = at(10, 28))
+        assertTrue(todoVisibleOn(doneLate, LocalDate.of(2026, 10, 26), today, zone))
+        assertTrue(todoVisibleOn(doneLate, LocalDate.of(2026, 10, 28), today, zone))
+        assertFalse(todoVisibleOn(doneLate, LocalDate.of(2026, 10, 29), today, zone))
+
+        // 按期完成：看到截止日为止，之后不再出现。
+        val doneOnTime = later.copy(doneAt = at(10, 22))
+        assertTrue(todoVisibleOn(doneOnTime, LocalDate.of(2026, 10, 30), today, zone))
+        assertFalse(todoVisibleOn(doneOnTime, LocalDate.of(2026, 10, 31), today, zone))
+
+        // 没有截止日期：未完成一直出现，完成后停在完成日。
+        val undated = todo(3, createdAt = at(10, 20))
+        assertTrue(todoVisibleOn(undated, LocalDate.of(2027, 1, 1), today, zone))
+        val undatedDone = undated.copy(doneAt = at(10, 21))
+        assertTrue(todoVisibleOn(undatedDone, LocalDate.of(2026, 10, 21), today, zone))
+        assertFalse(todoVisibleOn(undatedDone, LocalDate.of(2026, 10, 22), today, zone))
     }
 
     @Test
-    fun todoDoneLabelUsesCalendarDays() {
+    fun todoDoneMetaCountsFromPageDateAndMarksOverdueAtThatPage() {
         val zone = ZoneId.of("Asia/Shanghai")
-        val yesterday = LocalDate.of(2026, 10, 24).atTime(22, 0).atZone(zone).toInstant().toEpochMilli()
-        val earlier = Instant.parse("2026-10-20T02:00:00Z").toEpochMilli()
+        fun at(month: Int, day: Int) =
+            LocalDate.of(2026, month, day).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
 
-        assertEquals("已完成 昨天", todoDoneLabel(yesterday, today, zone))
-        assertEquals("已完成 5天前", todoDoneLabel(earlier, today, zone))
-        assertEquals("已完成 今天", todoDoneLabel(LocalDate.of(2026, 10, 25).atTime(8, 0).atZone(zone).toInstant().toEpochMilli(), today, zone))
+        // 10/28 截止，10/30 才完成：之前几页写「还有几天才完成」，过截止日的页追「当时逾期」。
+        val late = todo(1, due = "2026-10-28", createdAt = at(10, 24), doneAt = at(10, 30))
+        assertEquals("已完成 6天后", todoDoneMeta(late, LocalDate.of(2026, 10, 24), zone)?.text)
+        assertEquals("已完成 2天后", todoDoneMeta(late, LocalDate.of(2026, 10, 28), zone)?.text)
+        assertEquals("已完成 1天后 当时逾期", todoDoneMeta(late, LocalDate.of(2026, 10, 29), zone)?.text)
+        assertEquals("已完成 今天 当时逾期", todoDoneMeta(late, LocalDate.of(2026, 10, 30), zone)?.text)
+        // 已完成列表以今天为基准，「当时逾期」看完成那一刻。
+        assertEquals("已完成 昨天 当时逾期", todoDoneListMeta(late, LocalDate.of(2026, 10, 31), zone)?.text)
+
+        // 按期完成：可见的最后一页是截止日，不加「当时逾期」；之后的页本来就不再显示。
+        val onTime = todo(2, due = "2026-10-30", createdAt = at(10, 24), doneAt = at(10, 26))
+        assertEquals("已完成 4天后", todoDoneMeta(onTime, LocalDate.of(2026, 10, 22), zone)?.text)
+        assertEquals("已完成 今天", todoDoneMeta(onTime, LocalDate.of(2026, 10, 26), zone)?.text)
+        assertEquals("已完成 昨天", todoDoneMeta(onTime, LocalDate.of(2026, 10, 27), zone)?.text)
+        assertEquals("已完成 4天前", todoDoneMeta(onTime, LocalDate.of(2026, 10, 30), zone)?.text)
+        assertFalse(todoVisibleOn(onTime, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 1), zone))
+        // 列表里也不带后缀：完成得比截止日早。
+        assertEquals("已完成 6天前", todoDoneListMeta(onTime, LocalDate.of(2026, 11, 1), zone)?.text)
+
+        // 未完成没有完成态文案。
+        assertNull(todoDoneMeta(todo(3, due = "2026-10-30"), LocalDate.of(2026, 10, 30), zone))
     }
 
     @Test
